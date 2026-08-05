@@ -41,6 +41,7 @@
 - 2026-08-05: 新增 `runtime.HttpRuntimeServer`，接管 HTTP 8088 的雷达/博研接收、配置转发、健康检查和安全响应头；`Server_AITC.py` 已切换到新服务。新增本地 HTTP 自动化测试，当前共 19 项通过。旧 HTTP handler 暂留作未运行回退代码，待真实回放后删除。
 - 2026-08-05: 已对新 HTTP 服务执行真实 `POST /radar` 回放，返回成功，HTTP 来源 radar 数据写入 `infra/data/runtime/runtime/radar.jsonl`，后台日志无 ERROR/Traceback，验证服务已停止。下一步删除主文件中的旧 HTTP 实现。
 - 2026-08-05: 删除 `Server_AITC.py` 中已被 `HttpRuntimeServer` 替代的旧 HTTP handler、CORS/安全响应常量、跨域判断与启动函数，主文件减少约 230 行。TCP、HTTP 与周期决策现均由 `runtime/` 组件承载；自动化测试共 19 项通过。
+- 2026-08-05: 新增 `runtime.AITCApplication` 与 `create_application()`，集中装配 TCP/HTTP 服务、周期决策、预测调度和配置同步，并统一管理启动、停止和可中断的周期线程。`Server_AITC.py` 现仅保留日志配置、信号绑定和 `application.run()`；新增生命周期测试，自动化测试共 20 项。
 - Pending: Continue project cleanup before the enterprise refactor, especially separating source, generated runtime data, configs, and tests.
 - Next suggested step: 使用新的 flow fixture 对运行中的服务进行 TCP 回放集成验证，再评估旧写入/缓存文件的删减范围。
 
