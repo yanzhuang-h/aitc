@@ -27,6 +27,7 @@ from lib.nacos_floating_value import (
     NacosTimeScheduleSync,
 )
 from lib.config_api import handle_config_request
+from infra.data import DataKind, DataSource, RuntimeDataWriter, classify_data
 
 # HTTP服务器相关导入
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -163,6 +164,7 @@ send_lock=threading.Lock()
 http_server_shutdown = threading.Event()
 
 Write_to_file.start_filename_updater()
+runtime_data_writer = RuntimeDataWriter(Write_to_file)
 
 CORS_RESPONSE_HEADERS = {
     "access-control-allow-origin",
@@ -355,30 +357,28 @@ class RadarHTTPRequestHandler(BaseHTTPRequestHandler):
     def handle_single_radar_data(self, item):
         """处理单条雷达数据"""
         try:
-            if "deviceNo" in item:  # 确认是雷达数据
-                # 写入文件
-                Write_to_file.write_to_radar_file(json.dumps(item))
-                
+            classified = classify_data(item, source=DataSource.HTTP)
+            runtime_data_writer.write(classified.kind, item)
+
+            if classified.kind in (DataKind.RADAR, DataKind.RADAR_EVENT):
                 type_value = item.get("eventType")
                 deviceNo = item.get("deviceNo")
                 
                 # 添加到雷达数据窗口
-                if type_value is None and deviceNo in Lambdas.device_to_location:
+                if classified.kind == DataKind.RADAR and deviceNo in Lambdas.device_to_location:
                     add_to_radar_window(item)
                 
                 # 处理雷达事件
-                if type_value in Lambdas.radar_event_list and deviceNo in Lambdas.device_to_location:
+                if classified.kind == DataKind.RADAR_EVENT and type_value in Lambdas.radar_event_list and deviceNo in Lambdas.device_to_location:
                     radar_event_map[type_value][deviceNo] = item
                 
                 logger.debug(f"Processed radar data from device: {deviceNo}")
-            elif 'deviceId' in item:
-                Write_to_file.write_to_boyan_file(json.dumps(item))
+            elif classified.kind == DataKind.BOYAN:
                 deviceId=item.get('deviceId')
                 if deviceId in Lambdas.boyan_device_to_location:
                     add_to_boyan_window(item)
             else:
                 logger.warning("Received non-radar data in radar HTTP handler")
-                Write_to_file.write_to_history_file(json.dumps(item))
         except Exception as e:
             logger.error(f"Error handling single radar data: {e}", exc_info=True)
             
@@ -424,10 +424,7 @@ def add_to_boyan_window(data):
         boyan_data_cache.append((current_time, data))
         while boyan_data_cache and current_time - boyan_data_cache[0][0] > BOYAN_WINDOW_DURATION:
             boyan_data_cache.popleft()
-            
-
-
-       
+                   
 def add_to_extend_window(data):
     with cache_lock:
         current_time = time.time()
@@ -745,6 +742,7 @@ def broadcast_results():
         # logger.info(cur_send_set)
         time.sleep(SEND_INTERVAL)
 
+################# 数据流输入入口#############################
 # 处理客户端连接
 def handle_client(client_socket, address):
     logger.info(f"Connection from {address} established.")
@@ -799,39 +797,34 @@ def handle_individual_data(item):
     根据具体数据的键值确定类型并进行分类处理。
     注意：雷达数据现在通过HTTP接收，不再在这里处理
     """
-    if "ycsb_xsfx" in item:  # 流量数据
+    classified = classify_data(item, source=DataSource.TCP)
+    runtime_data_writer.write(classified.kind, item)
+
+    if classified.kind == DataKind.FLOW:  # 流量数据
         # logger.debug("Traffic flow data")
         add_to_flow_window(item)
-        Write_to_file.write_to_traffic_file(json.dumps(item))
         if item.get("jtll_ddbh") in ['1','2','3','4']:
             traffic_count+=1
-    elif "car_nums" in item:  # 排队数据
+    elif classified.kind == DataKind.QUEUE:  # 排队数据
         # logger.debug("Queue data")
         add_to_queue_window(item)
-        Write_to_file.write_to_queue_file(json.dumps(item))
-    elif "curStageLen" in item: #stage数据
+    elif classified.kind == DataKind.STAGE: #stage数据
         add_to_stage_window(item)
         # logger.debug("Stage data")
-        Write_to_file.write_to_stage_file(json.dumps(item))
-    elif "heartbeat" in item:  # 心跳包
+    elif classified.kind == DataKind.HEARTBEAT:  # 心跳包
         logger.debug("Heartbeat data" )
-        Write_to_file.write_to_heartbeat_file(json.dumps(item))
-    elif "rid" in item: # 互联网数据1
+    elif classified.kind == DataKind.ONLINE: # 互联网数据1
         # logger.debug('online data')
-        Write_to_file.write_to_online_file(json.dumps(item))
         if item['rid'] in Lambdas.online_data_map_lambda:
             add_to_online_window(item)
-    elif "inter_id" in item:
-        Write_to_file.write_to_online_file(json.dumps(item))
+    elif classified.kind == DataKind.LATEST:
         if item['inter_id'] in Lambdas.latest_data_map_lambda:
             add_to_latest_window(item)
-    elif "curStageRemainLen" in item:  # extend数据
-        Write_to_file.write_to_extend_file(json.dumps(item))
+    elif classified.kind == DataKind.EXTEND:  # extend数据
         if item.get("CrossId") in Lambdas.intersection_list:
             add_to_extend_window(item)
-    elif "distance" in item and "jtll_ddbh" in item and "ts" in item:
+    elif classified.kind == DataKind.OVERFLOW_WARNING:
         logger.info("Overflow warning data")
-        Write_to_file.write_to_overflowWarning_file(json.dumps(item))
         ddbh= int(item.get("jtll_ddbh"))
         logger.info(f"Overflow warning for ddbh: {ddbh}")
         if ddbh in Lambdas.location_to_intersection_lambda:
@@ -840,8 +833,9 @@ def handle_individual_data(item):
             overflowWarningMap[intersection_id][direction]=item 
     else:  # 其他历史数据
         logger.info("Historical data")
-        Write_to_file.write_to_history_file(json.dumps(item))
-    
+
+################# 数据流输入结束#############################
+
         
 def start_server():
     nacos_floating_value_sync.start()

@@ -1,9 +1,26 @@
-"""Data foundation for AITC.
+"""AITC 数据底座。
 
-The data layer owns runtime data receiving, caching, persistence, and query
-interfaces used by agents and legacy orchestration code.
+数据层负责运行数据接收、缓存、持久化，以及供 Agent 和旧编排代码调用的
+查询接口。
 """
 
 from .api import DataRepository, get_default_repository
+from .classifier import ClassifiedData, DataKind, DataSource, classify_data
+from .legacy_processor import LegacyCacheProcessor
+from .receiver import RuntimeDataReceiver, TrafficReceiver
+from .runtime_cache import RuntimeDataCache
+from .writer import RuntimeDataWriter
 
-__all__ = ["DataRepository", "get_default_repository"]
+__all__ = [
+    "ClassifiedData",
+    "DataKind",
+    "DataRepository",
+    "DataSource",
+    "LegacyCacheProcessor",
+    "RuntimeDataCache",
+    "RuntimeDataReceiver",
+    "RuntimeDataWriter",
+    "TrafficReceiver",
+    "classify_data",
+    "get_default_repository",
+]
