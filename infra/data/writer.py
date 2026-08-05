@@ -1,8 +1,4 @@
-"""运行数据写入门面。
-
-当前先包裹既有 `Write_to_file.py`，保持日志格式稳定，同时为数据底座
-提供统一的输出边界。
-"""
+"""运行数据写入门面。"""
 
 from __future__ import annotations
 
@@ -13,13 +9,10 @@ from .output_store import FileRuntimeOutputStore
 
 
 class RuntimeDataWriter:
-    """使用现有日志文件写入运行数据。"""
+    """通过本地输出仓库写入运行数据。"""
 
     def __init__(self, store: FileRuntimeOutputStore | None = None) -> None:
         self.store = store or FileRuntimeOutputStore()
-
-    def start_filename_updater(self) -> None:
-        self.store.start_filename_updater()
 
     def write(self, kind: DataKind, data: dict[str, Any]) -> None:
         self.store.write(self._resolve_category(kind), data)

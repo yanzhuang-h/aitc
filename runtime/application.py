@@ -101,7 +101,6 @@ def create_application(logger=None) -> AITCApplication:
         DataKind.RADAR: 600, DataKind.BOYAN: 600,
     })
     writer = RuntimeDataWriter()
-    writer.start_filename_updater()
     repository = DataRepository()
     overflow_warning_map = copy.deepcopy(Lambdas.map_lambda)
     radar_event_map = {key: {} for key in Lambdas.radar_event_list}

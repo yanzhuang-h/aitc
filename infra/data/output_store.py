@@ -36,13 +36,6 @@ class FileRuntimeOutputStore:
             json.dump({"EXP": exp_list}, file, ensure_ascii=False, indent=4)
         return path
 
-    def start_filename_updater(self, interval: int = 1800) -> None:
-        threading.Thread(target=self._refresh_loop, args=(interval,), daemon=True).start()
-
-    def _refresh_loop(self, interval: int) -> None:
-        while True:
-            time.sleep(interval)
-
     def _path_for(self, category: str) -> Path:
         directory = self.root / category
         directory.mkdir(parents=True, exist_ok=True)
