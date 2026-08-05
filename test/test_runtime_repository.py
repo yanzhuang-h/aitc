@@ -96,6 +96,22 @@ class RuntimeRepositoryTest(unittest.TestCase):
                 [2, 3],
             )
 
+    def test_runtime_record_normalizes_timestamp(self) -> None:
+        with tempfile.TemporaryDirectory() as root:
+            repository = DataRepository(root=root)
+            record = repository.store_runtime_data(
+                DataKind.FLOW,
+                {"sequence": 1},
+                received_at="2026-08-05T08:00:00",
+            )
+            self.assertEqual(record["received_at"], "2026-08-05T08:00:00+00:00")
+            with self.assertRaises(ValueError):
+                repository.store_runtime_data(
+                    DataKind.FLOW,
+                    {"sequence": 2},
+                    received_at="not-a-timestamp",
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

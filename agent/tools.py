@@ -13,6 +13,8 @@ class DataQueryTools:
 
     DEFAULT_LIMIT = 20
     MAX_LIMIT = 100
+    SUMMARY = "summary"
+    FULL = "full"
 
     _TOOL_SCHEMAS = [
         {
@@ -23,6 +25,7 @@ class DataQueryTools:
                 "properties": {
                     "kind": {"type": "string", "description": "数据类型，例如 flow、queue、radar。"},
                     "limit": {"type": "integer", "minimum": 1, "maximum": MAX_LIMIT},
+                    "detail": {"type": "string", "enum": [SUMMARY, FULL]},
                 },
                 "required": ["kind"],
             },
@@ -38,6 +41,7 @@ class DataQueryTools:
                     "start_at": {"type": "string", "description": "ISO 8601 起始时间。"},
                     "end_at": {"type": "string", "description": "ISO 8601 结束时间。"},
                     "limit": {"type": "integer", "minimum": 1, "maximum": MAX_LIMIT},
+                    "detail": {"type": "string", "enum": [SUMMARY, FULL]},
                 },
                 "required": ["kind"],
             },
@@ -49,6 +53,7 @@ class DataQueryTools:
                 "type": "object",
                 "properties": {
                     "limit": {"type": "integer", "minimum": 1, "maximum": MAX_LIMIT},
+                    "detail": {"type": "string", "enum": [SUMMARY, FULL]},
                 },
             },
         },
@@ -60,6 +65,7 @@ class DataQueryTools:
                 "properties": {
                     "resource": {"type": "string", "description": "配置资源名称。"},
                     "cross_id": {"type": "string"},
+                    "detail": {"type": "string", "enum": [SUMMARY, FULL]},
                 },
                 "required": ["resource"],
             },
@@ -89,14 +95,20 @@ class DataQueryTools:
         except (TypeError, ValueError, RuntimeError) as error:
             return self._error(str(error))
 
-    def query_recent_runtime_data(self, kind: str, limit: int = DEFAULT_LIMIT) -> dict[str, Any]:
+    def query_recent_runtime_data(
+        self,
+        kind: str,
+        limit: int = DEFAULT_LIMIT,
+        detail: str = SUMMARY,
+    ) -> dict[str, Any]:
         """查询实时窗口数据。"""
         try:
             records = self.query_service.get_runtime_data(kind, limit=self._limit(limit))
+            normalized_detail = self._detail(detail)
             return self._success(
                 f"已获取 {len(records)} 条 {kind} 实时数据。",
-                records,
-                {"kind": kind, "source": "runtime_cache"},
+                self._format_records(records, normalized_detail),
+                {"kind": kind, "source": "runtime_cache", "detail": normalized_detail},
             )
         except (ValueError, RuntimeError) as error:
             return self._error(str(error))
@@ -108,6 +120,7 @@ class DataQueryTools:
         start_at: str | None = None,
         end_at: str | None = None,
         limit: int = DEFAULT_LIMIT,
+        detail: str = SUMMARY,
     ) -> dict[str, Any]:
         """查询持久化运行记录。"""
         try:
@@ -118,28 +131,35 @@ class DataQueryTools:
                 start_at=start_at,
                 end_at=end_at,
             )
+            normalized_detail = self._detail(detail)
             return self._success(
                 f"已获取 {len(records)} 条 {kind} 历史数据。",
-                records,
+                self._format_records(records, normalized_detail),
                 {
                     "kind": kind,
                     "intersection_id": intersection_id,
                     "start_at": start_at,
                     "end_at": end_at,
                     "source": "runtime_repository",
+                    "detail": normalized_detail,
                 },
             )
         except (ValueError, RuntimeError) as error:
             return self._error(str(error))
 
-    def query_latest_results(self, limit: int = DEFAULT_LIMIT) -> dict[str, Any]:
+    def query_latest_results(
+        self,
+        limit: int = DEFAULT_LIMIT,
+        detail: str = SUMMARY,
+    ) -> dict[str, Any]:
         """查询最新决策结果。"""
         try:
             results = self.query_service.get_latest_results()[-self._limit(limit):]
+            normalized_detail = self._detail(detail)
             return self._success(
                 f"已获取 {len(results)} 条最新决策结果。",
-                results,
-                {"source": "result_warehouse"},
+                self._format_records(results, normalized_detail),
+                {"source": "result_warehouse", "detail": normalized_detail},
             )
         except (ValueError, RuntimeError) as error:
             return self._error(str(error))
@@ -148,14 +168,21 @@ class DataQueryTools:
         self,
         resource: str,
         cross_id: str | None = None,
+        detail: str = SUMMARY,
     ) -> dict[str, Any]:
         """查询配置快照。"""
         try:
             data = self.query_service.get_config_snapshot(resource, cross_id=cross_id)
+            normalized_detail = self._detail(detail)
             return self._success(
                 f"已获取 {resource} 配置快照。",
-                data,
-                {"resource": resource, "cross_id": cross_id, "source": "config_service"},
+                self._format_config(data, normalized_detail),
+                {
+                    "resource": resource,
+                    "cross_id": cross_id,
+                    "source": "config_service",
+                    "detail": normalized_detail,
+                },
             )
         except (ValueError, RuntimeError) as error:
             return self._error(str(error))
@@ -167,6 +194,49 @@ class DataQueryTools:
         if not 1 <= value <= cls.MAX_LIMIT:
             raise ValueError(f"limit must be between 1 and {cls.MAX_LIMIT}")
         return value
+
+    @classmethod
+    def _detail(cls, value: str) -> str:
+        if value not in {cls.SUMMARY, cls.FULL}:
+            raise ValueError("detail must be summary or full")
+        return value
+
+    @classmethod
+    def _format_records(cls, records: list[dict[str, Any]], detail: str) -> Any:
+        if detail == cls.FULL:
+            return records
+        return {
+            "count": len(records),
+            "items": [cls._record_summary(record) for record in records],
+        }
+
+    @staticmethod
+    def _record_summary(record: Mapping[str, Any]) -> dict[str, Any]:
+        payload = record.get("payload")
+        source = payload if isinstance(payload, Mapping) else record
+        identifiers = {
+            key: source[key]
+            for key in ("Cross_id", "CrossId", "cross_id", "intersection_id", "inter_id", "deviceNo", "deviceId", "jtll_ddbh")
+            if key in source
+        }
+        return {
+            "kind": record.get("kind"),
+            "intersection_id": record.get("intersection_id") or identifiers.get("intersection_id"),
+            "source": record.get("source"),
+            "received_at": record.get("received_at"),
+            "identifiers": identifiers,
+            "fields": sorted(source.keys()),
+        }
+
+    @classmethod
+    def _format_config(cls, data: Any, detail: str) -> Any:
+        if detail == cls.FULL:
+            return data
+        if isinstance(data, Mapping):
+            return {"type": "object", "key_count": len(data), "keys": sorted(map(str, data.keys()))[:20]}
+        if isinstance(data, list):
+            return {"type": "list", "item_count": len(data)}
+        return {"type": type(data).__name__, "value": data}
 
     @staticmethod
     def _success(summary: str, data: Any, meta: dict[str, Any]) -> dict[str, Any]:

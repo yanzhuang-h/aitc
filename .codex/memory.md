@@ -29,8 +29,9 @@
 - 2026-08-05: 手工 TCP/HTTP 回放客户端和自动化数据底座测试统一整理到 `test/`，避免重复测试目录。后续集成验证优先复用 `test/client_tcp.py` 和 `test/client_http.py`，自动化测试通过 `python -m unittest discover -s test -p "test_*.py"` 运行。
 - 2026-08-05: 将 `Agent/` 目录统一重命名为小写 `agent/`；当前保留 `qwen_agent.py` 与 `tools.py` 作为后续 Agent 开发入口。
 - 2026-08-05: 在 `agent/tools.py` 新增框架无关的 `DataQueryTools`。它为 Agent 提供实时数据、历史数据、最新结果和配置快照四类只读查询，统一返回 `status`、`summary`、`data`、`meta`，并限制单次记录数为 100。Qwen 接入层可使用 `tool_schemas()` 和 `invoke()`；测试覆盖工具契约、错误结构和参数限制。
+- 2026-08-05: 暂缓 Qwen 运行时接入，优先优化可独立测试的工具和数据仓库。`DataQueryTools` 新增默认 `summary` 与显式 `full` 详情级别，避免模型上下文被原始记录占满；运行记录写入和时间范围查询均规范为 UTC。自动化测试扩展至 7 项。
 - Pending: Continue project cleanup before the enterprise refactor, especially separating source, generated runtime data, configs, and tests.
-- Next suggested step: 研读当前 Qwen 依赖与部署条件，将 `DataQueryTools` 接入最小 Qwen Agent 运行时。
+- Next suggested step: 设计不依赖大模型的符号主义工具调用流程，并以 `DataQueryTools` 验证路由、权限和结果解释。
 
 
 

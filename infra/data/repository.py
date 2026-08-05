@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 import threading
 from typing import Any, Mapping
@@ -71,9 +71,9 @@ class RuntimeRepository:
         record = RuntimeRecord(
             kind=kind_name,
             payload=dict(payload),
-            intersection_id=str(intersection_id) if intersection_id is not None else None,
+            intersection_id=self._normalize_intersection_id(intersection_id),
             source=source_name,
-            received_at=received_at or utc_now_iso(),
+            received_at=self._normalize_timestamp(received_at or utc_now_iso()),
         ).to_dict()
         with self._lock:
             name = f"runtime/{kind_name}.jsonl"
@@ -131,7 +131,27 @@ class RuntimeRepository:
 
     @staticmethod
     def _parse_timestamp(value: str) -> datetime:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+
+    @classmethod
+    def _normalize_timestamp(cls, value: str) -> str:
+        try:
+            parsed = cls._parse_timestamp(value)
+        except (AttributeError, TypeError, ValueError) as error:
+            raise ValueError("received_at must be an ISO 8601 timestamp") from error
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc).isoformat()
+
+    @staticmethod
+    def _normalize_intersection_id(value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = str(value).strip()
+        return normalized or None
 
 
 class KeyValueRepository:

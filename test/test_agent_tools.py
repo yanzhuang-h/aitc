@@ -32,11 +32,19 @@ class DataQueryToolsTest(unittest.TestCase):
                 "kind": "flow",
                 "intersection_id": "1300068",
                 "limit": 10,
+                "detail": "full",
             },
         )
         self.assertEqual(result["status"], "ok")
         self.assertEqual(result["meta"]["source"], "runtime_repository")
         self.assertEqual(result["data"][0]["intersection_id"], "1300068")
+
+    def test_summary_mode_hides_raw_payload(self) -> None:
+        result = self.tools.query_recent_runtime_data("flow")
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["data"]["count"], 1)
+        self.assertIn("fields", result["data"]["items"][0])
+        self.assertEqual(result["meta"]["detail"], "summary")
 
     def test_tool_errors_and_limits_are_structured(self) -> None:
         unknown = self.tools.invoke("unknown_tool")
