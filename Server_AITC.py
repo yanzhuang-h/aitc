@@ -1,7 +1,6 @@
 import copy
 import threading
 import time
-from collections import deque
 import json
 import socket
 import Flow_predict
@@ -27,7 +26,7 @@ from lib.nacos_floating_value import (
     NacosTimeScheduleSync,
 )
 from lib.config_api import handle_config_request
-from infra.data import DataKind, DataSource, RuntimeDataWriter, classify_data
+from infra.data import DataKind, DataSource, RuntimeDataCache, RuntimeDataWriter, classify_data
 
 # HTTP服务器相关导入
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -77,39 +76,35 @@ loaded_dqn_modules = {}
 #定义反溢警告map
 overflowWarningMap=copy.deepcopy(Lambdas.map_lambda)
 
-# 定义流量数据窗口缓存
-flow_data_cache = deque()
 FLOW_WINDOW_DURATION = 600  # 窗口时长 600 秒
 FLOW_WINDOW_DURATION2=150
 SEND_INTERVAL = 50  # 发送数据的间隔
 
-# 定义排队数据缓存，窗口大小 240 秒
-queue_data_cache = deque()
 QUEUE_WINDOW_DURATION = 240  # 窗口时长 240 秒
 
-#定义stage数据窗口缓存，窗口大小600s
-stage_data_cache=deque()
 STAGE_WINDOW_DURATION=600
 
-# 定义扩展数据窗口缓存，窗口大小 600 秒
-extend_data_cache = deque()
 EXTEND_WINDOW_DURATION = 600  # 窗口时长 600 秒
 
-#互联网数据窗口1
-online_data_cache=deque()
 ONLINE_WINDOW_DURATION=1800
 
-#互联网数据窗口数据2
-latest_data_cache=deque()
 LATEST_WINDOW_DURATION=1800
 
-# 雷达数据窗口缓存
-radar_cache=deque()
 RADAR_WINDOW_DURATION=600
 
-# 博研数据窗口缓存
-boyan_data_cache=deque()
 BOYAN_WINDOW_DURATION=600
+
+# 运行期窗口缓存，先保持旧系统各类数据窗口时长不变
+runtime_data_cache = RuntimeDataCache({
+    DataKind.FLOW: FLOW_WINDOW_DURATION,
+    DataKind.QUEUE: QUEUE_WINDOW_DURATION,
+    DataKind.STAGE: STAGE_WINDOW_DURATION,
+    DataKind.EXTEND: EXTEND_WINDOW_DURATION,
+    DataKind.ONLINE: ONLINE_WINDOW_DURATION,
+    DataKind.LATEST: LATEST_WINDOW_DURATION,
+    DataKind.RADAR: RADAR_WINDOW_DURATION,
+    DataKind.BOYAN: BOYAN_WINDOW_DURATION,
+})
 
 # 雷达事件map
 radar_event_map = {key:{}for key in Lambdas.radar_event_list}
@@ -137,8 +132,6 @@ RADAR_HTTP_PORT = 8088
 
 # 文件写入锁
 file_lock = threading.Lock()
-# 缓存锁
-cache_lock=threading.Lock()
 import_lock = threading.Lock()
 # 用于存储所有活动线程和退出标志
 client_threads = []
@@ -337,7 +330,7 @@ class RadarHTTPRequestHandler(BaseHTTPRequestHandler):
         response = {
             "status": "running", 
             "service": "radar_data_receiver",
-            "radar_cache_size": len(radar_cache)
+            "radar_cache_size": runtime_data_cache.size(DataKind.RADAR)
         }
         self.wfile.write(json.dumps(response).encode('utf-8'))
     
@@ -412,102 +405,33 @@ def start_radar_http_server():
 
 # ================== 雷达相关函数 ==================
 def add_to_radar_window(data):
-    with cache_lock:
-        current_time = time.time()
-        radar_cache.append((current_time, data))
-
-        while radar_cache and current_time - radar_cache[0][0] > RADAR_WINDOW_DURATION:
-            radar_cache.popleft()
+    runtime_data_cache.add(DataKind.RADAR, data)
 def add_to_boyan_window(data):
-    with cache_lock:
-        current_time = time.time()
-        boyan_data_cache.append((current_time, data))
-        while boyan_data_cache and current_time - boyan_data_cache[0][0] > BOYAN_WINDOW_DURATION:
-            boyan_data_cache.popleft()
+    runtime_data_cache.add(DataKind.BOYAN, data)
                    
 def add_to_extend_window(data):
-    with cache_lock:
-        current_time = time.time()
-        extend_data_cache.append((current_time, data))
-        # 移除过期数据
-        while extend_data_cache and current_time - extend_data_cache[0][0] > EXTEND_WINDOW_DURATION:
-            extend_data_cache.popleft()
+    runtime_data_cache.add(DataKind.EXTEND, data)
 
 def add_to_latest_window(data):
-    with cache_lock:
-        current_time=time.time()
-        latest_data_cache.append((current_time,data))
-
-        # 移除过期数据
-        while online_data_cache and current_time - latest_data_cache[0][0] > LATEST_WINDOW_DURATION:
-            latest_data_cache.popleft()
+    runtime_data_cache.add(DataKind.LATEST, data)
 
 def add_to_online_window(data):
-    with cache_lock:
-        current_time=time.time()
-        online_data_cache.append((current_time,data))
-
-        # 移除过期数据
-        while online_data_cache and current_time - online_data_cache[0][0] > ONLINE_WINDOW_DURATION:
-            online_data_cache.popleft()
+    runtime_data_cache.add(DataKind.ONLINE, data)
                
 # 将数据添加到时间窗口缓存
 def add_to_flow_window(data):
-    with cache_lock:
-        current_time = time.time()
-        flow_data_cache.append((current_time, data))
-
-        # 移除过期数据
-        while flow_data_cache and current_time - flow_data_cache[0][0] > FLOW_WINDOW_DURATION:
-            flow_data_cache.popleft()
+    runtime_data_cache.add(DataKind.FLOW, data)
 
 def add_to_queue_window(data):
-    with cache_lock:
-        current_time = time.time()
-        queue_data_cache.append((current_time, data))
-
-        # 移除过期数据
-        while queue_data_cache and current_time - queue_data_cache[0][0] > QUEUE_WINDOW_DURATION:
-            queue_data_cache.popleft()
+    runtime_data_cache.add(DataKind.QUEUE, data)
 
 # 将数据添加到时间窗口缓存
 def add_to_stage_window(data):
-    with cache_lock:
-        current_time = time.time()
-        stage_data_cache.append((current_time, data))
-
-        # 移除过期数据
-        while stage_data_cache and current_time - stage_data_cache[0][0] > STAGE_WINDOW_DURATION:
-            stage_data_cache.popleft()
+    runtime_data_cache.add(DataKind.STAGE, data)
 
 # 主动清除cache中的过期数据
-def clear_expired_data(cache):
-    current_time = time.time()
-    with cache_lock:  # 使用锁保护对缓存的访问
-        if cache==flow_data_cache:
-            while flow_data_cache and current_time - flow_data_cache[0][0] > FLOW_WINDOW_DURATION:
-                flow_data_cache.popleft()  # 移除过期的数据
-        elif cache==queue_data_cache:
-            while queue_data_cache and current_time-queue_data_cache[0][0]>QUEUE_WINDOW_DURATION:
-                queue_data_cache.popleft()
-        elif cache==stage_data_cache:
-            while stage_data_cache and current_time-stage_data_cache[0][0]>STAGE_WINDOW_DURATION:
-                stage_data_cache.popleft()
-        elif cache==online_data_cache:
-            while online_data_cache and current_time - online_data_cache[0][0] > ONLINE_WINDOW_DURATION:
-                online_data_cache.popleft()
-        elif cache==latest_data_cache:
-            while latest_data_cache and current_time - latest_data_cache[0][0] > LATEST_WINDOW_DURATION:
-                latest_data_cache.popleft()
-        elif cache==extend_data_cache:
-            while extend_data_cache and current_time - extend_data_cache[0][0] > EXTEND_WINDOW_DURATION:
-                extend_data_cache.popleft()
-        elif cache==radar_cache:
-            while radar_cache and current_time - radar_cache[0][0] > RADAR_WINDOW_DURATION:
-                radar_cache.popleft()
-        elif cache==boyan_data_cache:
-            while boyan_data_cache and current_time - boyan_data_cache[0][0] > BOYAN_WINDOW_DURATION:
-                boyan_data_cache.popleft()
+def clear_expired_data(kind=None):
+    runtime_data_cache.clear_expired(kind)
 
 def process_single_intersection(intersection_id, intersection_flow, result_queue_length,flow_map,queue_map,stage_map,intersection_flow_duration2,cur_flow_pre_map,cur_queue_pre_map,extend_map,online_map, overflowMap,radarMap,boyan_map):
     global last_coordinate_set
@@ -551,18 +475,18 @@ def process_data_to_send():
     global last_coordinate_set
     global radar_event_map
     global overflowWarningMap
-    clear_expired_data(flow_data_cache)
-    clear_expired_data(queue_data_cache)
-    clear_expired_data(stage_data_cache)
-    clear_expired_data(extend_data_cache)
-    clear_expired_data(boyan_data_cache)
+    clear_expired_data(DataKind.FLOW)
+    clear_expired_data(DataKind.QUEUE)
+    clear_expired_data(DataKind.STAGE)
+    clear_expired_data(DataKind.EXTEND)
+    clear_expired_data(DataKind.BOYAN)
     recent_boyan_data=get_recent_boyan_data()
     recent_flow_data = get_recent_flow_data()
     recent_flow_data_duration2= get_duration_flow_data(FLOW_WINDOW_DURATION2)
     recent_queue_data = get_recent_queue_data()
     recent_stage_data = get_recent_stage_data()
     recent_extend_data = get_recent_extend_data()
-    logger.info(f" extend_data_cache size: {len(extend_data_cache)}")  
+    logger.info(f" extend_data_cache size: {runtime_data_cache.size(DataKind.EXTEND)}")  
     if not recent_flow_data:
         intersection_flow = copy.deepcopy(Lambdas.intersection_flow_lambda)
         intersection_flow_duration2=intersection_flow
@@ -605,12 +529,12 @@ def process_data_to_send():
     cur_queue_pre_map=Queue_predict.get_current_queue_prediction()
 
     #获取互联网数据map
-    clear_expired_data(online_data_cache)
+    clear_expired_data(DataKind.ONLINE)
     online_data=get_recent_online_data()
     online_map=Process_cache_data.process_online_data(online_data)
     
     #获取radar数据
-    clear_expired_data(radar_cache)
+    clear_expired_data(DataKind.RADAR)
     radar_data=get_recent_radar_data()
     if not radar_data:
         radarMap=copy.deepcopy(Lambdas.map_lambda)
@@ -641,35 +565,30 @@ def process_data_to_send():
 
 # 获取时间窗口内的数据
 def get_recent_flow_data():
-    return [item[1] for item in flow_data_cache]
+    return runtime_data_cache.recent_data(DataKind.FLOW)
 
 def get_recent_online_data():
-    return [item for item in online_data_cache]
+    return runtime_data_cache.recent_legacy_tuples(DataKind.ONLINE)
 
 def get_recent_latest_data():
-    return [item for item in latest_data_cache]
+    return runtime_data_cache.recent_legacy_tuples(DataKind.LATEST)
 
 def get_duration_flow_data(duration):
-    current_time=time.time()
-    duration_flow_data=[]
-    for item in flow_data_cache:
-        if current_time-item[0]<duration:
-            duration_flow_data.append(item[1])
-    return duration_flow_data
+    return runtime_data_cache.duration_data(DataKind.FLOW, duration)
 
 def get_recent_queue_data():
-    return [item[1] for item in queue_data_cache]
+    return runtime_data_cache.recent_data(DataKind.QUEUE)
 
 def get_recent_stage_data():
-    return [item[1] for item in stage_data_cache]
+    return runtime_data_cache.recent_data(DataKind.STAGE)
 
 def get_recent_extend_data():
-    return [item for item in extend_data_cache]
+    return runtime_data_cache.recent_legacy_tuples(DataKind.EXTEND)
 def get_recent_radar_data():
-    return [item for item in radar_cache]
+    return runtime_data_cache.recent_legacy_tuples(DataKind.RADAR)
 
 def get_recent_boyan_data():
-    return [item for item in boyan_data_cache]
+    return runtime_data_cache.recent_legacy_tuples(DataKind.BOYAN)
 
 def periodic_data_processing():
     global processing_flag
