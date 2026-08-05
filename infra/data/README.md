@@ -17,6 +17,8 @@
 - 在不调整算法的前提下，先包裹现有 `Process_cache_data.py` 聚合函数。
 - 在 `RuntimeDataReceiver` 中统一处理 TCP/HTTP 接收后的分类、写入、窗口缓存、
   雷达事件状态和溢出告警状态更新。
+- 在 `RuntimeDataIngestor` 中区分 TCP/HTTP 协议来源，协议解析完成后统一进入
+  `ingest -> classify -> persist -> cache/state update` 管线。
 - 在 `LegacyCacheProcessor` 中统一适配旧 `Process_cache_data.py` 聚合函数，
   服务端不再直接依赖这些散函数。
 

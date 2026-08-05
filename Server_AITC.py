@@ -29,6 +29,7 @@ from infra.data import (
     DataKind,
     LegacyCacheProcessor,
     RuntimeDataCache,
+    RuntimeDataIngestor,
     RuntimeDataReceiver,
     RuntimeDataWriter,
 )
@@ -172,6 +173,7 @@ runtime_data_receiver = RuntimeDataReceiver(
     radar_event_map=radar_event_map,
     logger=logger,
 )
+runtime_data_ingestor = RuntimeDataIngestor(runtime_data_receiver)
 
 CORS_RESPONSE_HEADERS = {
     "access-control-allow-origin",
@@ -364,7 +366,7 @@ class RadarHTTPRequestHandler(BaseHTTPRequestHandler):
     def handle_single_radar_data(self, item):
         """处理单条雷达数据"""
         try:
-            runtime_data_receiver.receive_http(item)
+            runtime_data_ingestor.ingest_http_item(item)
         except Exception as e:
             logger.error(f"Error handling single radar data: {e}", exc_info=True)
             
@@ -649,7 +651,7 @@ def handle_individual_data(item):
     根据具体数据的键值确定类型并进行分类处理。
     注意：雷达数据现在通过HTTP接收，不再在这里处理
     """
-    classified = runtime_data_receiver.receive_tcp(item)
+    classified = runtime_data_ingestor.ingest_tcp_item(item)
 
     if classified.kind == DataKind.FLOW:  # 流量数据
         if item.get("jtll_ddbh") in ['1','2','3','4']:

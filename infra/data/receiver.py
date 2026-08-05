@@ -34,10 +34,10 @@ class TrafficReceiver:
 
 
 class RuntimeDataReceiver:
-    """对运行数据执行分类、写入和缓存。
+    """运行数据统一处理管线。
 
-    该类刻意保持轻量：socket 和 HTTP 服务仍负责传输细节，这里只负责
-    公共数据路径。
+    socket 和 HTTP 服务仍负责协议层解析；进入本类后统一执行：
+    ingest -> classify -> persist -> cache/state update。
     """
 
     def __init__(
@@ -61,9 +61,8 @@ class RuntimeDataReceiver:
         item: Mapping[str, Any],
         source: DataSource | str = DataSource.UNKNOWN,
     ) -> ClassifiedData:
-        classified = classify_data(item, source=source)
-        self.writer.write(classified.kind, classified.item)
-        self.cache.add(classified.kind, classified.item)
+        classified = self._classify_and_persist(item, source)
+        self._update_runtime_state(classified)
         return classified
 
     def receive_many(
@@ -79,10 +78,22 @@ class RuntimeDataReceiver:
         return self.cache.recent_data(kind)
 
     def receive_tcp(self, item: Mapping[str, Any]) -> ClassifiedData:
-        """接收 TCP 入口的普通运行数据。"""
-        classified = classify_data(item, source=DataSource.TCP)
+        return self.receive(item, source=DataSource.TCP)
+
+    def receive_http(self, item: Mapping[str, Any]) -> ClassifiedData:
+        return self.receive(item, source=DataSource.HTTP)
+
+    def _classify_and_persist(
+        self,
+        item: Mapping[str, Any],
+        source: DataSource | str,
+    ) -> ClassifiedData:
+        classified = classify_data(item, source=source)
+        self.writer.write(classified.kind, classified.item)
+        return classified
+
+    def _update_runtime_state(self, classified: ClassifiedData) -> None:
         data = classified.item
-        self.writer.write(classified.kind, data)
 
         if classified.kind == DataKind.FLOW:
             self.cache.add(DataKind.FLOW, data)
@@ -103,18 +114,7 @@ class RuntimeDataReceiver:
                 self.cache.add(DataKind.EXTEND, data)
         elif classified.kind == DataKind.OVERFLOW_WARNING:
             self._handle_overflow_warning(data)
-        else:
-            self._info("Historical data")
-
-        return classified
-
-    def receive_http(self, item: Mapping[str, Any]) -> ClassifiedData:
-        """接收 HTTP 入口的雷达、博研和其他运行数据。"""
-        classified = classify_data(item, source=DataSource.HTTP)
-        data = classified.item
-        self.writer.write(classified.kind, data)
-
-        if classified.kind == DataKind.RADAR:
+        elif classified.kind == DataKind.RADAR:
             device_no = data.get("deviceNo")
             if self._contains("device_to_location", device_no):
                 self.cache.add(DataKind.RADAR, data)
@@ -125,10 +125,10 @@ class RuntimeDataReceiver:
             device_id = data.get("deviceId")
             if self._contains("boyan_device_to_location", device_id):
                 self.cache.add(DataKind.BOYAN, data)
-        else:
+        elif classified.source == DataSource.HTTP:
             self._warning("Received non-radar data in radar HTTP handler")
-
-        return classified
+        else:
+            self._info("Historical data")
 
     def _handle_overflow_warning(self, data: dict[str, Any]) -> None:
         self._info("Overflow warning data")
