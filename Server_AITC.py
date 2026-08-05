@@ -31,6 +31,7 @@ from infra.data import (
     RuntimeDataWriter,
     ResultSender,
     ResultWarehouse,
+    is_millisecond_timestamp,
 )
 
 # HTTP服务器相关导入
@@ -468,8 +469,11 @@ def process_data_to_send():
         
         # 获取流量预测数据并存入文件
         end_time=recent_flow_data[0].get('ts')
-        flow_predict_data=Flow_predict.flow_pre_json_Gen(intersection_flow,intersection_flow_duration2,end_time)
-        runtime_data_writer.write_flow_prediction(flow_predict_data)
+        if is_millisecond_timestamp(end_time):
+            flow_predict_data=Flow_predict.flow_pre_json_Gen(intersection_flow,intersection_flow_duration2,end_time)
+            runtime_data_writer.write_flow_prediction(flow_predict_data)
+        else:
+            logger.warning("Flow data has no valid ts; skipped flow prediction output")
     if not recent_queue_data:
         result_queue_length = copy.deepcopy(Lambdas.max_lengths_lambda)
         queue_map=copy.deepcopy(Lambdas.map_lambda)
@@ -478,8 +482,11 @@ def process_data_to_send():
 
         # 获取排队预测数据并存入文件
         start_time=recent_queue_data[0].get("start_time")
-        queue_pre_data=Queue_predict.queue_pre_json_gen(result_queue_length,start_time)
-        runtime_data_writer.write_queue_prediction(queue_pre_data)
+        if is_millisecond_timestamp(start_time):
+            queue_pre_data=Queue_predict.queue_pre_json_gen(result_queue_length,start_time)
+            runtime_data_writer.write_queue_prediction(queue_pre_data)
+        else:
+            logger.warning("Queue data has no valid start_time; skipped queue prediction output")
     if not recent_stage_data:
         stage_map=copy.deepcopy(Lambdas.map_lambda)
     else:

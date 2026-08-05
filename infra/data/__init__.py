@@ -15,6 +15,7 @@ from .result_warehouse import ResultWarehouse
 from .receiver import RuntimeDataReceiver, TrafficReceiver
 from .runtime_cache import RuntimeDataCache
 from .writer import RuntimeDataWriter
+from .validation import is_millisecond_timestamp
 
 __all__ = [
     "ClassifiedData",
@@ -35,4 +36,5 @@ __all__ = [
     "TrafficReceiver",
     "classify_data",
     "get_default_repository",
+    "is_millisecond_timestamp",
 ]

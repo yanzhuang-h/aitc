@@ -31,6 +31,7 @@
 - 2026-08-05: 在 `agent/tools.py` 新增框架无关的 `DataQueryTools`。它为 Agent 提供实时数据、历史数据、最新结果和配置快照四类只读查询，统一返回 `status`、`summary`、`data`、`meta`，并限制单次记录数为 100。Qwen 接入层可使用 `tool_schemas()` 和 `invoke()`；测试覆盖工具契约、错误结构和参数限制。
 - 2026-08-05: 暂缓 Qwen 运行时接入，优先优化可独立测试的工具和数据仓库。`DataQueryTools` 新增默认 `summary` 与显式 `full` 详情级别，避免模型上下文被原始记录占满；运行记录写入和时间范围查询均规范为 UTC。自动化测试扩展至 7 项。
 - 2026-08-05: 在 `agent/qwen_agent.py` 实现不依赖 Qwen SDK 的 `SymbolicDataAgent`。它将四类显式动作路由到已声明的只读数据工具，拒绝未授权动作。新增完整链路测试：接收 TCP 风格数据 -> 分类/缓存/JSONL 仓库 -> 查询服务 -> 工具 -> 符号 Agent；当前自动化测试共 9 项通过。
+- 2026-08-05: 修复最小回放数据缺少 `ts`/`start_time` 时周期线程被旧预测写入中断的问题。新增 `is_millisecond_timestamp()`；无有效毫秒时间戳时仅跳过 flow/queue 预测文件写入，继续执行接收、缓存、仓库和后续决策链路。自动化测试增至 11 项。
 - Pending: Continue project cleanup before the enterprise refactor, especially separating source, generated runtime data, configs, and tests.
 - Next suggested step: 使用 `test/client_tcp.py` 和 `test/client_http.py` 对运行中的服务进行回放集成验证，再评估旧写入/缓存文件的删减范围。
 
