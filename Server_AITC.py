@@ -2,7 +2,6 @@ import copy
 import threading
 import time
 import json
-import socket
 import Flow_predict
 import Queue_predict
 # import torch
@@ -17,7 +16,7 @@ import logging.handlers  # 添加日志处理器
 from phase_check import phase_check
 from lib.DQN_Select import DQN_select
 from lib.Global_intersection_coordinate import coordinate
-from runtime import PeriodicDecisionPipeline
+from runtime import PeriodicDecisionPipeline, TcpRuntimeServer
 from infra.data import (
     ConfigService,
     DataRepository,
@@ -131,24 +130,9 @@ RADAR_HTTP_HOST ='127.0.0.1'
 
 RADAR_HTTP_PORT = 8088
 
-# 文件写入锁
-file_lock = threading.Lock()
-import_lock = threading.Lock()
-# 用于存储所有活动线程和退出标志
-client_threads = []
-exit_flags = {}
-
 # 定义流量预测任务开始时间
 pre_hour=3
 pre_min=0
-
-#定义用于测试的数据结构
-traffic_count=0
-LXD_stage_count=0
-
-clients = []              # 存储所有活跃客户端套接字
-clients_lock = threading.Lock()  # 客户端列表的线程锁
-result_lock = threading.Lock()   # 计算结果的线程锁
 
 # HTTP服务器关闭标志
 http_server_shutdown = threading.Event()
@@ -175,6 +159,16 @@ runtime_query_service = RuntimeDataQueryService(
     repository=data_repository,
 )
 result_sender = ResultSender(writer=runtime_data_writer, logger=logger)
+tcp_runtime_server = TcpRuntimeServer(
+    host=HOST,
+    port=PORT,
+    buffer_size=BUFFER_SIZE,
+    ingestor=runtime_data_ingestor,
+    result_warehouse=result_warehouse,
+    result_sender=result_sender,
+    send_interval=SEND_INTERVAL,
+    logger=logger,
+)
 decision_pipeline = PeriodicDecisionPipeline(
     cache=runtime_data_cache,
     legacy_processor=legacy_cache_processor,
@@ -438,92 +432,6 @@ def periodic_decision_processing():
         time.sleep(max(0, SEND_INTERVAL - elapsed))
 
 
-def broadcast_results():
-    """独立线程：将最新结果广播给所有客户端"""
-    while True:
-        # 获取当前结果和客户端列表
-        with clients_lock:
-            current_clients = clients.copy()
-        cur_send_set = result_warehouse.snapshot()
-        if cur_send_set==[]:
-            time.sleep(1)
-            continue
-
-        # 向所有客户端发送数据
-        disconnected_clients = result_sender.send_batch(current_clients, cur_send_set)
-        for client_socket in disconnected_clients:
-            with clients_lock:
-                if client_socket in clients:
-                    clients.remove(client_socket)
-            client_socket.close()
-        logger.info(f'Send results to all Client:{current_clients}')
-        # logger.info(cur_send_set)
-        time.sleep(SEND_INTERVAL)
-
-################# 数据流输入入口#############################
-# 处理客户端连接
-def handle_client(client_socket, address):
-    logger.info(f"Connection from {address} established.")
-    # 注册客户端
-    with clients_lock:
-        clients.append(client_socket)
-
-    buffer = ""
-    try:
-        while True:
-            data = client_socket.recv(BUFFER_SIZE).decode('utf-8')
-            if not data:
-                break
-            buffer += data
-            while '\n' in buffer:
-                line, buffer = buffer.split('\n', 1)
-                try:
-                    json_data = json.loads(line)
-                    preprocess_data(json_data)
-                except json.JSONDecodeError as e:
-                    logger.error(f"JSON Decode Error: {e}, Data: {line}")
-    except Exception as e:
-        logger.error(f"Error in handle_client: {e}", exc_info=True)
-    finally:
-        # 客户端断开时清理
-        with clients_lock:
-            if client_socket in clients:
-                clients.remove(client_socket)
-        client_socket.close()
-        logger.info(f"Connection from {address} closed.")
-
-def preprocess_data(data):
-    """
-    处理解析后的 JSON 数据。
-    根据数据类型调用不同的处理逻辑。
-    """
-    try:
-        if isinstance(data, list):
-            for item in data:
-                handle_individual_data(item)
-        elif isinstance(data, dict):
-            handle_individual_data(data)
-        else:
-            logger.warning("Unsupported data format.")
-    except Exception as e:
-        logger.error(f"Error processing data: {e}", exc_info=True)
-
-def handle_individual_data(item):
-    global traffic_count
-    global LXD_stage_count
-    """
-    根据具体数据的键值确定类型并进行分类处理。
-    注意：雷达数据现在通过HTTP接收，不再在这里处理
-    """
-    classified = runtime_data_ingestor.ingest_tcp_item(item)
-
-    if classified.kind == DataKind.FLOW:  # 流量数据
-        if item.get("jtll_ddbh") in ['1','2','3','4']:
-            traffic_count+=1
-
-################# 数据流输入结束#############################
-
-        
 def start_server():
     config_sync_manager.start()
     # 启动HTTP雷达数据接收服务器
@@ -532,24 +440,16 @@ def start_server():
         logger.error("Failed to start radar HTTP server, exiting...")
         return
     
-    # 启动数据处理和广播线程
+    # 启动数据处理和结果广播线程
     threading.Thread(target=periodic_decision_processing, daemon=True).start()
     logger.info("Data processing thread started.")
-    threading.Thread(target=broadcast_results, daemon=True).start()
+    tcp_runtime_server.start_broadcast_thread()
     logger.info("Broadcast results thread started.")  
-
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
-        server_socket.bind((HOST, PORT))
-        server_socket.listen()
-        logger.info(f"Main server started on {HOST}:{PORT}")
-        logger.info(f"Radar HTTP server running on {RADAR_HTTP_HOST}:{RADAR_HTTP_PORT}")
-        Flow_predict.setup_scheduler(pre_hour, pre_min)
-        Queue_predict.setup_scheduler(pre_hour, pre_min)
-        logger.info(f'Flow & Queue prediction scheduler set,job will start at {pre_hour}:{pre_min}')
-        while True:
-            client_socket, address = server_socket.accept()
-            logger.info(f"New connection from {address}")
-            threading.Thread(target=handle_client, args=(client_socket, address)).start()
+    logger.info(f"Radar HTTP server running on {RADAR_HTTP_HOST}:{RADAR_HTTP_PORT}")
+    Flow_predict.setup_scheduler(pre_hour, pre_min)
+    Queue_predict.setup_scheduler(pre_hour, pre_min)
+    logger.info(f'Flow & Queue prediction scheduler set,job will start at {pre_hour}:{pre_min}')
+    tcp_runtime_server.serve_forever()
 
 # 停止服务器信号处理
 def stop_server(signal, frame):
@@ -558,10 +458,7 @@ def stop_server(signal, frame):
     # 停止HTTP服务器
     http_server_shutdown.set()
     
-    for exit_flag in exit_flags.values():
-        exit_flag.set()
-    for thread in client_threads:
-        thread.join()
+    tcp_runtime_server.stop()
     sys.exit(0)
 
 signal.signal(signal.SIGINT, stop_server)
