@@ -18,14 +18,9 @@ import logging.handlers  # 添加日志处理器
 from phase_check import phase_check
 from lib.DQN_Select import DQN_select
 from lib.Global_intersection_coordinate import coordinate
-from lib.nacos_floating_value import (
-    NacosFloatingValueSync,
-    NacosIntersectionResultConfigSync,
-    NacosRoadStateSync,
-    NacosTimeScheduleSync,
-)
 from infra.data import (
     ConfigService,
+    ConfigSyncManager,
     DataKind,
     LegacyCacheProcessor,
     RuntimeDataCache,
@@ -70,10 +65,7 @@ def setup_logging():
 
 # 初始化日志
 logger = setup_logging()
-nacos_floating_value_sync = NacosFloatingValueSync()
-nacos_intersection_result_sync = NacosIntersectionResultConfigSync()
-nacos_road_state_sync = NacosRoadStateSync()
-nacos_time_schedule_sync = NacosTimeScheduleSync()
+config_sync_manager = ConfigSyncManager()
 # =============================================
 
 processing_flag = False  # 标记是否正在处理一轮数据
@@ -660,10 +652,7 @@ def handle_individual_data(item):
 
         
 def start_server():
-    nacos_floating_value_sync.start()
-    nacos_intersection_result_sync.start()
-    nacos_road_state_sync.start()
-    nacos_time_schedule_sync.start()
+    config_sync_manager.start()
     # 启动HTTP雷达数据接收服务器
     radar_server, radar_thread = start_radar_http_server()
     if radar_server is None:
@@ -692,10 +681,7 @@ def start_server():
 # 停止服务器信号处理
 def stop_server(signal, frame):
     logger.info("Stopping server...")
-    nacos_floating_value_sync.stop()
-    nacos_intersection_result_sync.stop()
-    nacos_road_state_sync.stop()
-    nacos_time_schedule_sync.stop()
+    config_sync_manager.stop()
     # 停止HTTP服务器
     http_server_shutdown.set()
     
