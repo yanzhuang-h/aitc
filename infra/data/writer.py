@@ -27,6 +27,12 @@ class RuntimeDataWriter:
         writer = self._resolve_writer(kind)
         writer(text)
 
+    def write_flow_prediction(self, data: dict[str, Any] | str) -> None:
+        self.legacy_writer.write_to_flow_predict_file(data)
+
+    def write_queue_prediction(self, data: dict[str, Any] | str) -> None:
+        self.legacy_writer.write_to_queue_predict_file(data)
+
     def write_send_result(self, data: dict[str, Any]) -> None:
         self.legacy_writer.write_to_send_file(data)
 

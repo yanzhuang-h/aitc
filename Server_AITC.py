@@ -428,7 +428,7 @@ def process_single_intersection(intersection_id, intersection_flow, result_queue
     try:
 
         result_action,coordinate_map,model_info_list,EXP_list= DQN_select(traffic_vector, queue_vector,traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,last_coordinate_set,cur_flow_pre_map,cur_queue_pre_map,extend_map_single_intersection,radar_event_map_single_intersection,radarMap_single_intersection,intersection_id,boyan_map_single_intersection)
-        Write_to_file.gen_EXP_Json(EXP_list,intersection_id)
+        runtime_data_writer.write_experience(EXP_list, intersection_id)
         intersection_result_map['result_action']=result_action
         intersection_result_map['traffic_vector']=traffic_vector
         intersection_result_map['model_info_list']=model_info_list
@@ -462,7 +462,7 @@ def process_data_to_send():
         # 获取流量预测数据并存入文件
         end_time=recent_flow_data[0].get('ts')
         flow_predict_data=Flow_predict.flow_pre_json_Gen(intersection_flow,intersection_flow_duration2,end_time)
-        Write_to_file.write_to_flow_predict_file(json.dumps(flow_predict_data))
+        runtime_data_writer.write_flow_prediction(flow_predict_data)
     if not recent_queue_data:
         result_queue_length = copy.deepcopy(Lambdas.max_lengths_lambda)
         queue_map=copy.deepcopy(Lambdas.map_lambda)
@@ -472,7 +472,7 @@ def process_data_to_send():
         # 获取排队预测数据并存入文件
         start_time=recent_queue_data[0].get("start_time")
         queue_pre_data=Queue_predict.queue_pre_json_gen(result_queue_length,start_time)
-        Write_to_file.write_to_queue_predict_file(json.dumps(queue_pre_data))
+        runtime_data_writer.write_queue_prediction(queue_pre_data)
     if not recent_stage_data:
         stage_map=copy.deepcopy(Lambdas.map_lambda)
     else:
@@ -547,7 +547,7 @@ def periodic_data_processing():
                 action=coordinate(action,last_coordinate_set,online_map,global_overflow_warning)
             action,result_check_report=phase_check(action)
             print(f"final action after coordinate floating value and phase_check:{action}")
-            Write_to_file.write_to_phase_check_file(json.dumps(result_check_report))
+            runtime_data_writer.write_phase_check(result_check_report)
             with send_lock:
                 result_to_send_set=[]
                 for intersection_id in  current_result:
@@ -582,7 +582,7 @@ def broadcast_results():
             try:
                 for result in cur_send_set:
                     client_socket.sendall(json.dumps(result).encode('utf-8'))
-                    Write_to_file.write_to_send_file(result)
+                    runtime_data_writer.write_send_result(result)
             except (socket.error, BrokenPipeError):
                 # 客户端断开时清理
                 with clients_lock:
