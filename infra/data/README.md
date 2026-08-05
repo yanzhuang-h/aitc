@@ -15,5 +15,7 @@
   boyan 等窗口数据。
 - 在日志格式迁移完成前，先包裹现有 `Write_to_file.py` 输出。
 - 在不调整算法的前提下，先包裹现有 `Process_cache_data.py` 聚合函数。
+- 在 `RuntimeDataReceiver` 中统一处理 TCP/HTTP 接收后的分类、写入、窗口缓存、
+  雷达事件状态和溢出告警状态更新。
 
 运行期数据默认写入 `infra/data/runtime/`，不应提交到 Git。
