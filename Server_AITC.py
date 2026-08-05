@@ -1,7 +1,6 @@
 import copy
 import threading
 import time
-import json
 import Flow_predict
 import Queue_predict
 # import torch
@@ -33,10 +32,6 @@ from infra.data import (
     is_millisecond_timestamp,
 )
 
-# HTTP服务器相关导入
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
-import urllib.parse
 
 # ================== 日志配置 ==================
 def setup_logging():
@@ -134,8 +129,6 @@ RADAR_HTTP_PORT = 8088
 pre_hour=3
 pre_min=0
 
-# HTTP服务器关闭标志
-http_server_shutdown = threading.Event()
 
 runtime_data_writer = RuntimeDataWriter(Write_to_file)
 runtime_data_writer.start_filename_updater()
@@ -195,229 +188,6 @@ decision_pipeline = PeriodicDecisionPipeline(
     flow_duration_seconds=FLOW_WINDOW_DURATION2,
     logger=logger,
 )
-
-CORS_RESPONSE_HEADERS = {
-    "access-control-allow-origin",
-    "access-control-allow-credentials",
-    "access-control-allow-methods",
-    "access-control-allow-headers",
-    "access-control-expose-headers",
-    "access-control-max-age",
-}
-
-SECURITY_RESPONSE_HEADERS = {
-    "X-Permitted-Cross-Domain-Policies": "none",
-    "X-Frame-Options": "DENY",
-    "Referrer-Policy": "no-referrer",
-    "X-Content-Type-Options": "nosniff",
-    "Strict-Transport-Security": "max-age=16070400; includeSubDomains",
-    "X-XSS-Protection": "1; mode=block",
-    "X-Download-Options": "noopen",
-}
-
-
-def is_cross_origin_request(origin, host):
-    if not origin:
-        return False
-
-    try:
-        parsed_origin = urlparse(origin)
-    except ValueError:
-        return True
-
-    origin_host = (parsed_origin.netloc or "").lower()
-    request_host = (host or "").lower()
-    return not origin_host or origin_host != request_host
-
-
-
-# ================== HTTP雷达数据处理器 ==================
-class RadarHTTPRequestHandler(BaseHTTPRequestHandler):
-    server_version = "AITCServer"
-    sys_version = ""
-
-    def send_header(self, keyword, value):
-        if keyword.lower() in CORS_RESPONSE_HEADERS:
-            return
-        super().send_header(keyword, value)
-
-    def end_headers(self):
-        for header, value in SECURITY_RESPONSE_HEADERS.items():
-            self.send_header(header, value)
-        super().end_headers()
-
-    def _reject_cross_origin_request(self):
-        origin = self.headers.get("Origin")
-        host = self.headers.get("Host")
-        if not is_cross_origin_request(origin, host):
-            return False
-
-        logger.warning(
-            "Blocked cross-origin request: origin=%s host=%s path=%s",
-            origin,
-            host,
-            self.path,
-        )
-        self.send_response(403)
-        self.send_header('Content-Type', 'application/json')
-        self.end_headers()
-        response = {"error": "Cross-origin requests are not allowed"}
-        self.wfile.write(json.dumps(response).encode('utf-8'))
-        return True
-
-    def do_OPTIONS(self):
-        if self._reject_cross_origin_request():
-            return
-        self.send_response(204)
-        self.end_headers()
-
-    def _send_json(self, status_code, payload):
-        """发送 JSON 响应。"""
-        body = json.dumps(payload, ensure_ascii=False).encode('utf-8')
-        self.send_response(status_code)
-        self.send_header('Content-Type', 'application/json')
-        self.send_header('Content-Length', str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def _try_handle_config(self, method, body):
-        """尝试按配置接口处理请求；处理成功返回 True。"""
-        try:
-            outcome = config_service.handle_request(method, urlparse(self.path).path, body)
-        except Exception as e:
-            logger.error(f"Error in config API handler: {e}", exc_info=True)
-            self._send_json(500, {"status": "error", "reason": "internal server error"})
-            return True
-
-        if outcome is None:
-            return False
-
-        status_code, payload = outcome
-        self._send_json(status_code, payload)
-        return True
-
-    def do_POST(self):
-        if self._reject_cross_origin_request():
-            return
-
-        # 配置接口: /road_info/add|update, /cross_info/add|update
-        parsed_path = urlparse(self.path).path
-        if parsed_path.startswith(('/road_info', '/cross_info')):
-            content_length = int(self.headers.get('Content-Length', 0))
-            raw = self.rfile.read(content_length) if content_length else b''
-            try:
-                body = json.loads(raw.decode('utf-8')) if raw else None
-            except json.JSONDecodeError as e:
-                self._send_json(400, {"status": "error", "saved": False,
-                                      "reason": f"Invalid JSON: {str(e)}"})
-                return
-            if self._try_handle_config('POST', body):
-                return
-
-        """处理POST请求，接收雷达数据"""
-        try:
-            # 获取请求体长度
-            content_length = int(self.headers.get('Content-Length', 0))
-            
-            if content_length == 0:
-                self.send_error(400, "Empty request body")
-                return
-            
-            # 读取请求体
-            post_data = self.rfile.read(content_length)
-            
-            # 解析JSON数据
-            try:
-                radar_data = json.loads(post_data.decode('utf-8'))
-                
-                # 处理雷达数据
-                self.process_radar_data(radar_data)
-                
-                # 发送成功响应
-                self.send_response(200)
-                self.send_header('Content-Type', 'application/json')
-                self.end_headers()
-                
-                response = {"status": "success", "message": "Radar data received"}
-                self.wfile.write(json.dumps(response).encode('utf-8'))
-                
-            except json.JSONDecodeError as e:
-                logger.error(f"JSON decode error in radar HTTP handler: {e}")
-                self.send_error(400, f"Invalid JSON: {str(e)}")
-                
-        except Exception as e:
-            logger.error(f"Error in radar HTTP handler: {e}", exc_info=True)
-            self.send_error(500, f"Internal server error: {str(e)}")
-    
-    def do_GET(self):
-        if self._reject_cross_origin_request():
-            return
-
-        # 配置接口: GET /road_info/{Cross_id}, GET /cross_info/{Cross_id}
-        parsed_path = urlparse(self.path).path
-        if parsed_path.startswith(('/road_info', '/cross_info')):
-            if self._try_handle_config('GET', None):
-                return
-
-        """处理GET请求，可用于健康检查"""
-        self.send_response(200)
-        self.send_header('Content-Type', 'application/json')
-        self.end_headers()
-        
-        response = {
-            "status": "running", 
-            "service": "radar_data_receiver",
-            "radar_cache_size": runtime_query_service.get_runtime_size(DataKind.RADAR)
-        }
-        self.wfile.write(json.dumps(response).encode('utf-8'))
-    
-    def process_radar_data(self, data):
-        """处理雷达数据"""
-        try:
-            if isinstance(data, list):
-                for item in data:
-                    self.handle_single_radar_data(item)
-            elif isinstance(data, dict):
-                self.handle_single_radar_data(data)
-            else:
-                logger.warning("Unsupported radar data format")
-        except Exception as e:
-            logger.error(f"Error processing radar data: {e}", exc_info=True)
-    
-    def handle_single_radar_data(self, item):
-        """处理单条雷达数据"""
-        try:
-            runtime_data_ingestor.ingest_http_item(item)
-        except Exception as e:
-            logger.error(f"Error handling single radar data: {e}", exc_info=True)
-            
-    def log_message(self, format, *args):
-        """重写日志方法，使用自定义logger"""
-        logger.info(f"HTTP Radar Server: {format % args}")
-
-def start_radar_http_server():
-    """启动HTTP雷达数据接收服务器"""
-    try:
-        server = HTTPServer((RADAR_HTTP_HOST, RADAR_HTTP_PORT), RadarHTTPRequestHandler)
-        logger.info(f"Radar HTTP server started on {RADAR_HTTP_HOST}:{RADAR_HTTP_PORT}")
-        
-        # 在单独线程中运行服务器
-        def run_server():
-            while not http_server_shutdown.is_set():
-                try:
-                    server.timeout = 1.0  # 设置超时，以便能够检查shutdown标志
-                    server.handle_request()
-                except Exception as e:
-                    if not http_server_shutdown.is_set():
-                        logger.error(f"Error in radar HTTP server: {e}")
-        
-        server_thread = threading.Thread(target=run_server, daemon=True)
-        server_thread.start()
-        
-        return server, server_thread
-    except Exception as e:
-        logger.error(f"Failed to start radar HTTP server: {e}", exc_info=True)
-        return None, None
 
 def periodic_decision_processing():
     """周期触发决策编排，服务端不再直接组织算法调用。"""
