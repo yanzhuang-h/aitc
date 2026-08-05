@@ -20,6 +20,7 @@ from lib.DQN_Select import DQN_select
 from lib.Global_intersection_coordinate import coordinate
 from infra.data import (
     ConfigService,
+    DataRepository,
     ConfigSyncManager,
     DataKind,
     LegacyCacheProcessor,
@@ -158,9 +159,11 @@ http_server_shutdown = threading.Event()
 
 runtime_data_writer = RuntimeDataWriter(Write_to_file)
 runtime_data_writer.start_filename_updater()
+data_repository = DataRepository()
 runtime_data_receiver = RuntimeDataReceiver(
     cache=runtime_data_cache,
     writer=runtime_data_writer,
+    repository=data_repository,
     lambdas_module=Lambdas,
     overflow_warning_map=overflowWarningMap,
     radar_event_map=radar_event_map,
@@ -173,6 +176,7 @@ runtime_query_service = RuntimeDataQueryService(
     cache=runtime_data_cache,
     result_warehouse=result_warehouse,
     config_service=config_service,
+    repository=data_repository,
 )
 result_sender = ResultSender(writer=runtime_data_writer, logger=logger)
 

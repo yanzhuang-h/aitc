@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+import threading
 from typing import Any, Mapping
 
 from .cache import WindowCache
-from .schemas import ConfigItem, ExperienceItem, TrafficRecord, utc_now_iso
+from .classifier import DataKind, DataSource
+from .schemas import ConfigItem, ExperienceItem, RuntimeRecord, TrafficRecord, utc_now_iso
 from .storage import JsonFileStore
 
 
@@ -41,6 +43,45 @@ class TrafficRepository:
         if cached:
             return cached
         records = self.store.read_jsonl(f"traffic/{intersection_id}.jsonl")
+        return records[-limit:] if limit > 0 else []
+
+
+class RuntimeRepository:
+    """按数据类型持久化运行时接入记录。"""
+
+    def __init__(self, store: JsonFileStore) -> None:
+        self.store = store
+        self._lock = threading.RLock()
+
+    def add(
+        self,
+        kind: DataKind | str,
+        payload: Mapping[str, Any],
+        source: DataSource | str = DataSource.UNKNOWN,
+    ) -> dict[str, Any]:
+        kind_name = kind.value if isinstance(kind, DataKind) else str(kind)
+        source_name = source.value if isinstance(source, DataSource) else str(source)
+        record = RuntimeRecord(
+            kind=kind_name,
+            payload=dict(payload),
+            source=source_name,
+        ).to_dict()
+        with self._lock:
+            self.store.append_jsonl(f"runtime/{kind_name}.jsonl", record)
+        return record
+
+    def latest(self, kind: DataKind | str) -> dict[str, Any] | None:
+        records = self.window(kind, limit=1)
+        return records[-1] if records else None
+
+    def window(
+        self,
+        kind: DataKind | str,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        kind_name = kind.value if isinstance(kind, DataKind) else str(kind)
+        with self._lock:
+            records = self.store.read_jsonl(f"runtime/{kind_name}.jsonl")
         return records[-limit:] if limit > 0 else []
 
 
@@ -112,6 +153,7 @@ class DataFoundationRepository:
         self.root = Path(root)
         self.store = JsonFileStore(self.root)
         self.traffic = TrafficRepository(self.store, cache_size=cache_size)
+        self.runtime = RuntimeRepository(self.store)
         self.config = ConfigRepository(self.store)
         self.experience = ExperienceRepository(self.store)
 

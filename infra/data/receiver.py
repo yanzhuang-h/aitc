@@ -44,6 +44,7 @@ class RuntimeDataReceiver:
         self,
         cache: RuntimeDataCache | None = None,
         writer: RuntimeDataWriter | None = None,
+        repository: DataRepository | None = None,
         lambdas_module: Any | None = None,
         overflow_warning_map: dict[str, Any] | None = None,
         radar_event_map: dict[str, Any] | None = None,
@@ -51,6 +52,7 @@ class RuntimeDataReceiver:
     ) -> None:
         self.cache = cache or RuntimeDataCache()
         self.writer = writer or RuntimeDataWriter()
+        self.repository = repository
         self.lambdas = lambdas_module
         self.overflow_warning_map = overflow_warning_map
         self.radar_event_map = radar_event_map
@@ -90,6 +92,12 @@ class RuntimeDataReceiver:
     ) -> ClassifiedData:
         classified = classify_data(item, source=source)
         self.writer.write(classified.kind, classified.item)
+        if self.repository is not None:
+            self.repository.store_runtime_data(
+                classified.kind,
+                classified.item,
+                source=classified.source.value,
+            )
         return classified
 
     def _update_runtime_state(self, classified: ClassifiedData) -> None:

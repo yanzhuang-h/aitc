@@ -35,6 +35,19 @@ class TrafficRecord:
 
 
 @dataclass(slots=True)
+class RuntimeRecord:
+    """一条已分类的运行数据记录。"""
+
+    kind: str
+    payload: dict[str, Any]
+    source: str = "unknown"
+    received_at: str = field(default_factory=utc_now_iso)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
 class ConfigItem:
     """A persisted configuration value."""
 

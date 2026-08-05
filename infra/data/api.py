@@ -33,6 +33,25 @@ class DataRepository:
     def get_traffic_window(self, intersection_id: str, limit: int = 20) -> list[dict[str, Any]]:
         return self.repository.traffic.window(intersection_id, limit=limit)
 
+    def store_runtime_data(
+        self,
+        kind: DataKind | str,
+        payload: Mapping[str, Any],
+        source: str = "unknown",
+    ) -> dict[str, Any]:
+        """持久化一条已分类的运行数据。"""
+        return self.repository.runtime.add(kind, payload, source=source)
+
+    def get_latest_runtime_data(self, kind: DataKind | str) -> dict[str, Any] | None:
+        return self.repository.runtime.latest(kind)
+
+    def get_runtime_history(
+        self,
+        kind: DataKind | str,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        return self.repository.runtime.window(kind, limit=limit)
+
     def set_config(self, key: str, value: Any, namespace: str = "default") -> dict[str, Any]:
         return self.repository.config.set(key=key, value=value, namespace=namespace)
 
@@ -68,10 +87,12 @@ class RuntimeDataQueryService:
         cache: RuntimeDataCache,
         result_warehouse: ResultWarehouse,
         config_service: ConfigService,
+        repository: DataRepository | None = None,
     ) -> None:
         self.cache = cache
         self.result_warehouse = result_warehouse
         self.config_service = config_service
+        self.repository = repository
 
     def get_runtime_data(
         self,
@@ -88,6 +109,16 @@ class RuntimeDataQueryService:
     def get_runtime_size(self, kind: DataKind | str) -> int:
         """查询指定运行窗口中的有效数据数量。"""
         return self.cache.size(self._data_kind(kind))
+
+    def get_runtime_history(
+        self,
+        kind: DataKind | str,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """查询持久化的运行数据历史。"""
+        if self.repository is None:
+            raise RuntimeError("runtime repository is not configured")
+        return self.repository.get_runtime_history(self._data_kind(kind), limit=limit)
 
     def get_runtime_snapshot(
         self,
