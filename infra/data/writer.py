@@ -22,6 +22,10 @@ class RuntimeDataWriter:
         if hasattr(self.legacy_writer, "update_file_name"):
             self.legacy_writer.update_file_name()
 
+    def start_filename_updater(self) -> None:
+        if hasattr(self.legacy_writer, "start_filename_updater"):
+            self.legacy_writer.start_filename_updater()
+
     def write(self, kind: DataKind, data: dict[str, Any]) -> None:
         text = json.dumps(data, ensure_ascii=False)
         writer = self._resolve_writer(kind)

@@ -15,6 +15,8 @@
 - 2026-08-05: 将 `process_data_to_send()` 的缓存快照读取与 `Process_cache_data.py` 聚合调用接入 `infra.data.LegacyCacheProcessor`。`Server_AITC.py` 不再直接导入 `Process_cache_data`，旧聚合函数仍保持不变。
 - 2026-08-05: 将 `todo-done/8-5.md` 的数据底座开发部分整理为 checklist，记录已完成的 receiver/cache/writer/legacy_processor 抽象，并规划下一步收口 `Write_to_file.py`、配置接口、Nacos、time_schedule 和 Agent 查询工具。
 - 2026-08-05: 收口 `Write_to_file.py` 的运行结果输出到 `infra.data.RuntimeDataWriter`，新增 `write_flow_prediction` 和 `write_queue_prediction`，并将 `Server_AITC.py` 中的 EXP、flow_pre、queue_pre、phase_check、send 写入全部切到数据底座门面。
+- 2026-08-05: 进一步将 Write_to_file.py 的文件轮转启动也收口到 RuntimeDataWriter，主入口现在通过数据底座门面启动 start_filename_updater()。
 - Pending: Continue project cleanup before the enterprise refactor, especially separating source, generated runtime data, configs, and tests.
 - Next suggested step: audit tracked generated artifacts and remove any already-committed cache/log/build outputs from the index.
+
 

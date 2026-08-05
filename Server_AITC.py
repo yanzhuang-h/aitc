@@ -162,8 +162,8 @@ send_lock=threading.Lock()
 # HTTP服务器关闭标志
 http_server_shutdown = threading.Event()
 
-Write_to_file.start_filename_updater()
 runtime_data_writer = RuntimeDataWriter(Write_to_file)
+runtime_data_writer.start_filename_updater()
 runtime_data_receiver = RuntimeDataReceiver(
     cache=runtime_data_cache,
     writer=runtime_data_writer,
