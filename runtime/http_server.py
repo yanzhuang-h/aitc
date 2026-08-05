@@ -146,6 +146,7 @@ class HttpRuntimeServer:
                         "status": "running",
                         "service": "radar_data_receiver",
                         "radar_cache_size": runtime_server.query_service.get_runtime_size(DataKind.RADAR),
+                        "data_quality": runtime_server.query_service.get_data_quality_snapshot(),
                     },
                 )
 

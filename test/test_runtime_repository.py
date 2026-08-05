@@ -13,6 +13,7 @@ from infra.data import (
     RuntimeDataCache,
     RuntimeDataQueryService,
     RuntimeDataReceiver,
+    DataQualityMonitor,
 )
 
 
@@ -29,6 +30,12 @@ class _Lambdas:
 
 
 class RuntimeRepositoryTest(unittest.TestCase):
+    def test_receiver_records_contract_issues_without_blocking_data(self) -> None:
+        monitor = DataQualityMonitor()
+        receiver = RuntimeDataReceiver(cache=RuntimeDataCache({DataKind.FLOW: 60}), writer=_MemoryWriter(), quality_monitor=monitor)
+        receiver.receive_tcp({"ycsb_xsfx": "U"})
+        self.assertEqual(len(receiver.recent(DataKind.FLOW)), 1)
+        self.assertEqual(monitor.snapshot()["total_issues"], 1)
     def test_receiver_persists_classified_runtime_record(self) -> None:
         with tempfile.TemporaryDirectory() as root:
             repository = DataRepository(root=root)

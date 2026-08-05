@@ -19,6 +19,7 @@ from infra.data import (
     ConfigSyncManager,
     DataKind,
     DataRepository,
+    DataQualityMonitor,
     FilePredictionRepository,
     RuntimeDataProcessor,
     ResultSender,
@@ -104,12 +105,13 @@ def create_application(logger=None) -> AITCApplication:
     writer = RuntimeDataWriter()
     repository = DataRepository()
     overflow_warning_map = copy.deepcopy(Lambdas.map_lambda)
+    quality_monitor = DataQualityMonitor()
     radar_event_map = {key: {} for key in Lambdas.radar_event_list}
-    receiver = RuntimeDataReceiver(cache=cache, writer=writer, repository=repository, lambdas_module=Lambdas, overflow_warning_map=overflow_warning_map, radar_event_map=radar_event_map, logger=logger)
+    receiver = RuntimeDataReceiver(cache=cache, writer=writer, repository=repository, lambdas_module=Lambdas, overflow_warning_map=overflow_warning_map, radar_event_map=radar_event_map, logger=logger, quality_monitor=quality_monitor)
     ingestor = RuntimeDataIngestor(receiver)
     config_service = ConfigService()
     warehouse = ResultWarehouse()
-    query_service = RuntimeDataQueryService(cache=cache, result_warehouse=warehouse, config_service=config_service, repository=repository)
+    query_service = RuntimeDataQueryService(cache=cache, result_warehouse=warehouse, config_service=config_service, repository=repository, quality_monitor=quality_monitor)
     sender = ResultSender(writer=writer, logger=logger)
     prediction_repository = FilePredictionRepository()
     flow_predictor = FlowPredictionService(Flow_predict, prediction_repository)

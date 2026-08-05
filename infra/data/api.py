@@ -12,6 +12,7 @@ from .config import ConfigResource, ConfigService
 from .repository import DataFoundationRepository
 from .result_warehouse import ResultWarehouse
 from .runtime_cache import RuntimeDataCache
+from .quality import DataQualityMonitor
 from .schemas import TrafficRecord
 
 
@@ -114,11 +115,16 @@ class RuntimeDataQueryService:
         result_warehouse: ResultWarehouse,
         config_service: ConfigService,
         repository: DataRepository | None = None,
+        quality_monitor: DataQualityMonitor | None = None,
     ) -> None:
         self.cache = cache
         self.result_warehouse = result_warehouse
         self.config_service = config_service
         self.repository = repository
+        self.quality_monitor = quality_monitor
+
+    def get_data_quality_snapshot(self) -> dict[str, Any]:
+        return self.quality_monitor.snapshot() if self.quality_monitor is not None else {"total_issues": 0, "issues_by_kind": {}, "recent_issues": []}
 
     def get_runtime_data(
         self,

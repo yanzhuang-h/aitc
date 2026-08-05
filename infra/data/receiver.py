@@ -6,6 +6,8 @@ from typing import Any, Mapping
 
 from .api import DataRepository, get_default_repository
 from .classifier import ClassifiedData, DataKind, DataSource, classify_data
+from .contracts import validate_contract
+from .quality import DataQualityMonitor
 from .runtime_cache import RuntimeDataCache
 from .writer import RuntimeDataWriter
 
@@ -49,6 +51,7 @@ class RuntimeDataReceiver:
         overflow_warning_map: dict[str, Any] | None = None,
         radar_event_map: dict[str, Any] | None = None,
         logger: Any | None = None,
+        quality_monitor: DataQualityMonitor | None = None,
     ) -> None:
         self.cache = cache or RuntimeDataCache()
         self.writer = writer or RuntimeDataWriter()
@@ -57,6 +60,7 @@ class RuntimeDataReceiver:
         self.overflow_warning_map = overflow_warning_map
         self.radar_event_map = radar_event_map
         self.logger = logger
+        self.quality_monitor = quality_monitor or DataQualityMonitor()
 
     def receive(
         self,
@@ -91,6 +95,11 @@ class RuntimeDataReceiver:
         source: DataSource | str,
     ) -> ClassifiedData:
         classified = classify_data(item, source=source)
+        self.quality_monitor.record(
+            classified.kind,
+            classified.source,
+            validate_contract(classified.kind, classified.item, classified.source),
+        )
         self.writer.write(classified.kind, classified.item)
         if self.repository is not None:
             self.repository.store_runtime_data(

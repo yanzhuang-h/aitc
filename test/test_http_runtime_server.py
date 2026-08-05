@@ -21,6 +21,8 @@ class _ConfigService:
 class _QueryService:
     def get_runtime_size(self, _kind):
         return 3
+    def get_data_quality_snapshot(self):
+        return {"total_issues": 2, "issues_by_kind": {"radar": 2}, "recent_issues": []}
 
 
 class HttpRuntimeServerTest(unittest.TestCase):
@@ -59,6 +61,7 @@ class HttpRuntimeServerTest(unittest.TestCase):
 
         self.assertEqual(status, 200)
         self.assertEqual(payload["radar_cache_size"], 3)
+        self.assertEqual(payload["data_quality"]["total_issues"], 2)
 
 
 if __name__ == "__main__":

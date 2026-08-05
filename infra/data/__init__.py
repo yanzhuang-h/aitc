@@ -11,6 +11,7 @@ from .config_sync import ConfigSyncManager
 from .contracts import CONTRACTS, DataContract, validate_contract
 from .ingest import RuntimeDataIngestor
 from .prediction_repository import FilePredictionRepository
+from .quality import DataQualityMonitor
 from .runtime_processor import RuntimeDataProcessor
 from .result_sender import ResultSender
 from .result_warehouse import ResultWarehouse
@@ -30,6 +31,7 @@ __all__ = [
     "DataRepository",
     "DataSource",
     "FilePredictionRepository",
+    "DataQualityMonitor",
     "RuntimeDataProcessor",
     "RuntimeDataCache",
     "RuntimeDataIngestor",
