@@ -1,5 +1,6 @@
 # Python
 __pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 .python-version
@@ -32,6 +33,8 @@ Thumbs.db
 !.env.example
 
 # Logs and temporary files
+logs_data/
+**/logs_data/
 *.log
 *.tmp
 *.bak
