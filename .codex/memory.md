@@ -36,6 +36,7 @@
 - 2026-08-05: 在 `todo-done/data-flow-baseline.md` 固化当前端到端调用链：TCP/HTTP -> 数据底座 -> 旧聚合适配 -> `lib.DQN_Select` 路口策略 -> 全局协调/相位校验 -> 结果仓库/广播。后续应先抽取不改算法的周期决策管线，再精简服务启动文件。
 - 2026-08-05: 新增 `runtime.PeriodicDecisionPipeline`，由 `Server_AITC.py` 注入数据底座、预测模块、既有 `lib` 算法和结果仓库。服务启动线程已切换到新管线；旧周期函数暂留作未运行的回退代码，待下一次回放确认后删除。新增管线隔离测试，自动化测试共 15 项。
 - 2026-08-05: 已使用 `test/fixtures/flow_replay.jsonl` 完成新周期决策管线的真实 TCP 回放。记录写入 `infra/data/runtime/runtime/flow.jsonl`，周期线程完成 flow 聚合、预测与相位校验，后台日志未出现 ERROR/Traceback；验证服务已停止。下一步可删除 `Server_AITC.py` 中未运行的旧周期编排函数。
+- 2026-08-05: 删除 `Server_AITC.py` 中已被 `PeriodicDecisionPipeline` 替代的旧路口处理、旧聚合和旧周期函数，主文件减少约 180 行；同步移除无效的协调状态与线程池全局变量。保留 TCP/HTTP 接收、广播与服务生命周期代码。
 - Pending: Continue project cleanup before the enterprise refactor, especially separating source, generated runtime data, configs, and tests.
 - Next suggested step: 使用新的 flow fixture 对运行中的服务进行 TCP 回放集成验证，再评估旧写入/缓存文件的删减范围。
 

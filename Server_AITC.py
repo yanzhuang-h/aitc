@@ -7,7 +7,6 @@ import Flow_predict
 import Queue_predict
 # import torch
 from datetime import datetime
-from concurrent.futures import ThreadPoolExecutor  # 用于线程池管理
 from Select_data_to_send import select_data_to_send
 import sys
 import signal
@@ -113,9 +112,6 @@ legacy_cache_processor = LegacyCacheProcessor(runtime_data_cache)
 
 # 雷达事件map
 radar_event_map = {key:{}for key in Lambdas.radar_event_list}
-global_overflow_warning={}
-# 上一轮模型执行情况
-last_coordinate_set=copy.deepcopy(Lambdas.map_lambda)
 
 # 服务器配置
 
@@ -141,8 +137,6 @@ import_lock = threading.Lock()
 # 用于存储所有活动线程和退出标志
 client_threads = []
 exit_flags = {}
-# 创建一个线程池，限制最大线程数
-executor = ThreadPoolExecutor(max_workers=20)
 
 # 定义流量预测任务开始时间
 pre_hour=3
@@ -422,184 +416,6 @@ def start_radar_http_server():
     except Exception as e:
         logger.error(f"Failed to start radar HTTP server: {e}", exc_info=True)
         return None, None
-
-# 主动清除cache中的过期数据
-def clear_expired_data(kind=None):
-    runtime_data_cache.clear_expired(kind)
-
-def process_single_intersection(intersection_id, intersection_flow, result_queue_length,flow_map,queue_map,stage_map,intersection_flow_duration2,cur_flow_pre_map,cur_queue_pre_map,extend_map,online_map, overflowMap,radarMap,boyan_map):
-    global last_coordinate_set
-    current_time = time.time()
-    intersection_result_map=copy.deepcopy(Lambdas.intersection_result_lambda)
-    traffic_vector = intersection_flow[intersection_id]
-    traffic_vector_duration2=intersection_flow_duration2[intersection_id]
-    queue_vector = result_queue_length[intersection_id]
-    flow_map_single_intersection=dict(flow_map[intersection_id])
-    queue_map_single_intersection=dict(queue_map[intersection_id])
-    stage_map_single_intersection=dict(stage_map[intersection_id])
-    extend_map_single_intersection=dict(extend_map[intersection_id])
-    radarMap_single_intersection=dict(radarMap[intersection_id])
-    radar_event_map_single_intersection=dict(overflowMap[intersection_id])
-    boyan_map_single_intersection=dict(boyan_map[intersection_id])
-    logger.info(f"boyan_map_single_intersection for {intersection_id}: {boyan_map_single_intersection}")
-    if cur_flow_pre_map : cur_flow_pre_map_single_intersection=cur_flow_pre_map.get(intersection_id)
-    if cur_queue_pre_map: cur_queue_pre_map_single_intersection=cur_queue_pre_map.get(intersection_id)
-    
-    online_map_single_intersection=dict()
-    if intersection_id in Lambdas.intersection_to_rid_lambda:
-        for rid,direction in Lambdas.intersection_to_rid_lambda[intersection_id]:
-            if rid in online_map:
-                online_map_single_intersection[rid]=online_map[rid]
-                
-    
-    try:
-
-        result_action,coordinate_map,model_info_list,EXP_list= DQN_select(traffic_vector, queue_vector,traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,last_coordinate_set,cur_flow_pre_map,cur_queue_pre_map,extend_map_single_intersection,radar_event_map_single_intersection,radarMap_single_intersection,intersection_id,boyan_map_single_intersection)
-        runtime_data_writer.write_experience(EXP_list, intersection_id)
-        intersection_result_map['result_action']=result_action
-        intersection_result_map['traffic_vector']=traffic_vector
-        intersection_result_map['model_info_list']=model_info_list
-        logger.info(f"Intersection: {intersection_id} process result : {intersection_result_map}")
-    except Exception as e:
-        logger.error(f'Error getting dqn_{intersection_id} result:{e}', exc_info=True)
-    return intersection_id,intersection_result_map,coordinate_map
-
-# 把流量数据和排队数据提交给模型处理
-def process_data_to_send():
-    global last_coordinate_set
-    global radar_event_map
-    global overflowWarningMap
-    clear_expired_data()
-    recent_data = legacy_cache_processor.snapshot()
-    recent_boyan_data=recent_data["boyan"]
-    recent_flow_data = recent_data["flow"]
-    recent_queue_data = recent_data["queue"]
-    recent_stage_data = recent_data["stage"]
-    recent_extend_data = recent_data["extend"]
-    recent_radar_data=recent_data["radar"]
-    logger.info(f" extend_data_cache size: {runtime_data_cache.size(DataKind.EXTEND)}")  
-    if not recent_flow_data:
-        intersection_flow = copy.deepcopy(Lambdas.intersection_flow_lambda)
-        intersection_flow_duration2=intersection_flow
-        flow_map=copy.deepcopy(Lambdas.map_lambda)
-    else:
-        intersection_flow,flow_map = legacy_cache_processor.flow()
-        intersection_flow_duration2,flow_map_duration2=legacy_cache_processor.flow_duration(FLOW_WINDOW_DURATION2)
-        
-        # 获取流量预测数据并存入文件
-        end_time=recent_flow_data[0].get('ts')
-        if is_millisecond_timestamp(end_time):
-            flow_predict_data=Flow_predict.flow_pre_json_Gen(intersection_flow,intersection_flow_duration2,end_time)
-            runtime_data_writer.write_flow_prediction(flow_predict_data)
-        else:
-            logger.warning("Flow data has no valid ts; skipped flow prediction output")
-    if not recent_queue_data:
-        result_queue_length = copy.deepcopy(Lambdas.max_lengths_lambda)
-        queue_map=copy.deepcopy(Lambdas.map_lambda)
-    else:
-        result_queue_length,queue_map = legacy_cache_processor.queue()
-
-        # 获取排队预测数据并存入文件
-        start_time=recent_queue_data[0].get("start_time")
-        if is_millisecond_timestamp(start_time):
-            queue_pre_data=Queue_predict.queue_pre_json_gen(result_queue_length,start_time)
-            runtime_data_writer.write_queue_prediction(queue_pre_data)
-        else:
-            logger.warning("Queue data has no valid start_time; skipped queue prediction output")
-    if not recent_stage_data:
-        stage_map=copy.deepcopy(Lambdas.map_lambda)
-    else:
-        stage_map=legacy_cache_processor.stage()
-    if not recent_extend_data:
-        extend_map=copy.deepcopy(Lambdas.map_lambda)
-    else:
-        extend_map=legacy_cache_processor.extend()
-    result_map=copy.deepcopy(Lambdas.map_lambda)
-    if not recent_boyan_data:
-        boyan_map=copy.deepcopy(Lambdas.map_lambda)
-    else:
-        boyan_map=legacy_cache_processor.boyan()
-
-    cur_flow_pre_map=Flow_predict.get_current_flow_prediction()
-
-    #获取当前的排队预测map
-    cur_queue_pre_map=Queue_predict.get_current_queue_prediction()
-
-    #获取互联网数据map
-    online_map=legacy_cache_processor.online()
-    
-    #获取radar数据
-    if not recent_radar_data:
-        radarMap=copy.deepcopy(Lambdas.map_lambda)
-    else:
-        radarMap=legacy_cache_processor.radar()
-    overflowMap=legacy_cache_processor.radar_event(radar_event_map,overflowWarningMap)
-    global_overflow_warning=overflowMap
-    with ThreadPoolExecutor(max_workers=30) as executor:
-            future_to_intersection = {
-                executor.submit(process_single_intersection, 
-                                intersection_id,intersection_flow,result_queue_length,
-                                flow_map,queue_map,stage_map,intersection_flow_duration2,
-                                cur_flow_pre_map,cur_queue_pre_map,extend_map,online_map,
-                                overflowMap,radarMap,boyan_map): intersection_id
-                for intersection_id in Lambdas.intersection_list
-            }
-            new_coordinate_set=copy.deepcopy(Lambdas.map_lambda)
-            for future in future_to_intersection:
-                try:
-                    intersection_id,result_future,map_future=future.result()
-                    result_map[intersection_id]=result_future  # 获取每个路口的处理结果
-                    new_coordinate_set[intersection_id]=map_future
-                except Exception as e:
-                    logger.error(f"Error processing intersection data: {e}", exc_info=True)
-            last_coordinate_set=new_coordinate_set
-    return result_map,online_map
-
-
-def periodic_data_processing():
-    global processing_flag
-    while True:
-        start_time = time.time()
-        # 如果正在处理中，等待前一次完成
-        while processing_flag:
-            time.sleep(0.1)
-        
-        processing_flag = True
-        try:
-            # 执行数据处理
-            current_result,online_map = process_data_to_send()
-            # print(f"current_result:{current_result}")
-            # result_check_report=phase_check(current_result)
-            # Write_to_file.write_to_phase_check_file(json.dumps(result_check_report))
-            # 生成全局发送数据集
-            action={}
-            for intersection_id in current_result:
-                action[intersection_id] = current_result[intersection_id]['result_action']
-            if len(current_result)==len(Lambdas.intersection_list): 
-                action=coordinate(action,last_coordinate_set,online_map,global_overflow_warning)
-            action,result_check_report=phase_check(action)
-            print(f"final action after coordinate floating value and phase_check:{action}")
-            runtime_data_writer.write_phase_check(result_check_report)
-            results_to_send = []
-            for intersection_id in current_result:
-                current_result[intersection_id]['result_action'] = action[intersection_id]
-                data_to_send = select_data_to_send(
-                    intersection_id,
-                    action[intersection_id],
-                    current_result[intersection_id]['traffic_vector'],
-                    current_result[intersection_id]['model_info_list'],
-                )
-                results_to_send.append(data_to_send)
-            result_warehouse.replace(results_to_send)
-        except Exception as e:
-            logger.error(f"数据处理失败: {e}", exc_info=True)
-        finally:
-            processing_flag = False
-            logger.info("最新结果已更新。。。。")
-        # 动态等待剩余时间
-        elapsed = time.time() - start_time
-        wait_time = max(0, SEND_INTERVAL - elapsed)
-        time.sleep(wait_time)
 
 def periodic_decision_processing():
     """周期触发决策编排，服务端不再直接组织算法调用。"""
