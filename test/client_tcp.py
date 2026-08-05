@@ -329,6 +329,8 @@ class EnhancedDataSender:
                 config['send_interval'] = args.interval
             if args.duration:
                 config['duration_sec'] = args.duration
+            if args.start_timestamp is not None:
+                config['start_timestamp'] = args.start_timestamp
             if args.max_preload:
                 config['max_preload_records'] = args.max_preload
     
@@ -519,7 +521,9 @@ class EnhancedSingleSender:
             return
             
         start_time = min(self.time_to_data_map.keys())
-        end_time = start_time + self.config['duration_sec']
+        configured_end_time = start_time + self.config['duration_sec']
+        last_data_time = max(self.time_to_data_map.keys())
+        end_time = min(configured_end_time, last_data_time)
         
         current_time = start_time
         while current_time <= end_time:
@@ -588,6 +592,8 @@ def create_parser():
     parser.add_argument('--file', help='数据文件路径')
     parser.add_argument('--interval', type=float, help='发送间隔(秒)')
     parser.add_argument('--duration', type=int, help='发送时长(秒)')
+    parser.add_argument('--start-timestamp', type=int,
+                        help='定时回放起始 Unix 时间戳(秒)')
     parser.add_argument('--max-preload', type=int, help='最大预读取数')
     
     parser.add_argument('--verbose', '-v', action='store_true', help='详细输出')
