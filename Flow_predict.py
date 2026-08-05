@@ -1,11 +1,6 @@
-import json
 from datetime import datetime, timedelta, time
-import os
-import ast
 import Lambdas
-
-LOG_DIR = 'logs_data'
-PREDICTION_DIR = os.path.join(LOG_DIR, 'flow_predictions')
+from infra.data.prediction_repository import FilePredictionRepository
 
 
 def flow_pre_json_Gen(intersection_flow_duration1, intersection_flow_duration2, end_time):
@@ -54,24 +49,9 @@ def generate_target_windows(target_time_str, days, is_workday_mode):
             count += 1
     return target_windows
 
-def read_filtered_data_by_window(target_windows):
+def read_filtered_data_by_window(target_windows, repository=None):
     """读取窗口时间范围内的数据（适配特殊窗口）"""
-    filtered_data = []
-    for window_start, window_end in target_windows:
-        date_str = window_start.strftime("%Y-%m-%d")
-        file_path = os.path.join(LOG_DIR, f"{date_str}_flow_pre.txt")
-        try:
-            with open(file_path, "r") as f:
-                for line in f:
-                    data = ast.literal_eval(line.strip())
-                    data_time = datetime.strptime(data.get("time"), "%Y-%m-%d-%H:%M")
-                    if window_start <= data_time < window_end:
-                        filtered_data.append(data)
-        except FileNotFoundError:
-            print(f"Warning: File {file_path} unexists, skipped")
-        except SyntaxError:
-            print(f"Error: File {file_path} decode failed")
-    return filtered_data
+    return (repository or FilePredictionRepository()).read_history("flow_pre", target_windows)
 
 def calculate_positional_averages(durations_list):
     """计算各位置平均值"""
@@ -133,7 +113,7 @@ def generate_time_windows(start_time_str, end_time_str):
     
     return windows
 
-def get_intersection_pre_map_for_window(target_window):
+def get_intersection_pre_map_for_window(target_window, repository=None):
     """获取指定时间窗口的预测数据"""
     window_start, window_end = target_window
     target_time_str = window_start.strftime("%Y-%m-%d-%H:%M")
@@ -146,7 +126,7 @@ def get_intersection_pre_map_for_window(target_window):
     historical_windows = generate_target_windows(target_time_str, required_days, is_workday_mode)
     
     # 读取并过滤数据
-    filtered_data = read_filtered_data_by_window(historical_windows)
+    filtered_data = read_filtered_data_by_window(historical_windows, repository)
     
     # 计算所有路口数据
     flow_pre_map = {}
@@ -162,11 +142,11 @@ def get_intersection_pre_map_for_window(target_window):
         "data": flow_pre_map
     }
 
-def daily_prediction_job():
+def daily_prediction_job(repository=None, current_time=None):
     """每日预测任务入口"""
-    # 创建预测目录
+    repository = repository or FilePredictionRepository()
+    now = current_time or datetime.now()
     print("####################start daily prediction job######################")
-    os.makedirs(PREDICTION_DIR, exist_ok=True)
     # 生成当天所有时间窗口
     time_windows = generate_time_windows("05:00", "23:50")
     # 存储所有预测结果
@@ -174,20 +154,13 @@ def daily_prediction_job():
     
     # 遍历每个时间窗口
     for window in time_windows:
-        result = get_intersection_pre_map_for_window(window)
+        result = get_intersection_pre_map_for_window(window, repository)
         daily_predictions[result["timestamp"]] = result["data"]
     
-    # 生成文件名
-    filename = f"flow_predictions_{datetime.now().strftime('%Y-%m-%d')}.json"
-    filepath = os.path.join(PREDICTION_DIR, filename)
-    
-    # 写入文件
-    with open(filepath, 'w') as f:
-        json.dump(daily_predictions, f, indent=2)
-    
+    filepath = repository.save_daily_predictions("flow", now, daily_predictions)
     print(f"预测文件已生成：{filepath}")
 
-def get_current_flow_prediction(current_time=None):
+def get_current_flow_prediction(current_time=None, repository=None):
     """
     获取当前时间对应的流量预测数据
     参数：
@@ -195,36 +168,8 @@ def get_current_flow_prediction(current_time=None):
     返回：
         预测数据字典 或 None（数据不存在时）
     """
-    # 确定时间窗口
     now = current_time or datetime.now()
-    window_start = now.replace(minute=(now.minute // 10) * 10, second=0, microsecond=0)
-    
-    # 处理23:50-23:59特殊窗口
-    if window_start.minute == 50:
-        window_end = window_start.replace(minute=59)
-    else:
-        window_end = window_start + timedelta(minutes=10)
-    
-    # 构建文件路径
-    prediction_dir = os.path.join(LOG_DIR, 'flow_predictions')
-    filename = f"flow_predictions_{now.strftime('%Y-%m-%d')}.json"
-    filepath = os.path.join(prediction_dir, filename)
-    
-    # 读取并解析数据
-    if not os.path.exists(filepath):
-        print(f"警告：当日预测文件 {filename} 不存在")
-        return None
-    
-    try:
-        with open(filepath, 'r') as f:
-            predictions = json.load(f)
-    except Exception as e:
-        print(f"文件解析失败：{str(e)}")
-        return None
-    
-    # 查找对应时间窗口
-    target_key = window_start.strftime("%Y-%m-%d-%H:%M")
-    return predictions.get(target_key)
+    return (repository or FilePredictionRepository()).get_current_prediction("flow", now)
 if __name__ == "__main__":
     # 首次启动时立即执行一次（测试用）
     daily_prediction_job()

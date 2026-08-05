@@ -9,6 +9,7 @@ from .classifier import ClassifiedData, DataKind, DataSource, classify_data
 from .config import ConfigResource, ConfigService
 from .config_sync import ConfigSyncManager
 from .ingest import RuntimeDataIngestor
+from .prediction_repository import FilePredictionRepository
 from .runtime_processor import RuntimeDataProcessor
 from .result_sender import ResultSender
 from .result_warehouse import ResultWarehouse
@@ -25,6 +26,7 @@ __all__ = [
     "DataKind",
     "DataRepository",
     "DataSource",
+    "FilePredictionRepository",
     "RuntimeDataProcessor",
     "RuntimeDataCache",
     "RuntimeDataIngestor",

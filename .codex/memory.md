@@ -49,6 +49,7 @@
 - 2026-08-05: 完成聚合组件的配置依赖解耦。`infra/data/cache_processor.py` 不再导入全局 `Lambdas`，由 `RuntimeDataProcessor` 接收并向各聚合函数传递配置模块，`runtime.create_application()` 负责装配该依赖。聚合行为基线测试与全量自动化测试共 27 项通过，编译检查通过。
 - 2026-08-05: 将根目录 `Select_data_to_send.py` 迁入 `runtime/result_formatter.py`，作为周期决策到下游控制报文的输出适配器。格式化器通过应用装配层使用 `partial` 显式注入 `Lambdas`，周期管线接口不变；新增报文结构测试。全量自动化测试共 28 项通过，编译检查通过。
 - 2026-08-05: 将流量、排队预测任务的 APScheduler 生命周期从 `Flow_predict.py`、`Queue_predict.py` 收口到 `runtime/prediction_scheduler.py`。`AITCApplication` 统一启动和停止调度器，预测模块保留计算与读写逻辑；新增调度注册和停止测试。全量自动化测试共 29 项通过，编译检查通过。
+- 2026-08-05: 新增 `infra/data/prediction_repository.py` 的 `FilePredictionRepository`，统一读取 flow/queue 历史样本与保存、查询每日预测 JSON。仓库优先采用当前 `logs_data/<category>/` 输出布局，同时兼容旧根目录文件；`runtime/prediction_service.py` 将该仓库显式注入两个预测算法，周期决策和每日调度共用同一实例。全量自动化测试共 31 项通过，编译检查通过。
 - Pending: Continue project cleanup before the enterprise refactor, especially separating source, generated runtime data, configs, and tests.
 - Next suggested step: 盘点根目录剩余的数据处理与预测模块，区分算法实现和运行编排职责，再决定下一批可迁入 `runtime/` 或 `infra/data/` 的边界。
 

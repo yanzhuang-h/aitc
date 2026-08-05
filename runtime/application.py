@@ -19,6 +19,7 @@ from infra.data import (
     ConfigSyncManager,
     DataKind,
     DataRepository,
+    FilePredictionRepository,
     RuntimeDataProcessor,
     ResultSender,
     ResultWarehouse,
@@ -33,6 +34,7 @@ from infra.data import (
 from .decision_pipeline import PeriodicDecisionPipeline
 from .http_server import HttpRuntimeServer
 from .prediction_scheduler import PredictionScheduler
+from .prediction_service import FlowPredictionService, QueuePredictionService
 from .result_formatter import format_result
 from .tcp_server import TcpRuntimeServer
 
@@ -109,8 +111,11 @@ def create_application(logger=None) -> AITCApplication:
     warehouse = ResultWarehouse()
     query_service = RuntimeDataQueryService(cache=cache, result_warehouse=warehouse, config_service=config_service, repository=repository)
     sender = ResultSender(writer=writer, logger=logger)
+    prediction_repository = FilePredictionRepository()
+    flow_predictor = FlowPredictionService(Flow_predict, prediction_repository)
+    queue_predictor = QueuePredictionService(Queue_predict, prediction_repository)
     http_server = HttpRuntimeServer(host="127.0.0.1", port=8088, ingestor=ingestor, config_service=config_service, query_service=query_service, logger=logger)
     tcp_server = TcpRuntimeServer(host="127.0.0.1", port=65432, buffer_size=1024 * 1024, ingestor=ingestor, result_warehouse=warehouse, result_sender=sender, send_interval=50, logger=logger)
-    pipeline = PeriodicDecisionPipeline(cache=cache, data_processor=RuntimeDataProcessor(cache, Lambdas), lambdas_module=Lambdas, writer=writer, result_warehouse=warehouse, flow_predictor=Flow_predict, queue_predictor=Queue_predict, dqn_select=DQN_select, coordinate=coordinate, phase_check=phase_check, select_data_to_send=partial(format_result, lambdas_module=Lambdas), is_millisecond_timestamp=is_millisecond_timestamp, overflow_warning_map=overflow_warning_map, radar_event_map=radar_event_map, flow_duration_seconds=150, logger=logger)
-    prediction_scheduler = PredictionScheduler(flow_job=Flow_predict.daily_prediction_job, queue_job=Queue_predict.daily_queue_prediction, hour=3, minute=0, logger=logger)
+    pipeline = PeriodicDecisionPipeline(cache=cache, data_processor=RuntimeDataProcessor(cache, Lambdas), lambdas_module=Lambdas, writer=writer, result_warehouse=warehouse, flow_predictor=flow_predictor, queue_predictor=queue_predictor, dqn_select=DQN_select, coordinate=coordinate, phase_check=phase_check, select_data_to_send=partial(format_result, lambdas_module=Lambdas), is_millisecond_timestamp=is_millisecond_timestamp, overflow_warning_map=overflow_warning_map, radar_event_map=radar_event_map, flow_duration_seconds=150, logger=logger)
+    prediction_scheduler = PredictionScheduler(flow_job=flow_predictor.daily_prediction_job, queue_job=queue_predictor.daily_queue_prediction, hour=3, minute=0, logger=logger)
     return AITCApplication(config_sync_manager=ConfigSyncManager(), http_server=http_server, tcp_server=tcp_server, decision_pipeline=pipeline, prediction_scheduler=prediction_scheduler, send_interval=50, logger=logger)
