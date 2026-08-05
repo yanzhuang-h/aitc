@@ -8,6 +8,8 @@ from .api import DataRepository, get_default_repository
 from .classifier import ClassifiedData, DataKind, DataSource, classify_data
 from .ingest import RuntimeDataIngestor
 from .legacy_processor import LegacyCacheProcessor
+from .result_sender import ResultSender
+from .result_warehouse import ResultWarehouse
 from .receiver import RuntimeDataReceiver, TrafficReceiver
 from .runtime_cache import RuntimeDataCache
 from .writer import RuntimeDataWriter
@@ -22,6 +24,8 @@ __all__ = [
     "RuntimeDataIngestor",
     "RuntimeDataReceiver",
     "RuntimeDataWriter",
+    "ResultSender",
+    "ResultWarehouse",
     "TrafficReceiver",
     "classify_data",
     "get_default_repository",

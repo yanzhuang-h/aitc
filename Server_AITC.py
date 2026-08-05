@@ -32,6 +32,8 @@ from infra.data import (
     RuntimeDataIngestor,
     RuntimeDataReceiver,
     RuntimeDataWriter,
+    ResultSender,
+    ResultWarehouse,
 )
 
 # HTTP服务器相关导入
@@ -154,11 +156,9 @@ pre_min=0
 traffic_count=0
 LXD_stage_count=0
 
-result_to_send_set=[]
 clients = []              # 存储所有活跃客户端套接字
 clients_lock = threading.Lock()  # 客户端列表的线程锁
 result_lock = threading.Lock()   # 计算结果的线程锁
-send_lock=threading.Lock()
 
 # HTTP服务器关闭标志
 http_server_shutdown = threading.Event()
@@ -174,6 +174,8 @@ runtime_data_receiver = RuntimeDataReceiver(
     logger=logger,
 )
 runtime_data_ingestor = RuntimeDataIngestor(runtime_data_receiver)
+result_warehouse = ResultWarehouse()
+result_sender = ResultSender(writer=runtime_data_writer, logger=logger)
 
 CORS_RESPONSE_HEADERS = {
     "access-control-allow-origin",
@@ -527,7 +529,6 @@ def process_data_to_send():
 
 def periodic_data_processing():
     global processing_flag
-    global result_to_send_set
     while True:
         start_time = time.time()
         # 如果正在处理中，等待前一次完成
@@ -550,12 +551,17 @@ def periodic_data_processing():
             action,result_check_report=phase_check(action)
             print(f"final action after coordinate floating value and phase_check:{action}")
             runtime_data_writer.write_phase_check(result_check_report)
-            with send_lock:
-                result_to_send_set=[]
-                for intersection_id in  current_result:
-                    current_result[intersection_id]['result_action']=action[intersection_id]
-                    data_to_send = select_data_to_send(intersection_id, action[intersection_id],current_result[intersection_id]['traffic_vector'],current_result[intersection_id]['model_info_list'])
-                    result_to_send_set.append(data_to_send)
+            results_to_send = []
+            for intersection_id in current_result:
+                current_result[intersection_id]['result_action'] = action[intersection_id]
+                data_to_send = select_data_to_send(
+                    intersection_id,
+                    action[intersection_id],
+                    current_result[intersection_id]['traffic_vector'],
+                    current_result[intersection_id]['model_info_list'],
+                )
+                results_to_send.append(data_to_send)
+            result_warehouse.replace(results_to_send)
         except Exception as e:
             logger.error(f"数据处理失败: {e}", exc_info=True)
         finally:
@@ -568,30 +574,22 @@ def periodic_data_processing():
 
 def broadcast_results():
     """独立线程：将最新结果广播给所有客户端"""
-    global result_to_send_set
     while True:
         # 获取当前结果和客户端列表
         with clients_lock:
             current_clients = clients.copy()
-        with send_lock:
-            cur_send_set=result_to_send_set
+        cur_send_set = result_warehouse.snapshot()
         if cur_send_set==[]:
             time.sleep(1)
             continue
 
         # 向所有客户端发送数据
-        for client_socket in current_clients:
-            try:
-                for result in cur_send_set:
-                    client_socket.sendall(json.dumps(result).encode('utf-8'))
-                    runtime_data_writer.write_send_result(result)
-            except (socket.error, BrokenPipeError):
-                # 客户端断开时清理
-                with clients_lock:
-                    if client_socket in clients:
-                        clients.remove(client_socket)
-                client_socket.close()
-                logger.warning("客户端断开连接，已清理")
+        disconnected_clients = result_sender.send_batch(current_clients, cur_send_set)
+        for client_socket in disconnected_clients:
+            with clients_lock:
+                if client_socket in clients:
+                    clients.remove(client_socket)
+            client_socket.close()
         logger.info(f'Send results to all Client:{current_clients}')
         # logger.info(cur_send_set)
         time.sleep(SEND_INTERVAL)

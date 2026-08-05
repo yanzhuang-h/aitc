@@ -17,8 +17,9 @@
 - 2026-08-05: 收口 `Write_to_file.py` 的运行结果输出到 `infra.data.RuntimeDataWriter`，新增 `write_flow_prediction` 和 `write_queue_prediction`，并将 `Server_AITC.py` 中的 EXP、flow_pre、queue_pre、phase_check、send 写入全部切到数据底座门面。
 - 2026-08-05: 进一步将 Write_to_file.py 的文件轮转启动也收口到 RuntimeDataWriter，主入口现在通过数据底座门面启动 start_filename_updater()。
 - 2026-08-05: 抽出 `RuntimeDataIngestor` 作为 TCP/HTTP 协议接入门面，`Server_AITC.py` 的 65432 与 8088 入口现在在协议解析后统一进入 `RuntimeDataReceiver` 的 `ingest -> classify -> persist -> cache/state update` 管线.
+- 2026-08-05: 新增 `ResultWarehouse` 和 `ResultSender`。周期处理线程只替换最新结果，广播线程通过结果仓库快照调用纯发送器；发送日志也由发送器统一写入。当前结果仓库使用线程安全内存实现，后续可替换为 Redis、文件或数据库。
 - Pending: Continue project cleanup before the enterprise refactor, especially separating source, generated runtime data, configs, and tests.
-- Next suggested step: audit tracked generated artifacts and remove any already-committed cache/log/build outputs from the index.
+- Next suggested step: 梳理并抽离 `Server_AITC.py` 中的 HTTP 配置接口，纳入数据底座配置边界。
 
 
 
