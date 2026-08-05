@@ -11,7 +11,6 @@ from concurrent.futures import ThreadPoolExecutor  # 用于线程池管理
 from Select_data_to_send import select_data_to_send
 import sys
 import signal
-import Process_cache_data
 import Write_to_file
 import Lambdas
 import logging  # 添加日志模块
@@ -26,7 +25,13 @@ from lib.nacos_floating_value import (
     NacosTimeScheduleSync,
 )
 from lib.config_api import handle_config_request
-from infra.data import DataKind, RuntimeDataCache, RuntimeDataReceiver, RuntimeDataWriter
+from infra.data import (
+    DataKind,
+    LegacyCacheProcessor,
+    RuntimeDataCache,
+    RuntimeDataReceiver,
+    RuntimeDataWriter,
+)
 
 # HTTP服务器相关导入
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -105,6 +110,7 @@ runtime_data_cache = RuntimeDataCache({
     DataKind.RADAR: RADAR_WINDOW_DURATION,
     DataKind.BOYAN: BOYAN_WINDOW_DURATION,
 })
+legacy_cache_processor = LegacyCacheProcessor(runtime_data_cache)
 
 # 雷达事件map
 radar_event_map = {key:{}for key in Lambdas.radar_event_list}
@@ -124,8 +130,8 @@ BUFFER_SIZE = 1024 * 1024
 # HTTP雷达服务器配置
 
 # RADAR_HTTP_HOST = '172.17.0.11'
-RADAR_HTTP_HOST ='127.0.0.1'
 # RADAR_HTTP_HOST ='11.82.117.80'
+RADAR_HTTP_HOST ='127.0.0.1'
 
 
 RADAR_HTTP_PORT = 8088
@@ -436,25 +442,22 @@ def process_data_to_send():
     global last_coordinate_set
     global radar_event_map
     global overflowWarningMap
-    clear_expired_data(DataKind.FLOW)
-    clear_expired_data(DataKind.QUEUE)
-    clear_expired_data(DataKind.STAGE)
-    clear_expired_data(DataKind.EXTEND)
-    clear_expired_data(DataKind.BOYAN)
-    recent_boyan_data=get_recent_boyan_data()
-    recent_flow_data = get_recent_flow_data()
-    recent_flow_data_duration2= get_duration_flow_data(FLOW_WINDOW_DURATION2)
-    recent_queue_data = get_recent_queue_data()
-    recent_stage_data = get_recent_stage_data()
-    recent_extend_data = get_recent_extend_data()
+    clear_expired_data()
+    recent_data = legacy_cache_processor.snapshot()
+    recent_boyan_data=recent_data["boyan"]
+    recent_flow_data = recent_data["flow"]
+    recent_queue_data = recent_data["queue"]
+    recent_stage_data = recent_data["stage"]
+    recent_extend_data = recent_data["extend"]
+    recent_radar_data=recent_data["radar"]
     logger.info(f" extend_data_cache size: {runtime_data_cache.size(DataKind.EXTEND)}")  
     if not recent_flow_data:
         intersection_flow = copy.deepcopy(Lambdas.intersection_flow_lambda)
         intersection_flow_duration2=intersection_flow
         flow_map=copy.deepcopy(Lambdas.map_lambda)
     else:
-        intersection_flow,flow_map = Process_cache_data.process_flow_data(recent_flow_data)
-        intersection_flow_duration2,flow_map_duration2=Process_cache_data.process_flow_data(recent_flow_data_duration2)
+        intersection_flow,flow_map = legacy_cache_processor.flow()
+        intersection_flow_duration2,flow_map_duration2=legacy_cache_processor.flow_duration(FLOW_WINDOW_DURATION2)
         
         # 获取流量预测数据并存入文件
         end_time=recent_flow_data[0].get('ts')
@@ -464,7 +467,7 @@ def process_data_to_send():
         result_queue_length = copy.deepcopy(Lambdas.max_lengths_lambda)
         queue_map=copy.deepcopy(Lambdas.map_lambda)
     else:
-        result_queue_length,queue_map = Process_cache_data.process_queue_data(recent_queue_data)
+        result_queue_length,queue_map = legacy_cache_processor.queue()
 
         # 获取排队预测数据并存入文件
         start_time=recent_queue_data[0].get("start_time")
@@ -473,16 +476,16 @@ def process_data_to_send():
     if not recent_stage_data:
         stage_map=copy.deepcopy(Lambdas.map_lambda)
     else:
-        stage_map=Process_cache_data.process_stage_data(recent_stage_data)
+        stage_map=legacy_cache_processor.stage()
     if not recent_extend_data:
         extend_map=copy.deepcopy(Lambdas.map_lambda)
     else:
-        extend_map=Process_cache_data.process_extend_data(recent_extend_data)
+        extend_map=legacy_cache_processor.extend()
     result_map=copy.deepcopy(Lambdas.map_lambda)
     if not recent_boyan_data:
         boyan_map=copy.deepcopy(Lambdas.map_lambda)
     else:
-        boyan_map=Process_cache_data.process_boyan_data(recent_boyan_data)
+        boyan_map=legacy_cache_processor.boyan()
 
     cur_flow_pre_map=Flow_predict.get_current_flow_prediction()
 
@@ -490,18 +493,14 @@ def process_data_to_send():
     cur_queue_pre_map=Queue_predict.get_current_queue_prediction()
 
     #获取互联网数据map
-    clear_expired_data(DataKind.ONLINE)
-    online_data=get_recent_online_data()
-    online_map=Process_cache_data.process_online_data(online_data)
+    online_map=legacy_cache_processor.online()
     
     #获取radar数据
-    clear_expired_data(DataKind.RADAR)
-    radar_data=get_recent_radar_data()
-    if not radar_data:
+    if not recent_radar_data:
         radarMap=copy.deepcopy(Lambdas.map_lambda)
     else:
-        radarMap=Process_cache_data.process_radar_data(radar_data)
-    overflowMap=Process_cache_data.process_radar_event_data(radar_event_map,overflowWarningMap)
+        radarMap=legacy_cache_processor.radar()
+    overflowMap=legacy_cache_processor.radar_event(radar_event_map,overflowWarningMap)
     global_overflow_warning=overflowMap
     with ThreadPoolExecutor(max_workers=30) as executor:
             future_to_intersection = {
@@ -523,33 +522,6 @@ def process_data_to_send():
             last_coordinate_set=new_coordinate_set
     return result_map,online_map
 
-
-# 获取时间窗口内的数据
-def get_recent_flow_data():
-    return runtime_data_cache.recent_data(DataKind.FLOW)
-
-def get_recent_online_data():
-    return runtime_data_cache.recent_legacy_tuples(DataKind.ONLINE)
-
-def get_recent_latest_data():
-    return runtime_data_cache.recent_legacy_tuples(DataKind.LATEST)
-
-def get_duration_flow_data(duration):
-    return runtime_data_cache.duration_data(DataKind.FLOW, duration)
-
-def get_recent_queue_data():
-    return runtime_data_cache.recent_data(DataKind.QUEUE)
-
-def get_recent_stage_data():
-    return runtime_data_cache.recent_data(DataKind.STAGE)
-
-def get_recent_extend_data():
-    return runtime_data_cache.recent_legacy_tuples(DataKind.EXTEND)
-def get_recent_radar_data():
-    return runtime_data_cache.recent_legacy_tuples(DataKind.RADAR)
-
-def get_recent_boyan_data():
-    return runtime_data_cache.recent_legacy_tuples(DataKind.BOYAN)
 
 def periodic_data_processing():
     global processing_flag

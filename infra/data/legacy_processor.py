@@ -60,6 +60,13 @@ class LegacyCacheProcessor:
             self.cache.recent_legacy_tuples(DataKind.RADAR)
         )
 
+    def radar_event(self, event_map, overflow_warning_map):
+        import Process_cache_data
+        return Process_cache_data.process_radar_event_data(
+            event_map,
+            overflow_warning_map,
+        )
+
     def boyan(self):
         import Process_cache_data
         return Process_cache_data.process_boyan_data(
