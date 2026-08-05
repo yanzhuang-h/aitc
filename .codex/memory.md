@@ -26,7 +26,8 @@
 - 2026-08-05: 在 `infra/data/api.py` 新增 `RuntimeDataQueryService`，统一提供运行窗口、结果仓库和配置快照的只读查询；`Server_AITC.py` 以当前运行对象初始化该服务，雷达健康响应已通过此服务查询缓存大小。查询结果均为副本，后续可在保持接口不变的前提下切换 Redis/数据库。
 - 2026-08-05: 新增 `RuntimeRecord` 和 `RuntimeRepository`，`RuntimeDataReceiver` 通过显式注入的 `DataRepository` 将已分类运行记录按 `DataKind` 写入 `infra/data/runtime/runtime/*.jsonl`，同时保留旧日志写入。`RuntimeDataQueryService` 可查询实时缓存和持久化历史；新增独立单元测试验证接收、缓存、持久化和查询链路。
 - 2026-08-05: 运行数据仓库补充 `intersection_id`、`received_at` 字段，接收器优先读取数据中的路口字段，并可通过已注入的检测器映射解析 `jtll_ddbh`。历史查询支持路口和时间范围过滤；每类数据默认最多保留 10,000 条，裁剪采用原子 JSONL 替换。单元测试覆盖保留策略和过滤查询。
-- 2026-08-05: 手工 TCP/HTTP 回放客户端从 `Client/` 整理到 `test/`；自动化数据底座测试保留在 `tests/`。后续集成验证优先复用 `test/client_tcp.py` 和 `test/client_http.py`，避免重复维护客户端。
+- 2026-08-05: 手工 TCP/HTTP 回放客户端和自动化数据底座测试统一整理到 `test/`，避免重复测试目录。后续集成验证优先复用 `test/client_tcp.py` 和 `test/client_http.py`，自动化测试通过 `python -m unittest discover -s test -p "test_*.py"` 运行。
+- 2026-08-05: 将 `Agent/` 目录统一重命名为小写 `agent/`；当前保留 `qwen_agent.py` 与 `tools.py` 作为后续 Agent 开发入口。
 - Pending: Continue project cleanup before the enterprise refactor, especially separating source, generated runtime data, configs, and tests.
 - Next suggested step: 为运行数据、结果和配置定义面向 Agent 的只读工具契约与返回摘要格式。
 
