@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
+from infra.data.ports import PredictionStore
+
 
 class FlowPredictionService:
     """为流量预测算法注入历史与结果仓库。"""
 
-    def __init__(self, algorithm: Any, repository: Any) -> None:
+    def __init__(self, algorithm: Any, repository: PredictionStore) -> None:
         self.algorithm = algorithm
         self.repository = repository
 
@@ -25,7 +27,7 @@ class FlowPredictionService:
 class QueuePredictionService:
     """为排队预测算法注入历史与结果仓库。"""
 
-    def __init__(self, algorithm: Any, repository: Any) -> None:
+    def __init__(self, algorithm: Any, repository: PredictionStore) -> None:
         self.algorithm = algorithm
         self.repository = repository
 
