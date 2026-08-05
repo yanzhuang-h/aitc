@@ -40,6 +40,7 @@ class RuntimeRecord:
 
     kind: str
     payload: dict[str, Any]
+    intersection_id: str | None = None
     source: str = "unknown"
     received_at: str = field(default_factory=utc_now_iso)
 

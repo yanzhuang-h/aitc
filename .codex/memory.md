@@ -25,8 +25,9 @@
 - 2026-08-05: 新增 `ConfigSyncManager`，将 floating_value、intersection_result、road_state、time_schedule 四类 Nacos 同步任务的创建、启动和停止从 `Server_AITC.py` 收口到数据底座配置同步模块；同步协议和环境变量保持不变。
 - 2026-08-05: 在 `infra/data/api.py` 新增 `RuntimeDataQueryService`，统一提供运行窗口、结果仓库和配置快照的只读查询；`Server_AITC.py` 以当前运行对象初始化该服务，雷达健康响应已通过此服务查询缓存大小。查询结果均为副本，后续可在保持接口不变的前提下切换 Redis/数据库。
 - 2026-08-05: 新增 `RuntimeRecord` 和 `RuntimeRepository`，`RuntimeDataReceiver` 通过显式注入的 `DataRepository` 将已分类运行记录按 `DataKind` 写入 `infra/data/runtime/runtime/*.jsonl`，同时保留旧日志写入。`RuntimeDataQueryService` 可查询实时缓存和持久化历史；新增独立单元测试验证接收、缓存、持久化和查询链路。
+- 2026-08-05: 运行数据仓库补充 `intersection_id`、`received_at` 字段，接收器优先读取数据中的路口字段，并可通过已注入的检测器映射解析 `jtll_ddbh`。历史查询支持路口和时间范围过滤；每类数据默认最多保留 10,000 条，裁剪采用原子 JSONL 替换。单元测试覆盖保留策略和过滤查询。
 - Pending: Continue project cleanup before the enterprise refactor, especially separating source, generated runtime data, configs, and tests.
-- Next suggested step: 为运行数据仓库补齐按路口、时间范围查询和保留策略，再封装 Agent 查询工具。
+- Next suggested step: 为运行数据、结果和配置定义面向 Agent 的只读工具契约与返回摘要格式。
 
 
 

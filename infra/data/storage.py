@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+import tempfile
 from typing import Any, Iterable
 
 
@@ -33,6 +35,30 @@ class JsonFileStore:
                 if text:
                     records.append(json.loads(text))
         return records
+
+    def write_jsonl(self, name: str, records: Iterable[dict[str, Any]]) -> Path:
+        """原子替换 JSONL 文件，用于运行记录保留策略。"""
+        path = self.root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                "w",
+                encoding="utf-8",
+                dir=path.parent,
+                delete=False,
+            ) as file:
+                temp_path = file.name
+                for record in records:
+                    file.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")))
+                    file.write("\n")
+                file.flush()
+                os.fsync(file.fileno())
+            os.replace(temp_path, path)
+        finally:
+            if temp_path and os.path.exists(temp_path):
+                os.remove(temp_path)
+        return path
 
     def read_json(self, name: str, default: Any) -> Any:
         path = self.root / name

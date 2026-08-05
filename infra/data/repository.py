@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 import threading
 from typing import Any, Mapping
@@ -49,25 +50,44 @@ class TrafficRepository:
 class RuntimeRepository:
     """按数据类型持久化运行时接入记录。"""
 
-    def __init__(self, store: JsonFileStore) -> None:
+    def __init__(self, store: JsonFileStore, max_records_per_kind: int = 10000) -> None:
+        if max_records_per_kind <= 0:
+            raise ValueError("max_records_per_kind must be positive")
         self.store = store
+        self.max_records_per_kind = max_records_per_kind
         self._lock = threading.RLock()
+        self._record_counts: dict[str, int] = {}
 
     def add(
         self,
         kind: DataKind | str,
         payload: Mapping[str, Any],
         source: DataSource | str = DataSource.UNKNOWN,
+        intersection_id: str | None = None,
+        received_at: str | None = None,
     ) -> dict[str, Any]:
         kind_name = kind.value if isinstance(kind, DataKind) else str(kind)
         source_name = source.value if isinstance(source, DataSource) else str(source)
         record = RuntimeRecord(
             kind=kind_name,
             payload=dict(payload),
+            intersection_id=str(intersection_id) if intersection_id is not None else None,
             source=source_name,
+            received_at=received_at or utc_now_iso(),
         ).to_dict()
         with self._lock:
-            self.store.append_jsonl(f"runtime/{kind_name}.jsonl", record)
+            name = f"runtime/{kind_name}.jsonl"
+            self.store.append_jsonl(name, record)
+            count = self._record_counts.get(kind_name)
+            if count is None:
+                count = len(self.store.read_jsonl(name))
+            else:
+                count += 1
+            if count > self.max_records_per_kind:
+                records = self.store.read_jsonl(name)[-self.max_records_per_kind:]
+                self.store.write_jsonl(name, records)
+                count = len(records)
+            self._record_counts[kind_name] = count
         return record
 
     def latest(self, kind: DataKind | str) -> dict[str, Any] | None:
@@ -79,10 +99,39 @@ class RuntimeRepository:
         kind: DataKind | str,
         limit: int = 100,
     ) -> list[dict[str, Any]]:
+        return self.query(kind, limit=limit)
+
+    def query(
+        self,
+        kind: DataKind | str,
+        limit: int = 100,
+        intersection_id: str | None = None,
+        start_at: str | None = None,
+        end_at: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """按路口和接收时间范围查询已持久化的运行记录。"""
         kind_name = kind.value if isinstance(kind, DataKind) else str(kind)
+        start_time = self._parse_timestamp(start_at) if start_at else None
+        end_time = self._parse_timestamp(end_at) if end_at else None
+        if start_time is not None and end_time is not None and start_time > end_time:
+            raise ValueError("start_at must not be after end_at")
         with self._lock:
             records = self.store.read_jsonl(f"runtime/{kind_name}.jsonl")
-        return records[-limit:] if limit > 0 else []
+        filtered = []
+        for record in records:
+            if intersection_id is not None and record.get("intersection_id") != str(intersection_id):
+                continue
+            received_at = self._parse_timestamp(record["received_at"])
+            if start_time is not None and received_at < start_time:
+                continue
+            if end_time is not None and received_at > end_time:
+                continue
+            filtered.append(record)
+        return filtered[-limit:] if limit > 0 else []
+
+    @staticmethod
+    def _parse_timestamp(value: str) -> datetime:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
 class KeyValueRepository:
@@ -149,11 +198,19 @@ class ExperienceRepository:
 class DataFoundationRepository:
     """Aggregate repository for the current data foundation."""
 
-    def __init__(self, root: str | Path = "infra/data/runtime", cache_size: int = 100) -> None:
+    def __init__(
+        self,
+        root: str | Path = "infra/data/runtime",
+        cache_size: int = 100,
+        runtime_max_records_per_kind: int = 10000,
+    ) -> None:
         self.root = Path(root)
         self.store = JsonFileStore(self.root)
         self.traffic = TrafficRepository(self.store, cache_size=cache_size)
-        self.runtime = RuntimeRepository(self.store)
+        self.runtime = RuntimeRepository(
+            self.store,
+            max_records_per_kind=runtime_max_records_per_kind,
+        )
         self.config = ConfigRepository(self.store)
         self.experience = ExperienceRepository(self.store)
 

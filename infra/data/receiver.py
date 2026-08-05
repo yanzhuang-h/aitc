@@ -97,6 +97,7 @@ class RuntimeDataReceiver:
                 classified.kind,
                 classified.item,
                 source=classified.source.value,
+                intersection_id=self._resolve_intersection_id(classified.item),
             )
         return classified
 
@@ -170,6 +171,20 @@ class RuntimeDataReceiver:
     def _contains(self, attr_name: str, key: Any) -> bool:
         value = self._get_lambdas_attr(attr_name, None)
         return value is not None and key in value
+
+    def _resolve_intersection_id(self, data: Mapping[str, Any]) -> str | None:
+        for key in ("Cross_id", "CrossId", "cross_id", "intersection_id", "inter_id"):
+            value = data.get(key)
+            if value is not None and str(value).strip():
+                return str(value)
+
+        try:
+            detector_id = int(data.get("jtll_ddbh"))
+        except (TypeError, ValueError):
+            return None
+        location_map = self._get_lambdas_attr("location_to_intersection_lambda", {})
+        location = location_map.get(detector_id)
+        return str(location[0]) if location else None
 
     def _get_lambdas_attr(self, attr_name: str, default: Any) -> Any:
         if self.lambdas is None:

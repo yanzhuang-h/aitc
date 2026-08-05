@@ -24,6 +24,10 @@ class _MemoryWriter:
         self.records.append((kind, data))
 
 
+class _Lambdas:
+    location_to_intersection_lambda = {1: ("1300068", "U")}
+
+
 class RuntimeRepositoryTest(unittest.TestCase):
     def test_receiver_persists_classified_runtime_record(self) -> None:
         with tempfile.TemporaryDirectory() as root:
@@ -33,6 +37,7 @@ class RuntimeRepositoryTest(unittest.TestCase):
                 cache=RuntimeDataCache({DataKind.FLOW: 60}),
                 writer=writer,
                 repository=repository,
+                lambdas_module=_Lambdas(),
             )
 
             receiver.receive_tcp({"ycsb_xsfx": "U", "jtll_ddbh": "1"})
@@ -42,6 +47,7 @@ class RuntimeRepositoryTest(unittest.TestCase):
             self.assertEqual(records[0]["kind"], "flow")
             self.assertEqual(records[0]["source"], "tcp")
             self.assertEqual(records[0]["payload"]["jtll_ddbh"], "1")
+            self.assertEqual(records[0]["intersection_id"], "1300068")
             self.assertEqual(len(receiver.recent(DataKind.FLOW)), 1)
             self.assertEqual(len(writer.records), 1)
 
@@ -54,6 +60,40 @@ class RuntimeRepositoryTest(unittest.TestCase):
             self.assertEqual(
                 query_service.get_runtime_history(DataKind.FLOW)[0]["kind"],
                 "flow",
+            )
+
+    def test_history_query_filters_and_retention(self) -> None:
+        with tempfile.TemporaryDirectory() as root:
+            repository = DataRepository(root=root, runtime_max_records_per_kind=2)
+            repository.store_runtime_data(
+                DataKind.FLOW,
+                {"sequence": 1},
+                intersection_id="1300068",
+                received_at="2026-08-05T08:00:00+00:00",
+            )
+            repository.store_runtime_data(
+                DataKind.FLOW,
+                {"sequence": 2},
+                intersection_id="1300068",
+                received_at="2026-08-05T09:00:00+00:00",
+            )
+            repository.store_runtime_data(
+                DataKind.FLOW,
+                {"sequence": 3},
+                intersection_id="1300106",
+                received_at="2026-08-05T10:00:00+00:00",
+            )
+
+            records = repository.get_runtime_history(
+                DataKind.FLOW,
+                intersection_id="1300068",
+                start_at="2026-08-05T08:30:00+00:00",
+                end_at="2026-08-05T09:30:00+00:00",
+            )
+            self.assertEqual([record["payload"]["sequence"] for record in records], [2])
+            self.assertEqual(
+                [record["payload"]["sequence"] for record in repository.get_runtime_history(DataKind.FLOW)],
+                [2, 3],
             )
 
 

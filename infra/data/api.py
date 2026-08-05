@@ -18,8 +18,17 @@ from .schemas import TrafficRecord
 class DataRepository:
     """Facade used by agents and legacy code to access data foundation features."""
 
-    def __init__(self, root: str | Path = "infra/data/runtime", cache_size: int = 100) -> None:
-        self.repository = DataFoundationRepository(root=root, cache_size=cache_size)
+    def __init__(
+        self,
+        root: str | Path = "infra/data/runtime",
+        cache_size: int = 100,
+        runtime_max_records_per_kind: int = 10000,
+    ) -> None:
+        self.repository = DataFoundationRepository(
+            root=root,
+            cache_size=cache_size,
+            runtime_max_records_per_kind=runtime_max_records_per_kind,
+        )
 
     def health(self) -> dict[str, Any]:
         return self.repository.health()
@@ -38,9 +47,17 @@ class DataRepository:
         kind: DataKind | str,
         payload: Mapping[str, Any],
         source: str = "unknown",
+        intersection_id: str | None = None,
+        received_at: str | None = None,
     ) -> dict[str, Any]:
         """持久化一条已分类的运行数据。"""
-        return self.repository.runtime.add(kind, payload, source=source)
+        return self.repository.runtime.add(
+            kind,
+            payload,
+            source=source,
+            intersection_id=intersection_id,
+            received_at=received_at,
+        )
 
     def get_latest_runtime_data(self, kind: DataKind | str) -> dict[str, Any] | None:
         return self.repository.runtime.latest(kind)
@@ -49,8 +66,17 @@ class DataRepository:
         self,
         kind: DataKind | str,
         limit: int = 100,
+        intersection_id: str | None = None,
+        start_at: str | None = None,
+        end_at: str | None = None,
     ) -> list[dict[str, Any]]:
-        return self.repository.runtime.window(kind, limit=limit)
+        return self.repository.runtime.query(
+            kind,
+            limit=limit,
+            intersection_id=intersection_id,
+            start_at=start_at,
+            end_at=end_at,
+        )
 
     def set_config(self, key: str, value: Any, namespace: str = "default") -> dict[str, Any]:
         return self.repository.config.set(key=key, value=value, namespace=namespace)
@@ -114,11 +140,20 @@ class RuntimeDataQueryService:
         self,
         kind: DataKind | str,
         limit: int = 100,
+        intersection_id: str | None = None,
+        start_at: str | None = None,
+        end_at: str | None = None,
     ) -> list[dict[str, Any]]:
         """查询持久化的运行数据历史。"""
         if self.repository is None:
             raise RuntimeError("runtime repository is not configured")
-        return self.repository.get_runtime_history(self._data_kind(kind), limit=limit)
+        return self.repository.get_runtime_history(
+            self._data_kind(kind),
+            limit=limit,
+            intersection_id=intersection_id,
+            start_at=start_at,
+            end_at=end_at,
+        )
 
     def get_runtime_snapshot(
         self,
