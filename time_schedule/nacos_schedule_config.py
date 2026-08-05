@@ -177,6 +177,29 @@ def build_time_schedule_configs(schedule_dir=SCHEDULE_DIR):
     return configs
 
 
+def load_time_schedule_config(cross_id, schedule_dir=SCHEDULE_DIR):
+    """读取单个路口的时段方案，不存在时返回 None。"""
+    cross_id = str(cross_id)
+    if not cross_id.isdigit():
+        raise ValueError("time schedule cross_id must contain only digits")
+
+    schedule_dir = Path(schedule_dir)
+    workday_path = schedule_dir / f"{WORKDAY_PREFIX}{cross_id}.json"
+    if not workday_path.exists():
+        return None
+
+    weekend_path = schedule_dir / f"{WEEKEND_PREFIX}{cross_id}.json"
+    return validate_time_schedule_config(
+        {
+            "schema_version": 1,
+            "cross_id": cross_id,
+            "workday": _read_json(workday_path),
+            "weekend": _read_json(weekend_path) if weekend_path.exists() else None,
+        },
+        expected_cross_id=cross_id,
+    )
+
+
 def build_time_schedule_manifest(configs, version=1):
     items = {}
     for data_id in sorted(configs):
@@ -209,3 +232,8 @@ def save_time_schedule_manifest(data, path=MANIFEST_PATH):
     normalized = validate_time_schedule_manifest(data)
     _write_json_atomic(normalized, path)
     return normalized
+
+
+def load_time_schedule_manifest(path=MANIFEST_PATH):
+    """读取并校验时段方案清单。"""
+    return validate_time_schedule_manifest(_read_json(path))

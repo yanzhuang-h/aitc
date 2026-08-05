@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import copy
 from enum import StrEnum
 from typing import Any
 
@@ -20,6 +21,16 @@ from lib.road_state import (
     replace_road_state_config,
     validate_and_save_road_state,
 )
+from phase_check import (
+    get_intersection_result_config,
+    replace_intersection_result_config,
+)
+from time_schedule.nacos_schedule_config import (
+    apply_time_schedule_config,
+    load_time_schedule_config,
+    load_time_schedule_manifest,
+    save_time_schedule_manifest,
+)
 
 
 class ConfigResource(StrEnum):
@@ -29,6 +40,14 @@ class ConfigResource(StrEnum):
     CROSS_INFO = "cross_info"
     ROAD_STATE = "road_state"
     FLOATING_VALUE = "floating_value"
+    INTERSECTION_RESULT = "intersection_result"
+    TIME_SCHEDULE = "time_schedule"
+
+
+_HTTP_RESOURCES = {
+    ConfigResource.ROAD_INFO,
+    ConfigResource.CROSS_INFO,
+}
 
 
 class ConfigService:
@@ -49,6 +68,8 @@ class ConfigService:
     def query(self, resource: ConfigResource | str, cross_id: str) -> dict[str, Any]:
         """按资源和路口编号查询配置，供 HTTP 之外的调用方复用。"""
         resource_name = self._resource_name(resource)
+        if ConfigResource(resource_name) not in _HTTP_RESOURCES:
+            raise ValueError(f"resource does not support HTTP query: {resource_name}")
         outcome = self.handle_request("GET", f"/{resource_name}/{cross_id}")
         if outcome is None:
             raise ValueError(f"unsupported config resource: {resource_name}")
@@ -63,6 +84,8 @@ class ConfigService:
     ) -> tuple[int, dict[str, Any]]:
         """写入配置，沿用旧接口的 add/update 校验和状态码。"""
         resource_name = self._resource_name(resource)
+        if ConfigResource(resource_name) not in _HTTP_RESOURCES:
+            raise ValueError(f"resource does not support HTTP write: {resource_name}")
         outcome = self.handle_request(
             "POST",
             f"/{resource_name}/{operation}",
@@ -114,6 +137,33 @@ class ConfigService:
     ) -> None:
         """校验并替换完整的浮动值配置。"""
         replace_floating_value_records(data, check_rules=check_rules)
+
+    def get_intersection_result_config(self) -> dict[str, Any]:
+        """读取路口结果相位约束配置的快照。"""
+        return copy.deepcopy(get_intersection_result_config())
+
+    def replace_intersection_result_config(
+        self,
+        data: dict[str, Any],
+    ) -> dict[str, Any]:
+        """校验并替换路口结果相位约束配置。"""
+        return replace_intersection_result_config(data)
+
+    def get_time_schedule(self, cross_id: str) -> dict[str, Any] | None:
+        """读取单个路口的工作日和周末时段方案。"""
+        return load_time_schedule_config(cross_id)
+
+    def save_time_schedule(self, data: dict[str, Any]) -> dict[str, Any]:
+        """校验并保存单个路口的时段方案。"""
+        return apply_time_schedule_config(data)
+
+    def get_time_schedule_manifest(self) -> dict[str, Any]:
+        """读取时段方案清单。"""
+        return load_time_schedule_manifest()
+
+    def save_time_schedule_manifest(self, data: dict[str, Any]) -> dict[str, Any]:
+        """校验并保存时段方案清单。"""
+        return save_time_schedule_manifest(data)
 
     @staticmethod
     def _resource_name(resource: ConfigResource | str) -> str:
