@@ -4,7 +4,7 @@
 查询接口。
 """
 
-from .api import DataRepository, get_default_repository
+from .api import DataRepository, RuntimeDataQueryService, get_default_repository
 from .classifier import ClassifiedData, DataKind, DataSource, classify_data
 from .config import ConfigResource, ConfigService
 from .config_sync import ConfigSyncManager
@@ -27,6 +27,7 @@ __all__ = [
     "LegacyCacheProcessor",
     "RuntimeDataCache",
     "RuntimeDataIngestor",
+    "RuntimeDataQueryService",
     "RuntimeDataReceiver",
     "RuntimeDataWriter",
     "ResultSender",

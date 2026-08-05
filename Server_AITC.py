@@ -25,6 +25,7 @@ from infra.data import (
     LegacyCacheProcessor,
     RuntimeDataCache,
     RuntimeDataIngestor,
+    RuntimeDataQueryService,
     RuntimeDataReceiver,
     RuntimeDataWriter,
     ResultSender,
@@ -168,6 +169,11 @@ runtime_data_receiver = RuntimeDataReceiver(
 runtime_data_ingestor = RuntimeDataIngestor(runtime_data_receiver)
 config_service = ConfigService()
 result_warehouse = ResultWarehouse()
+runtime_query_service = RuntimeDataQueryService(
+    cache=runtime_data_cache,
+    result_warehouse=result_warehouse,
+    config_service=config_service,
+)
 result_sender = ResultSender(writer=runtime_data_writer, logger=logger)
 
 CORS_RESPONSE_HEADERS = {
@@ -341,7 +347,7 @@ class RadarHTTPRequestHandler(BaseHTTPRequestHandler):
         response = {
             "status": "running", 
             "service": "radar_data_receiver",
-            "radar_cache_size": runtime_data_cache.size(DataKind.RADAR)
+            "radar_cache_size": runtime_query_service.get_runtime_size(DataKind.RADAR)
         }
         self.wfile.write(json.dumps(response).encode('utf-8'))
     
