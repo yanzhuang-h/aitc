@@ -6,7 +6,7 @@
 
 from .api import DataRepository, get_default_repository
 from .classifier import ClassifiedData, DataKind, DataSource, classify_data
-from .config import ConfigService
+from .config import ConfigResource, ConfigService
 from .ingest import RuntimeDataIngestor
 from .legacy_processor import LegacyCacheProcessor
 from .result_sender import ResultSender
@@ -17,6 +17,7 @@ from .writer import RuntimeDataWriter
 
 __all__ = [
     "ClassifiedData",
+    "ConfigResource",
     "ConfigService",
     "DataKind",
     "DataRepository",

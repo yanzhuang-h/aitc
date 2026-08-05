@@ -19,8 +19,9 @@
 - 2026-08-05: 抽出 `RuntimeDataIngestor` 作为 TCP/HTTP 协议接入门面，`Server_AITC.py` 的 65432 与 8088 入口现在在协议解析后统一进入 `RuntimeDataReceiver` 的 `ingest -> classify -> persist -> cache/state update` 管线.
 - 2026-08-05: 新增 `ResultWarehouse` 和 `ResultSender`。周期处理线程只替换最新结果，广播线程通过结果仓库快照调用纯发送器；发送日志也由发送器统一写入。当前结果仓库使用线程安全内存实现，后续可替换为 Redis、文件或数据库。
 - 2026-08-05: 新增 `infra/data/config.py` 的 `ConfigService` 配置服务门面。`Server_AITC.py` 不再直接依赖 `lib/config_api.py`，现有 `/road_info`、`/cross_info` 路由和旧 JSON 文件锁逻辑保持不变；后续再迁移具体配置存储。
+- 2026-08-05: 扩展 `ConfigService`，增加 `ConfigResource`、`query()` 和 `write()`，为 HTTP、Agent 及其他模块提供统一配置访问入口。目前资源覆盖 `road_info` 和 `cross_info`；`road_state`、`floating_value` 继续保留现有 Nacos/算法同步链路。
 - Pending: Continue project cleanup before the enterprise refactor, especially separating source, generated runtime data, configs, and tests.
-- Next suggested step: 梳理 `road_info`、`cross_info`、`road_state` 等配置的共同模型和持久化边界。
+- Next suggested step: 将 `road_state` 和 `floating_value` 的读取/更新能力接入配置服务，同时保持 Nacos 同步行为不变。
 
 
 
