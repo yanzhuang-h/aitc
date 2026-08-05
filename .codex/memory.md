@@ -46,6 +46,7 @@
 - 2026-08-05: 清理旧输出模块 `Write_to_file.py`。运行代码已无任何引用；同步移除 `RuntimeDataWriter`、`FileRuntimeOutputStore` 和应用装配中的无效文件名轮转线程调用。输出仍由 `FileRuntimeOutputStore` 按写入时日期直接定位，自动化测试 22 项与编译检查均通过。
 - 2026-08-05: 将根目录 `Process_cache_data.py` 迁入 `infra/data/cache_processor.py`，并将缓存聚合门面从 `LegacyCacheProcessor`/`legacy_processor.py` 重命名为 `RuntimeDataProcessor`/`runtime_processor.py`。周期决策管线依赖名称同步改为 `data_processor`；未改变聚合算法或 `lib` 调用。同步更新数据底座 README、数据流基线和 checklist；自动化测试 22 项与编译检查均通过。
 - 2026-08-05: 新增 `test/test_cache_processor.py` 作为运行数据聚合行为基线，覆盖 flow、queue、stage、extend、online、radar、boyan 的最小输入输出契约。当前自动化测试共 27 项通过，编译检查通过；下一步可在此测试保护下，将 `cache_processor.py` 对全局 `Lambdas` 的依赖改为显式注入。
+- 2026-08-05: 完成聚合组件的配置依赖解耦。`infra/data/cache_processor.py` 不再导入全局 `Lambdas`，由 `RuntimeDataProcessor` 接收并向各聚合函数传递配置模块，`runtime.create_application()` 负责装配该依赖。聚合行为基线测试与全量自动化测试共 27 项通过，编译检查通过。
 - Pending: Continue project cleanup before the enterprise refactor, especially separating source, generated runtime data, configs, and tests.
 - Next suggested step: 盘点根目录剩余的数据处理与预测模块，区分算法实现和运行编排职责，再决定下一批可迁入 `runtime/` 或 `infra/data/` 的边界。
 

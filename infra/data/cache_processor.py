@@ -1,24 +1,23 @@
 import collections
 from datetime import datetime, timedelta
 import json
-import Lambdas
 import copy
 import logging
 # 设置日志记录器
 logger = logging.getLogger("ProcessCacheData")
 # 设置日志级别
-def process_flow_data(cache):
+def process_flow_data(cache, lambdas_module):
     """
     处理600秒缓存内的所有流量数据，更新对应路口的流量统计。
     :param flow_data_list: 流量数据列表，每个元素包含 'jtll_ddbh' 和其他字段。
     :return: 更新后的四个路口的二维流量统计数组。
     """
-    flow_map=copy.deepcopy(Lambdas.map_lambda)
+    flow_map=copy.deepcopy(lambdas_module.map_lambda)
     logger.info("Processing flow data...")
     
-    location_to_intersection = Lambdas.location_to_intersection_lambda
+    location_to_intersection = lambdas_module.location_to_intersection_lambda
     # 重置流量统计 顺序LRUD
-    intersection_flow = copy.deepcopy(Lambdas.intersection_flow_lambda)
+    intersection_flow = copy.deepcopy(lambdas_module.intersection_flow_lambda)
 
 
     try:
@@ -33,13 +32,13 @@ def process_flow_data(cache):
                 continue
 
             intersection_id, direction = mapping
-            if Lambdas.aibi_to_xinkongji.__contains__(intersection_id):
-                intersection_id=Lambdas.aibi_to_xinkongji.get(intersection_id)
+            if lambdas_module.aibi_to_xinkongji.__contains__(intersection_id):
+                intersection_id=lambdas_module.aibi_to_xinkongji.get(intersection_id)
             if intersection_id not in flow_map:
                 # print(f"Flow data processing warning:Unknown intersection ID: {intersection_id}")
                 continue
             if start_time_second not in flow_map[intersection_id]:
-                flow_map[intersection_id][start_time_second] = copy.deepcopy(Lambdas.flow_map_single_intersection_lambda)
+                flow_map[intersection_id][start_time_second] = copy.deepcopy(lambdas_module.flow_map_single_intersection_lambda)
             
             flow_map[intersection_id][start_time_second]["pass"][direction][cdbh]+=1
             flow_map[intersection_id][start_time_second]["count"][direction]+=1
@@ -62,15 +61,15 @@ def process_flow_data(cache):
 
     return intersection_flow,flow_map
 
-def process_queue_data(cache):
+def process_queue_data(cache, lambdas_module):
     logger.info("Processing queue data...")
-    queue_map=copy.deepcopy(Lambdas.map_lambda)
+    queue_map=copy.deepcopy(lambdas_module.map_lambda)
 
 
     # 用于保存4个路口每个道路每个车道的最大排队长度
-    max_queue_lengths = copy.deepcopy(Lambdas.max_lengths_lambda)
-    max_all_nums = copy.deepcopy(Lambdas.max_lengths_lambda)
-    location_to_intersection = Lambdas.location_to_intersection_lambda
+    max_queue_lengths = copy.deepcopy(lambdas_module.max_lengths_lambda)
+    max_all_nums = copy.deepcopy(lambdas_module.max_lengths_lambda)
+    location_to_intersection = lambdas_module.location_to_intersection_lambda
     valid_data_count=0
     # 遍历所有的排队数据
     for data in cache:
@@ -91,8 +90,8 @@ def process_queue_data(cache):
                 continue  # 跳过未知方向的数据
             valid_data_count+=1
             intersection_id,direction=location_to_intersection.get(ddbh)
-            if Lambdas.aibi_to_xinkongji.__contains__(intersection_id):
-                intersection_id=Lambdas.aibi_to_xinkongji.get(intersection_id)
+            if lambdas_module.aibi_to_xinkongji.__contains__(intersection_id):
+                intersection_id=lambdas_module.aibi_to_xinkongji.get(intersection_id)
             car_nums = item_data.get("car_nums")
             if not isinstance(car_nums, list):
                 continue  # 如果 car_nums 不是列表，跳过
@@ -111,7 +110,7 @@ def process_queue_data(cache):
                             max_queue_lengths[intersection_id][direction][ycsb_cdbh] = max(max_queue_lengths[intersection_id][direction][ycsb_cdbh], queue_length)
                             max_all_nums[intersection_id][direction][ycsb_cdbh]=max(max_all_nums[intersection_id][direction][ycsb_cdbh],all_nums)
                             if start_time_second not in queue_map[intersection_id]:
-                                queue_map[intersection_id][start_time_second] = copy.deepcopy(Lambdas.queue_map_single_intersection_lambda)
+                                queue_map[intersection_id][start_time_second] = copy.deepcopy(lambdas_module.queue_map_single_intersection_lambda)
                             queue_map[intersection_id][start_time_second]["queue"][direction][ycsb_cdbh]=queue_length
                             queue_map[intersection_id][start_time_second]["all"][direction][ycsb_cdbh]=all_nums
                     except ValueError:
@@ -127,23 +126,23 @@ def process_queue_data(cache):
     print(f"{valid_data_count} queue data processed")
     return max_queue_lengths,queue_map
 
-def process_stage_data(cache):
+def process_stage_data(cache, lambdas_module):
     logger.info("Processing stage data...")
-    stage_map=copy.deepcopy(Lambdas.map_lambda)
+    stage_map=copy.deepcopy(lambdas_module.map_lambda)
 
     try:
         for stage_data in cache:
     
             IntersectionID=stage_data.get('CrossId')
-            if Lambdas.aibi_to_xinkongji.__contains__(IntersectionID):
-                IntersectionID=Lambdas.aibi_to_xinkongji.get(IntersectionID)
+            if lambdas_module.aibi_to_xinkongji.__contains__(IntersectionID):
+                IntersectionID=lambdas_module.aibi_to_xinkongji.get(IntersectionID)
             if not stage_map.__contains__(IntersectionID):
                 continue
             start_time_second=(int(stage_data.get("time"))//1000)
             curStageNo=int(stage_data.get("curStageNo"))
             curStageLen=int(stage_data.get("curStageLen"))
             if start_time_second not in stage_map[IntersectionID]:
-                stage_map[IntersectionID][start_time_second] = copy.deepcopy(Lambdas.stage_map_lambda)
+                stage_map[IntersectionID][start_time_second] = copy.deepcopy(lambdas_module.stage_map_lambda)
             stage_map[IntersectionID][start_time_second]['curStageNo']=curStageNo
             stage_map[IntersectionID][start_time_second]['curStageLen']=curStageLen
     except KeyError as e:
@@ -153,17 +152,17 @@ def process_stage_data(cache):
     
     return stage_map
 
-def process_extend_data(cache):
+def process_extend_data(cache, lambdas_module):
     logger.info("Processing extend data...")
-    extend_map = copy.deepcopy(Lambdas.map_lambda)
+    extend_map = copy.deepcopy(lambdas_module.map_lambda)
     try:
         for extend_data in cache:
             if len(extend_data) != 2 or not isinstance(extend_data[1], dict):
                 print(f"Skipped invalid data type: {type(extend_data)}")
                 continue
             intersection_id = extend_data[1].get('CrossId')
-            if Lambdas.aibi_to_xinkongji.__contains__(intersection_id):
-                intersection_id = Lambdas.aibi_to_xinkongji.get(intersection_id)
+            if lambdas_module.aibi_to_xinkongji.__contains__(intersection_id):
+                intersection_id = lambdas_module.aibi_to_xinkongji.get(intersection_id)
             if not extend_map.__contains__(intersection_id):
                 continue
             start_time_sec = extend_data[0]
@@ -181,8 +180,8 @@ def parse_timestamp(raw, divisor=1000):
     except (TypeError, ValueError):
         return None
 
-def process_online_data(cache):
-    online_map = copy.deepcopy(Lambdas.online_data_map_lambda)
+def process_online_data(cache, lambdas_module):
+    online_map = copy.deepcopy(lambdas_module.online_data_map_lambda)
 
     for online_data in cache:
         if len(online_data) != 2 or not isinstance(online_data[1], dict):
@@ -211,8 +210,8 @@ def process_online_data(cache):
 
 
 
-def process_latest_data(cache):
-    latest_map = copy.deepcopy(Lambdas.latest_data_map_lambda)
+def process_latest_data(cache, lambdas_module):
+    latest_map = copy.deepcopy(lambdas_module.latest_data_map_lambda)
     
     for latest_data in cache:
 
@@ -237,11 +236,11 @@ def process_latest_data(cache):
     
     return latest_map
 
-def process_radar_data(cache):
+def process_radar_data(cache, lambdas_module):
     """
     处理除事件数据以外的雷达数据，更新雷达事件map。
     """
-    radarMap = copy.deepcopy(Lambdas.map_lambda)
+    radarMap = copy.deepcopy(lambdas_module.map_lambda)
     
     for cache_data in cache:
         if len(cache_data) != 2 or not isinstance(cache_data[1], dict):
@@ -252,36 +251,36 @@ def process_radar_data(cache):
         if deviceNo is None:
             logger.warning("process radar data:Missing deviceNo in radar data.")
             continue
-        if deviceNo not in Lambdas.device_to_location:
+        if deviceNo not in lambdas_module.device_to_location:
             logger.warning(f"process radar data:Device {deviceNo} not registered in device_to_location.")
             continue
-        intersection_id, direction=Lambdas.device_to_location[deviceNo]
-        if Lambdas.aibi_to_xinkongji.__contains__(intersection_id):
-            intersection_id = Lambdas.aibi_to_xinkongji.get(intersection_id)
+        intersection_id, direction=lambdas_module.device_to_location[deviceNo]
+        if lambdas_module.aibi_to_xinkongji.__contains__(intersection_id):
+            intersection_id = lambdas_module.aibi_to_xinkongji.get(intersection_id)
         radarMap[intersection_id].setdefault(int(ts),[]).append(radar_data)
     # logger.info(f"Processed radar data: {radarMap}")
     return radarMap
 
-def process_radar_event_data(eventmap,overflowWariningMap):
-    overflowMap= copy.deepcopy(Lambdas.map_lambda)
+def process_radar_event_data(eventmap, overflowWariningMap, lambdas_module):
+    overflowMap= copy.deepcopy(lambdas_module.map_lambda)
     for event_type,map in eventmap.items():
-        if event_type not in Lambdas.radar_event_list:
+        if event_type not in lambdas_module.radar_event_list:
             logger.warning(f"process radar event data:Unknown event type {event_type}.")
             continue
         elif event_type == "OverFlow":
-            overflowMap = process_overflow_events(map,overflowWariningMap)
+            overflowMap = process_overflow_events(map, overflowWariningMap, lambdas_module)
     return overflowMap
             
 
-def process_overflow_events(overflowEventMap,overflowWariningMap):
-    overflowMap = copy.deepcopy(Lambdas.map_lambda)
+def process_overflow_events(overflowEventMap, overflowWariningMap, lambdas_module):
+    overflowMap = copy.deepcopy(lambdas_module.map_lambda)
     
     for devNo, overflow_data in overflowEventMap.items():
-        if devNo not in Lambdas.device_to_location:
+        if devNo not in lambdas_module.device_to_location:
             logger.warning(f"process overflow event: Device {devNo} not registered in device_to_location.")
             continue
-        intersection_id, direction=Lambdas.device_to_location[devNo]
-        overflowMap.setdefault(intersection_id, {}).setdefault(f"overflow_{direction}", Lambdas.eventMap_Overflow_lambda)
+        intersection_id, direction=lambdas_module.device_to_location[devNo]
+        overflowMap.setdefault(intersection_id, {}).setdefault(f"overflow_{direction}", lambdas_module.eventMap_Overflow_lambda)
         if overflowWariningMap[intersection_id].get(direction) is not None:
             overflowMap[intersection_id][f"overflow_{direction}"]['distance'] = overflowWariningMap[intersection_id][direction].get("distance")
         createtime = overflow_data.get("createTime")
@@ -323,7 +322,7 @@ def process_overflow_events(overflowEventMap,overflowWariningMap):
             if warningData is None:
                 continue
             if overflowMap[intersection_id].get(f"overflow_{direction}") is None:
-                overflowMap[intersection_id][f"overflow_{direction}"] = Lambdas.eventMap_Overflow_lambda.copy()
+                overflowMap[intersection_id][f"overflow_{direction}"] = lambdas_module.eventMap_Overflow_lambda.copy()
             overflowMap[intersection_id][f"overflow_{direction}"]['distance'] = warningData.get("distance")
             ts=warningData.get("ts")
             if ts is not None:
@@ -331,8 +330,8 @@ def process_overflow_events(overflowEventMap,overflowWariningMap):
     logger.info(f"Final overflow map after merging warnings: {overflowMap}")
     return overflowMap       
 
-def process_boyan_data(cache):
-    boyan_map = copy.deepcopy(Lambdas.map_lambda)
+def process_boyan_data(cache, lambdas_module):
+    boyan_map = copy.deepcopy(lambdas_module.map_lambda)
     for data in cache:
         if len(data) != 2 or not isinstance(data[1], dict):
             logger.warning(f"process boyan data:Invalid boyan data structure: {data}")
@@ -342,12 +341,12 @@ def process_boyan_data(cache):
         if deviceId is None:
             logger.warning("process boyan data:Missing deviceId in boyan data.")
             continue
-        if deviceId not in Lambdas.boyan_device_to_location:
+        if deviceId not in lambdas_module.boyan_device_to_location:
             logger.warning(f"process boyan data:Device {deviceId} not registered in boyan_device_to_location.")
             continue
-        intersection_id, direction=Lambdas.boyan_device_to_location[deviceId]
-        if Lambdas.aibi_to_xinkongji.__contains__(intersection_id):
-            intersection_id = Lambdas.aibi_to_xinkongji.get(intersection_id)
+        intersection_id, direction=lambdas_module.boyan_device_to_location[deviceId]
+        if lambdas_module.aibi_to_xinkongji.__contains__(intersection_id):
+            intersection_id = lambdas_module.aibi_to_xinkongji.get(intersection_id)
         boyan_map[intersection_id].setdefault(direction, {})
         boyan_map[intersection_id][direction].setdefault(int(ts),[]).append(boyan_data)
     return boyan_map
