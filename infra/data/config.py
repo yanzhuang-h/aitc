@@ -10,6 +10,16 @@ from enum import StrEnum
 from typing import Any
 
 from lib.config_api import handle_config_request
+from lib.floating_value import (
+    get_floating_value_records,
+    replace_floating_value_records,
+    validate_and_save_floating_value,
+)
+from lib.road_state import (
+    get_road_state_config,
+    replace_road_state_config,
+    validate_and_save_road_state,
+)
 
 
 class ConfigResource(StrEnum):
@@ -17,6 +27,8 @@ class ConfigResource(StrEnum):
 
     ROAD_INFO = "road_info"
     CROSS_INFO = "cross_info"
+    ROAD_STATE = "road_state"
+    FLOATING_VALUE = "floating_value"
 
 
 class ConfigService:
@@ -59,6 +71,49 @@ class ConfigService:
         if outcome is None:
             raise ValueError(f"unsupported config resource: {resource_name}")
         return outcome
+
+    def get_road_state(self) -> dict[str, Any]:
+        """读取完整的路况状态配置。"""
+        return get_road_state_config()
+
+    def update_road_state(
+        self,
+        payload: dict[str, Any],
+        dry_run: bool = False,
+    ) -> dict[str, Any]:
+        """校验或更新单条路况状态规则。"""
+        return validate_and_save_road_state(payload, dry_run=dry_run)
+
+    def replace_road_state(self, data: dict[str, Any]) -> dict[str, Any]:
+        """校验并替换完整的路况状态配置。"""
+        return replace_road_state_config(data)
+
+    def get_floating_value(self) -> list[dict[str, Any]]:
+        """读取完整的浮动值配置。"""
+        return get_floating_value_records()
+
+    def update_floating_value(
+        self,
+        payload: dict[str, Any],
+        dry_run: bool = False,
+        allow_create_intersection: bool = False,
+        check_rules: bool = True,
+    ) -> dict[str, Any]:
+        """校验或更新单条浮动值规则。"""
+        return validate_and_save_floating_value(
+            payload,
+            dry_run=dry_run,
+            allow_create_intersection=allow_create_intersection,
+            check_rules=check_rules,
+        )
+
+    def replace_floating_value(
+        self,
+        data: list[dict[str, Any]],
+        check_rules: bool = True,
+    ) -> None:
+        """校验并替换完整的浮动值配置。"""
+        replace_floating_value_records(data, check_rules=check_rules)
 
     @staticmethod
     def _resource_name(resource: ConfigResource | str) -> str:
