@@ -3,6 +3,7 @@
 from .application import AITCApplication, create_application
 from .decision_pipeline import PeriodicDecisionPipeline
 from .http_server import HttpRuntimeServer
+from .result_formatter import format_result
 from .tcp_server import TcpRuntimeServer
 
-__all__ = ["AITCApplication", "HttpRuntimeServer", "PeriodicDecisionPipeline", "TcpRuntimeServer", "create_application"]
+__all__ = ["AITCApplication", "HttpRuntimeServer", "PeriodicDecisionPipeline", "TcpRuntimeServer", "create_application", "format_result"]
