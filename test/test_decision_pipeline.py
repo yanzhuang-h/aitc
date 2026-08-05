@@ -83,7 +83,7 @@ class PeriodicDecisionPipelineTest(unittest.TestCase):
 
         pipeline = PeriodicDecisionPipeline(
             cache=cache,
-            legacy_processor=_LegacyProcessor(),
+            data_processor=_LegacyProcessor(),
             lambdas_module=_Lambdas,
             writer=writer,
             result_warehouse=warehouse,

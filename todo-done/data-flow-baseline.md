@@ -25,7 +25,7 @@
 
 `classify_data` -> `RuntimeDataWriter.write` -> `DataRepository.store_runtime_data` -> `RuntimeDataCache` 或雷达事件状态更新。
 
-- `RuntimeDataWriter` 继续兼容旧 `Write_to_file.py` 的日志输出。
+- `RuntimeDataWriter` 通过 `FileRuntimeOutputStore` 写入兼容的日志目录结构。
 - `DataRepository` 将标准记录写入 `infra/data/runtime/runtime/<kind>.jsonl`，供历史查询使用。
 - `RuntimeDataCache` 维护实时窗口。当前窗口为：flow 600 秒、queue 240 秒、stage/extend/radar/boyan 600 秒、online/latest 1800 秒。
 - overflow warning 与 radar event 不进入普通窗口，而是更新 `overflowWarningMap`、`radar_event_map`。
@@ -34,8 +34,8 @@
 
 `periodic_data_processing()` 每 `SEND_INTERVAL`（当前 50 秒）执行一次 `process_data_to_send()`：
 
-1. `LegacyCacheProcessor.snapshot()` 从 `RuntimeDataCache` 取得各类型窗口快照。
-2. `LegacyCacheProcessor` 调用旧 `Process_cache_data.py`，将实时记录转为算法仍需要的结构。
+1. `RuntimeDataProcessor.snapshot()` 从 `RuntimeDataCache` 取得各类型窗口快照。
+2. `RuntimeDataProcessor` 调用 `cache_processor.py`，将实时记录转为算法仍需要的结构。
 3. 聚合结果包括：
    - `process_flow_data`：`intersection_flow`、按秒 `flow_map`，依赖 `jtll_ddbh`、`ycsb_cdbh`、`ts`。
    - `process_queue_data`：`result_queue_length`、按秒 `queue_map`，依赖 `jtll_ddbh`、`start_time`、`car_nums`。
@@ -69,6 +69,6 @@
 ## 6. 当前结论与后续拆分边界
 
 - 数据底座已独立承担接收、分类、实时缓存、运行记录持久化、查询和结果仓库职责。
-- 旧聚合和 `lib/` 算法仍是兼容边界：`LegacyCacheProcessor` 将底座缓存转换成旧算法需要的输入，当前不应改动算法实现。
+- 聚合和 `lib/` 算法仍是兼容边界：`RuntimeDataProcessor` 将底座缓存转换成既有算法需要的输入，当前不应改动算法实现。
 - `Server_AITC.py` 仍承担协议服务、周期调度、跨路口编排、全局后处理和客户端管理；这正是下一阶段要拆出的应用编排层。
-- 建议下一步先抽取不含算法逻辑的“周期决策管线”类，保留对 `LegacyCacheProcessor`、`DQN_select`、`coordinate`、`phase_check` 和 `ResultWarehouse` 的显式依赖，再让 `Server_AITC.py` 只负责启动和停止。
+- 周期决策管线已完成抽取，保留对 `RuntimeDataProcessor`、`DQN_select`、`coordinate`、`phase_check` 和 `ResultWarehouse` 的显式依赖；`Server_AITC.py` 只负责启动和停止。

@@ -19,7 +19,7 @@ from infra.data import (
     ConfigSyncManager,
     DataKind,
     DataRepository,
-    LegacyCacheProcessor,
+    RuntimeDataProcessor,
     ResultSender,
     ResultWarehouse,
     RuntimeDataCache,
@@ -112,5 +112,5 @@ def create_application(logger=None) -> AITCApplication:
     sender = ResultSender(writer=writer, logger=logger)
     http_server = HttpRuntimeServer(host="127.0.0.1", port=8088, ingestor=ingestor, config_service=config_service, query_service=query_service, logger=logger)
     tcp_server = TcpRuntimeServer(host="127.0.0.1", port=65432, buffer_size=1024 * 1024, ingestor=ingestor, result_warehouse=warehouse, result_sender=sender, send_interval=50, logger=logger)
-    pipeline = PeriodicDecisionPipeline(cache=cache, legacy_processor=LegacyCacheProcessor(cache), lambdas_module=Lambdas, writer=writer, result_warehouse=warehouse, flow_predictor=Flow_predict, queue_predictor=Queue_predict, dqn_select=DQN_select, coordinate=coordinate, phase_check=phase_check, select_data_to_send=select_data_to_send, is_millisecond_timestamp=is_millisecond_timestamp, overflow_warning_map=overflow_warning_map, radar_event_map=radar_event_map, flow_duration_seconds=150, logger=logger)
+    pipeline = PeriodicDecisionPipeline(cache=cache, data_processor=RuntimeDataProcessor(cache), lambdas_module=Lambdas, writer=writer, result_warehouse=warehouse, flow_predictor=Flow_predict, queue_predictor=Queue_predict, dqn_select=DQN_select, coordinate=coordinate, phase_check=phase_check, select_data_to_send=select_data_to_send, is_millisecond_timestamp=is_millisecond_timestamp, overflow_warning_map=overflow_warning_map, radar_event_map=radar_event_map, flow_duration_seconds=150, logger=logger)
     return AITCApplication(config_sync_manager=ConfigSyncManager(), http_server=http_server, tcp_server=tcp_server, decision_pipeline=pipeline, flow_predictor=Flow_predict, queue_predictor=Queue_predict, prediction_hour=3, prediction_minute=0, send_interval=50, logger=logger)

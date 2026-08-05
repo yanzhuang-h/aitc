@@ -44,8 +44,9 @@
 - 2026-08-05: 新增 `runtime.AITCApplication` 与 `create_application()`，集中装配 TCP/HTTP 服务、周期决策、预测调度和配置同步，并统一管理启动、停止和可中断的周期线程。`Server_AITC.py` 现仅保留日志配置、信号绑定和 `application.run()`；新增生命周期测试，自动化测试共 20 项。
 - 2026-08-05: 将 `RuntimeDataWriter` 对旧 `Write_to_file.py` 的运行依赖替换为 `FileRuntimeOutputStore`。新本地输出仓库保持 `logs_data/<category>/<date>_<category>.txt` 与 `logs_data/EXP/<intersection>/EXP_<timestamp>.json` 格式；新增输出兼容测试。使用 flow fixture 启动完整服务并 TCP 回放后，确认 `flow`、`flow_pre`、`phase_check` 与 EXP 输出更新，后台无 `ERROR`/`Traceback`，验证服务已停止；自动化测试共 22 项通过。
 - 2026-08-05: 清理旧输出模块 `Write_to_file.py`。运行代码已无任何引用；同步移除 `RuntimeDataWriter`、`FileRuntimeOutputStore` 和应用装配中的无效文件名轮转线程调用。输出仍由 `FileRuntimeOutputStore` 按写入时日期直接定位，自动化测试 22 项与编译检查均通过。
+- 2026-08-05: 将根目录 `Process_cache_data.py` 迁入 `infra/data/cache_processor.py`，并将缓存聚合门面从 `LegacyCacheProcessor`/`legacy_processor.py` 重命名为 `RuntimeDataProcessor`/`runtime_processor.py`。周期决策管线依赖名称同步改为 `data_processor`；未改变聚合算法或 `lib` 调用。同步更新数据底座 README、数据流基线和 checklist；自动化测试 22 项与编译检查均通过。
 - Pending: Continue project cleanup before the enterprise refactor, especially separating source, generated runtime data, configs, and tests.
-- Next suggested step: 继续盘点并收束旧缓存/数据处理文件，优先从仅保留兼容职责的 `Process_cache_data.py` 开始。
+- Next suggested step: 盘点根目录剩余的数据处理与预测模块，区分算法实现和运行编排职责，再决定下一批可迁入 `runtime/` 或 `infra/data/` 的边界。
 
 
 

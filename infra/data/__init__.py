@@ -9,7 +9,7 @@ from .classifier import ClassifiedData, DataKind, DataSource, classify_data
 from .config import ConfigResource, ConfigService
 from .config_sync import ConfigSyncManager
 from .ingest import RuntimeDataIngestor
-from .legacy_processor import LegacyCacheProcessor
+from .runtime_processor import RuntimeDataProcessor
 from .result_sender import ResultSender
 from .result_warehouse import ResultWarehouse
 from .receiver import RuntimeDataReceiver, TrafficReceiver
@@ -25,7 +25,7 @@ __all__ = [
     "DataKind",
     "DataRepository",
     "DataSource",
-    "LegacyCacheProcessor",
+    "RuntimeDataProcessor",
     "RuntimeDataCache",
     "RuntimeDataIngestor",
     "RuntimeDataQueryService",

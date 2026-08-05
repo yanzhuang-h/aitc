@@ -20,7 +20,7 @@ class PeriodicDecisionPipeline:
         self,
         *,
         cache: Any,
-        legacy_processor: Any,
+        data_processor: Any,
         lambdas_module: Any,
         writer: Any,
         result_warehouse: Any,
@@ -38,7 +38,7 @@ class PeriodicDecisionPipeline:
         logger: Any | None = None,
     ) -> None:
         self.cache = cache
-        self.legacy_processor = legacy_processor
+        self.data_processor = data_processor
         self.lambdas = lambdas_module
         self.writer = writer
         self.result_warehouse = result_warehouse
@@ -89,7 +89,7 @@ class PeriodicDecisionPipeline:
 
     def _process_data(self) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
         self.cache.clear_expired()
-        recent_data = self.legacy_processor.snapshot()
+        recent_data = self.data_processor.snapshot()
         recent_flow_data = recent_data["flow"]
         recent_queue_data = recent_data["queue"]
         recent_stage_data = recent_data["stage"]
@@ -102,15 +102,15 @@ class PeriodicDecisionPipeline:
             recent_flow_data
         )
         result_queue_length, queue_map = self._build_queue_data(recent_queue_data)
-        stage_map = self._build_optional_data(recent_stage_data, self.legacy_processor.stage)
-        extend_map = self._build_optional_data(recent_extend_data, self.legacy_processor.extend)
-        boyan_map = self._build_optional_data(recent_boyan_data, self.legacy_processor.boyan)
-        radar_map = self._build_optional_data(recent_radar_data, self.legacy_processor.radar)
+        stage_map = self._build_optional_data(recent_stage_data, self.data_processor.stage)
+        extend_map = self._build_optional_data(recent_extend_data, self.data_processor.extend)
+        boyan_map = self._build_optional_data(recent_boyan_data, self.data_processor.boyan)
+        radar_map = self._build_optional_data(recent_radar_data, self.data_processor.radar)
 
         current_flow_prediction = self.flow_predictor.get_current_flow_prediction()
         current_queue_prediction = self.queue_predictor.get_current_queue_prediction()
-        online_map = self.legacy_processor.online()
-        overflow_map = self.legacy_processor.radar_event(
+        online_map = self.data_processor.online()
+        overflow_map = self.data_processor.radar_event(
             self.radar_event_map,
             self.overflow_warning_map,
         )
@@ -158,8 +158,8 @@ class PeriodicDecisionPipeline:
                 copy.deepcopy(intersection_flow),
             )
 
-        intersection_flow, flow_map = self.legacy_processor.flow()
-        intersection_flow_duration2, _ = self.legacy_processor.flow_duration(
+        intersection_flow, flow_map = self.data_processor.flow()
+        intersection_flow_duration2, _ = self.data_processor.flow_duration(
             self.flow_duration_seconds
         )
         end_time = recent_flow_data[0].get("ts")
@@ -182,7 +182,7 @@ class PeriodicDecisionPipeline:
                 copy.deepcopy(self.lambdas.map_lambda),
             )
 
-        result_queue_length, queue_map = self.legacy_processor.queue()
+        result_queue_length, queue_map = self.data_processor.queue()
         start_time = recent_queue_data[0].get("start_time")
         if self.is_millisecond_timestamp(start_time):
             self.writer.write_queue_prediction(
