@@ -8,6 +8,7 @@ from .api import DataRepository, RuntimeDataQueryService, get_default_repository
 from .classifier import ClassifiedData, DataKind, DataSource, classify_data
 from .config import ConfigResource, ConfigService
 from .config_sync import ConfigSyncManager
+from .contracts import CONTRACTS, DataContract, validate_contract
 from .ingest import RuntimeDataIngestor
 from .prediction_repository import FilePredictionRepository
 from .runtime_processor import RuntimeDataProcessor
@@ -23,7 +24,9 @@ __all__ = [
     "ConfigResource",
     "ConfigService",
     "ConfigSyncManager",
+    "CONTRACTS",
     "DataKind",
+    "DataContract",
     "DataRepository",
     "DataSource",
     "FilePredictionRepository",
@@ -39,4 +42,5 @@ __all__ = [
     "classify_data",
     "get_default_repository",
     "is_millisecond_timestamp",
+    "validate_contract",
 ]
