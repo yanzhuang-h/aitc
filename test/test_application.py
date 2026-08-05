@@ -12,11 +12,6 @@ class _Component:
     def serve_forever(self): self.calls.append("serve")
 
 
-class _Predictor:
-    def __init__(self): self.calls = []
-    def setup_scheduler(self, hour, minute): self.calls.append((hour, minute))
-
-
 class _Pipeline:
     def __init__(self): self.calls = 0
     def run_once(self): self.calls += 1
@@ -24,13 +19,14 @@ class _Pipeline:
 
 class ApplicationTest(unittest.TestCase):
     def test_start_and_stop_manage_components(self):
-        config, http, tcp, flow, queue, pipeline = _Component(), _Component(), _Component(), _Predictor(), _Predictor(), _Pipeline()
-        app = AITCApplication(config_sync_manager=config, http_server=http, tcp_server=tcp, decision_pipeline=pipeline, flow_predictor=flow, queue_predictor=queue, prediction_hour=3, prediction_minute=0, send_interval=0.01)
+        config, http, tcp, scheduler, pipeline = _Component(), _Component(), _Component(), _Component(), _Pipeline()
+        app = AITCApplication(config_sync_manager=config, http_server=http, tcp_server=tcp, decision_pipeline=pipeline, prediction_scheduler=scheduler, send_interval=0.01)
         app.start()
         time.sleep(0.03)
         app.stop()
         self.assertEqual(config.calls, ["start", "stop"])
         self.assertEqual(http.calls, ["start", "stop"])
+        self.assertEqual(scheduler.calls, ["start", "stop"])
         self.assertIn("broadcast", tcp.calls)
         self.assertIn("stop", tcp.calls)
         self.assertGreaterEqual(pipeline.calls, 1)

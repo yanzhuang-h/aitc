@@ -2,7 +2,6 @@ import json
 from datetime import datetime, timedelta, time
 import os
 import ast
-from apscheduler.schedulers.background import BackgroundScheduler
 import Lambdas
 
 LOG_DIR = 'logs_data'
@@ -187,24 +186,6 @@ def daily_prediction_job():
         json.dump(daily_predictions, f, indent=2)
     
     print(f"预测文件已生成：{filepath}")
-
-def setup_scheduler(h,min):
-    """配置定时任务"""
-    scheduler = BackgroundScheduler(timezone="Asia/Shanghai")  # 根据实际情况调整时区
-    
-    # 每天03:00执行（确保在当日05:00前完成计算）
-    scheduler.add_job(
-        daily_prediction_job,
-        'cron',
-        hour=h,
-        minute=min,
-        misfire_grace_time=300  # 允许5分钟内的延迟触发
-    )
-    
-    try:
-        scheduler.start()
-    except KeyboardInterrupt:
-        scheduler.shutdown()
 
 def get_current_flow_prediction(current_time=None):
     """

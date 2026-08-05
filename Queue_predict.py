@@ -3,7 +3,6 @@ from datetime import datetime, timedelta
 import os
 import ast
 import Lambdas
-from apscheduler.schedulers.background import BackgroundScheduler
 
 LOG_DIR = 'logs_data'
 PREDICTION_DIR = os.path.join(LOG_DIR, 'queue_predictions')
@@ -154,22 +153,6 @@ def daily_queue_prediction():
         json.dump(predictions, f, indent=2, ensure_ascii=False)
     
     print(f"排队预测文件已生成：{filepath}")
-
-def setup_scheduler(hour, minute):
-    """配置定时任务"""
-    scheduler = BackgroundScheduler(timezone="Asia/Shanghai")
-    scheduler.add_job(
-        daily_queue_prediction,
-        'cron',
-        hour=hour,
-        minute=minute,
-        misfire_grace_time=300
-    )
-    
-    try:
-        scheduler.start()
-    except KeyboardInterrupt:
-        scheduler.shutdown()
 
 def get_current_queue_prediction(current_time=None):
     """
