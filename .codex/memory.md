@@ -13,5 +13,6 @@
 - 2026-08-05: 将 `Server_AITC.py` 的运行期窗口缓存接入 `infra.data.RuntimeDataCache`，移除实际使用中的旧全局 deque 缓存。保留 `get_recent_*` 等旧函数名和返回形态，确保 `Process_cache_data.py` 与算法调用链不感知迁移。
 - 2026-08-05: 将 TCP/HTTP 接收后的分类、写入、窗口缓存、雷达事件状态和溢出告警状态更新合并到 `infra.data.RuntimeDataReceiver`。`Server_AITC.py` 的 `handle_individual_data` 和 `handle_single_radar_data` 现在只做薄调用，传输层仍留在服务端入口中。
 - 2026-08-05: 将 `process_data_to_send()` 的缓存快照读取与 `Process_cache_data.py` 聚合调用接入 `infra.data.LegacyCacheProcessor`。`Server_AITC.py` 不再直接导入 `Process_cache_data`，旧聚合函数仍保持不变。
+- 2026-08-05: 将 `todo-done/8-5.md` 的数据底座开发部分整理为 checklist，记录已完成的 receiver/cache/writer/legacy_processor 抽象，并规划下一步收口 `Write_to_file.py`、配置接口、Nacos、time_schedule 和 Agent 查询工具。
 - Pending: Continue project cleanup before the enterprise refactor, especially separating source, generated runtime data, configs, and tests.
 - Next suggested step: audit tracked generated artifacts and remove any already-committed cache/log/build outputs from the index.
