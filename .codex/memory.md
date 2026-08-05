@@ -5,5 +5,7 @@
 - Added `.gitignore` for Python caches, virtual environments, build outputs, IDE files, local env files, logs, and temp files.
 - Added `.gitattributes` to normalize text files to LF while keeping Windows scripts as CRLF.
 - 2026-08-05: GitHub remote is now configured and `main` tracks `origin/main`. Added explicit `.gitignore` rules for recursive `__pycache__/` and `logs_data/` runtime output directories.
+- 2026-08-05: Chose incremental refactor layout: keep `Agent/` as the agent layer, keep `infra/model/` as model-file storage only for now, and build the data foundation under `infra/data/`.
+- Added initial `infra/data` repository modules for traffic records, config items, experience items, local JSON/JSONL persistence, window cache, receiver normalization, and a facade API.
 - Pending: Continue project cleanup before the enterprise refactor, especially separating source, generated runtime data, configs, and tests.
 - Next suggested step: audit tracked generated artifacts and remove any already-committed cache/log/build outputs from the index.
