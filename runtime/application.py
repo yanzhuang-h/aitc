@@ -8,7 +8,6 @@ from typing import Any
 
 import Flow_predict
 import Queue_predict
-import Write_to_file
 import Lambdas
 from Select_data_to_send import select_data_to_send
 from lib.DQN_Select import DQN_select
@@ -101,7 +100,7 @@ def create_application(logger=None) -> AITCApplication:
         DataKind.EXTEND: 600, DataKind.ONLINE: 1800, DataKind.LATEST: 1800,
         DataKind.RADAR: 600, DataKind.BOYAN: 600,
     })
-    writer = RuntimeDataWriter(Write_to_file)
+    writer = RuntimeDataWriter()
     writer.start_filename_updater()
     repository = DataRepository()
     overflow_warning_map = copy.deepcopy(Lambdas.map_lambda)

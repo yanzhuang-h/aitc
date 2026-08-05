@@ -42,8 +42,9 @@
 - 2026-08-05: 已对新 HTTP 服务执行真实 `POST /radar` 回放，返回成功，HTTP 来源 radar 数据写入 `infra/data/runtime/runtime/radar.jsonl`，后台日志无 ERROR/Traceback，验证服务已停止。下一步删除主文件中的旧 HTTP 实现。
 - 2026-08-05: 删除 `Server_AITC.py` 中已被 `HttpRuntimeServer` 替代的旧 HTTP handler、CORS/安全响应常量、跨域判断与启动函数，主文件减少约 230 行。TCP、HTTP 与周期决策现均由 `runtime/` 组件承载；自动化测试共 19 项通过。
 - 2026-08-05: 新增 `runtime.AITCApplication` 与 `create_application()`，集中装配 TCP/HTTP 服务、周期决策、预测调度和配置同步，并统一管理启动、停止和可中断的周期线程。`Server_AITC.py` 现仅保留日志配置、信号绑定和 `application.run()`；新增生命周期测试，自动化测试共 20 项。
+- 2026-08-05: 将 `RuntimeDataWriter` 对旧 `Write_to_file.py` 的运行依赖替换为 `FileRuntimeOutputStore`。新本地输出仓库保持 `logs_data/<category>/<date>_<category>.txt` 与 `logs_data/EXP/<intersection>/EXP_<timestamp>.json` 格式；新增输出兼容测试。使用 flow fixture 启动完整服务并 TCP 回放后，确认 `flow`、`flow_pre`、`phase_check` 与 EXP 输出更新，后台无 `ERROR`/`Traceback`，验证服务已停止；自动化测试共 22 项通过。
 - Pending: Continue project cleanup before the enterprise refactor, especially separating source, generated runtime data, configs, and tests.
-- Next suggested step: 使用新的 flow fixture 对运行中的服务进行 TCP 回放集成验证，再评估旧写入/缓存文件的删减范围。
+- Next suggested step: 评估并逐步删减已不再被运行链路依赖的旧 `Write_to_file.py` 与相关兼容代码，再继续收束旧缓存/数据处理文件。
 
 
 
