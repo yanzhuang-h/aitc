@@ -16,7 +16,7 @@ import logging.handlers  # 添加日志处理器
 from phase_check import phase_check
 from lib.DQN_Select import DQN_select
 from lib.Global_intersection_coordinate import coordinate
-from runtime import PeriodicDecisionPipeline, TcpRuntimeServer
+from runtime import HttpRuntimeServer, PeriodicDecisionPipeline, TcpRuntimeServer
 from infra.data import (
     ConfigService,
     DataRepository,
@@ -159,6 +159,14 @@ runtime_query_service = RuntimeDataQueryService(
     repository=data_repository,
 )
 result_sender = ResultSender(writer=runtime_data_writer, logger=logger)
+http_runtime_server = HttpRuntimeServer(
+    host=RADAR_HTTP_HOST,
+    port=RADAR_HTTP_PORT,
+    ingestor=runtime_data_ingestor,
+    config_service=config_service,
+    query_service=runtime_query_service,
+    logger=logger,
+)
 tcp_runtime_server = TcpRuntimeServer(
     host=HOST,
     port=PORT,
@@ -434,18 +442,14 @@ def periodic_decision_processing():
 
 def start_server():
     config_sync_manager.start()
-    # 启动HTTP雷达数据接收服务器
-    radar_server, radar_thread = start_radar_http_server()
-    if radar_server is None:
-        logger.error("Failed to start radar HTTP server, exiting...")
-        return
+    http_runtime_server.start()
     
     # 启动数据处理和结果广播线程
     threading.Thread(target=periodic_decision_processing, daemon=True).start()
     logger.info("Data processing thread started.")
     tcp_runtime_server.start_broadcast_thread()
     logger.info("Broadcast results thread started.")  
-    logger.info(f"Radar HTTP server running on {RADAR_HTTP_HOST}:{RADAR_HTTP_PORT}")
+    logger.info("Radar HTTP server running on %s:%s", *http_runtime_server.address)
     Flow_predict.setup_scheduler(pre_hour, pre_min)
     Queue_predict.setup_scheduler(pre_hour, pre_min)
     logger.info(f'Flow & Queue prediction scheduler set,job will start at {pre_hour}:{pre_min}')
@@ -455,9 +459,7 @@ def start_server():
 def stop_server(signal, frame):
     logger.info("Stopping server...")
     config_sync_manager.stop()
-    # 停止HTTP服务器
-    http_server_shutdown.set()
-    
+    http_runtime_server.stop()
     tcp_runtime_server.stop()
     sys.exit(0)
 

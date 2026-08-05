@@ -38,6 +38,7 @@
 - 2026-08-05: 已使用 `test/fixtures/flow_replay.jsonl` 完成新周期决策管线的真实 TCP 回放。记录写入 `infra/data/runtime/runtime/flow.jsonl`，周期线程完成 flow 聚合、预测与相位校验，后台日志未出现 ERROR/Traceback；验证服务已停止。下一步可删除 `Server_AITC.py` 中未运行的旧周期编排函数。
 - 2026-08-05: 删除 `Server_AITC.py` 中已被 `PeriodicDecisionPipeline` 替代的旧路口处理、旧聚合和旧周期函数，主文件减少约 180 行；同步移除无效的协调状态与线程池全局变量。保留 TCP/HTTP 接收、广播与服务生命周期代码。
 - 2026-08-05: 抽取 `runtime.TcpRuntimeServer`，接管 TCP 65432 的监听、换行 JSON 解析、`RuntimeDataIngestor` 调用、客户端连接管理和结果广播。`Server_AITC.py` 仅装配并启动该服务。新增 TCP 服务单元测试；真实 flow 回放确认数据写入与周期 flow 聚合正常，日志无 ERROR/Traceback，验证服务已停止。自动化测试共 17 项。
+- 2026-08-05: 新增 `runtime.HttpRuntimeServer`，接管 HTTP 8088 的雷达/博研接收、配置转发、健康检查和安全响应头；`Server_AITC.py` 已切换到新服务。新增本地 HTTP 自动化测试，当前共 19 项通过。旧 HTTP handler 暂留作未运行回退代码，待真实回放后删除。
 - Pending: Continue project cleanup before the enterprise refactor, especially separating source, generated runtime data, configs, and tests.
 - Next suggested step: 使用新的 flow fixture 对运行中的服务进行 TCP 回放集成验证，再评估旧写入/缓存文件的删减范围。
 
