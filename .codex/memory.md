@@ -34,6 +34,7 @@
 - 2026-08-05: 修复最小回放数据缺少 `ts`/`start_time` 时周期线程被旧预测写入中断的问题。新增 `is_millisecond_timestamp()`；无有效毫秒时间戳时仅跳过 flow/queue 预测文件写入，继续执行接收、缓存、仓库和后续决策链路。自动化测试增至 11 项。
 - 2026-08-05: 优化 `test/client_tcp.py` 的定时回放流程：新增 `--start-timestamp`，定时发送会在最后一个实际数据时间点自动结束。新增完整 flow 样本 `test/fixtures/flow_replay.jsonl` 和回放客户端测试；自动化测试增至 14 项。
 - 2026-08-05: 在 `todo-done/data-flow-baseline.md` 固化当前端到端调用链：TCP/HTTP -> 数据底座 -> 旧聚合适配 -> `lib.DQN_Select` 路口策略 -> 全局协调/相位校验 -> 结果仓库/广播。后续应先抽取不改算法的周期决策管线，再精简服务启动文件。
+- 2026-08-05: 新增 `runtime.PeriodicDecisionPipeline`，由 `Server_AITC.py` 注入数据底座、预测模块、既有 `lib` 算法和结果仓库。服务启动线程已切换到新管线；旧周期函数暂留作未运行的回退代码，待下一次回放确认后删除。新增管线隔离测试，自动化测试共 15 项。
 - Pending: Continue project cleanup before the enterprise refactor, especially separating source, generated runtime data, configs, and tests.
 - Next suggested step: 使用新的 flow fixture 对运行中的服务进行 TCP 回放集成验证，再评估旧写入/缓存文件的删减范围。
 

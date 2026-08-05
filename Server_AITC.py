@@ -18,6 +18,7 @@ import logging.handlers  # 添加日志处理器
 from phase_check import phase_check
 from lib.DQN_Select import DQN_select
 from lib.Global_intersection_coordinate import coordinate
+from runtime import PeriodicDecisionPipeline
 from infra.data import (
     ConfigService,
     DataRepository,
@@ -180,6 +181,24 @@ runtime_query_service = RuntimeDataQueryService(
     repository=data_repository,
 )
 result_sender = ResultSender(writer=runtime_data_writer, logger=logger)
+decision_pipeline = PeriodicDecisionPipeline(
+    cache=runtime_data_cache,
+    legacy_processor=legacy_cache_processor,
+    lambdas_module=Lambdas,
+    writer=runtime_data_writer,
+    result_warehouse=result_warehouse,
+    flow_predictor=Flow_predict,
+    queue_predictor=Queue_predict,
+    dqn_select=DQN_select,
+    coordinate=coordinate,
+    phase_check=phase_check,
+    select_data_to_send=select_data_to_send,
+    is_millisecond_timestamp=is_millisecond_timestamp,
+    overflow_warning_map=overflowWarningMap,
+    radar_event_map=radar_event_map,
+    flow_duration_seconds=FLOW_WINDOW_DURATION2,
+    logger=logger,
+)
 
 CORS_RESPONSE_HEADERS = {
     "access-control-allow-origin",
@@ -582,6 +601,27 @@ def periodic_data_processing():
         wait_time = max(0, SEND_INTERVAL - elapsed)
         time.sleep(wait_time)
 
+def periodic_decision_processing():
+    """周期触发决策编排，服务端不再直接组织算法调用。"""
+    global processing_flag
+    while True:
+        start_time = time.time()
+        while processing_flag:
+            time.sleep(0.1)
+
+        processing_flag = True
+        try:
+            decision_pipeline.run_once()
+        except Exception as e:
+            logger.error(f"数据处理失败: {e}", exc_info=True)
+        finally:
+            processing_flag = False
+            logger.info("最新结果已更新。。。。")
+
+        elapsed = time.time() - start_time
+        time.sleep(max(0, SEND_INTERVAL - elapsed))
+
+
 def broadcast_results():
     """独立线程：将最新结果广播给所有客户端"""
     while True:
@@ -677,7 +717,7 @@ def start_server():
         return
     
     # 启动数据处理和广播线程
-    threading.Thread(target=periodic_data_processing, daemon=True).start()
+    threading.Thread(target=periodic_decision_processing, daemon=True).start()
     logger.info("Data processing thread started.")
     threading.Thread(target=broadcast_results, daemon=True).start()
     logger.info("Broadcast results thread started.")  
