@@ -24,8 +24,8 @@ from lib.nacos_floating_value import (
     NacosRoadStateSync,
     NacosTimeScheduleSync,
 )
-from lib.config_api import handle_config_request
 from infra.data import (
+    ConfigService,
     DataKind,
     LegacyCacheProcessor,
     RuntimeDataCache,
@@ -174,6 +174,7 @@ runtime_data_receiver = RuntimeDataReceiver(
     logger=logger,
 )
 runtime_data_ingestor = RuntimeDataIngestor(runtime_data_receiver)
+config_service = ConfigService()
 result_warehouse = ResultWarehouse()
 result_sender = ResultSender(writer=runtime_data_writer, logger=logger)
 
@@ -264,7 +265,7 @@ class RadarHTTPRequestHandler(BaseHTTPRequestHandler):
     def _try_handle_config(self, method, body):
         """尝试按配置接口处理请求；处理成功返回 True。"""
         try:
-            outcome = handle_config_request(method, urlparse(self.path).path, body)
+            outcome = config_service.handle_request(method, urlparse(self.path).path, body)
         except Exception as e:
             logger.error(f"Error in config API handler: {e}", exc_info=True)
             self._send_json(500, {"status": "error", "reason": "internal server error"})

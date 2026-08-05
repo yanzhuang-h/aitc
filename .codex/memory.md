@@ -18,8 +18,9 @@
 - 2026-08-05: 进一步将 Write_to_file.py 的文件轮转启动也收口到 RuntimeDataWriter，主入口现在通过数据底座门面启动 start_filename_updater()。
 - 2026-08-05: 抽出 `RuntimeDataIngestor` 作为 TCP/HTTP 协议接入门面，`Server_AITC.py` 的 65432 与 8088 入口现在在协议解析后统一进入 `RuntimeDataReceiver` 的 `ingest -> classify -> persist -> cache/state update` 管线.
 - 2026-08-05: 新增 `ResultWarehouse` 和 `ResultSender`。周期处理线程只替换最新结果，广播线程通过结果仓库快照调用纯发送器；发送日志也由发送器统一写入。当前结果仓库使用线程安全内存实现，后续可替换为 Redis、文件或数据库。
+- 2026-08-05: 新增 `infra/data/config.py` 的 `ConfigService` 配置服务门面。`Server_AITC.py` 不再直接依赖 `lib/config_api.py`，现有 `/road_info`、`/cross_info` 路由和旧 JSON 文件锁逻辑保持不变；后续再迁移具体配置存储。
 - Pending: Continue project cleanup before the enterprise refactor, especially separating source, generated runtime data, configs, and tests.
-- Next suggested step: 梳理并抽离 `Server_AITC.py` 中的 HTTP 配置接口，纳入数据底座配置边界。
+- Next suggested step: 梳理 `road_info`、`cross_info`、`road_state` 等配置的共同模型和持久化边界。
 
 
 
