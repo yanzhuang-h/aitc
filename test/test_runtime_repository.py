@@ -59,10 +59,10 @@ class RuntimeRepositoryTest(unittest.TestCase):
             self.assertEqual(len(writer.records), 1)
 
             query_service = MemoryQueryLayer(
-                cache=receiver.cache,
+                short_term_memory=receiver.cache,
                 result_warehouse=ResultWarehouse(),
                 config_service=ConfigService(),
-                repository=repository,
+                long_term_memory=repository,
             )
             self.assertEqual(
                 query_service.get_runtime_history(DataKind.FLOW)[0]["kind"],

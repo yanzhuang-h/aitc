@@ -8,6 +8,7 @@
 - `memory/longtermmemory.py`：长期记忆，保存运行历史、配置和经验数据。当前使用 JSON/JSONL 文件实现，不绑定具体数据库。
 - `memory/memoryquerylayer.py`：统一查询层，为 Agent、HTTP 健康接口和运行决策提供只读查询。
 - 记忆模块只从 `infra.data.memory` 或 `infra.data` 的公共导出访问，避免维护重复兼容入口。
+- `MemoryQueryLayer` 只接受语义化参数 `short_term_memory` 和 `long_term_memory`，不再保留旧参数别名。
 
 ## 数据工具组件
 

@@ -45,10 +45,10 @@ class SymbolicDataAgentTest(unittest.TestCase):
         results = ResultWarehouse()
         results.replace([{"Cross_id": "1300068", "result_action": [1, 2, 3]}])
         query_service = MemoryQueryLayer(
-            cache=cache,
+            short_term_memory=cache,
             result_warehouse=results,
             config_service=ConfigService(),
-            repository=repository,
+            long_term_memory=repository,
         )
         self.agent = SymbolicDataAgent(DataQueryTools(query_service))
 

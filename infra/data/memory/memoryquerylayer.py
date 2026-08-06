@@ -23,29 +23,14 @@ class MemoryQueryLayer:
         config_service: ConfigService | None = None,
         long_term_memory: LongTermMemory | None = None,
         quality_monitor: DataQualityMonitor | None = None,
-        **legacy_kwargs: Any,
     ) -> None:
-        # 兼容旧装配代码中的 cache/repository 参数，新的代码使用语义化名称。
-        self.short_term_memory = legacy_kwargs.pop("cache", short_term_memory)
-        self.long_term_memory = legacy_kwargs.pop("repository", long_term_memory)
-        if legacy_kwargs:
-            unexpected = ", ".join(sorted(legacy_kwargs))
-            raise TypeError(f"unexpected query layer arguments: {unexpected}")
+        self.short_term_memory = short_term_memory
+        self.long_term_memory = long_term_memory
         if self.short_term_memory is None or result_warehouse is None or config_service is None:
             raise TypeError("short_term_memory, result_warehouse and config_service are required")
         self.result_warehouse = result_warehouse
         self.config_service = config_service
         self.quality_monitor = quality_monitor
-
-    @property
-    def cache(self) -> ShortTermMemory:
-        """旧调用方访问短期记忆的兼容属性。"""
-        return self.short_term_memory
-
-    @property
-    def repository(self) -> LongTermMemory | None:
-        """旧调用方访问长期记忆的兼容属性。"""
-        return self.long_term_memory
 
     def get_data_quality_snapshot(self) -> dict[str, Any]:
         return self.quality_monitor.snapshot() if self.quality_monitor is not None else {
