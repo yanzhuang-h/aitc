@@ -95,25 +95,12 @@
       line-height: 1.5;
     }
     .answer {
-      margin-bottom: 12px;
-      padding: 12px;
+      padding: 14px;
       border-radius: 6px;
       background: var(--accent-soft);
-      color: var(--text);
-      line-height: 1.6;
-      min-height: 64px;
-    }
-    .result {
+      line-height: 1.8;
+      min-height: 160px;
       white-space: pre-wrap;
-      word-break: break-word;
-      background: #fafbfd;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 12px;
-      min-height: 340px;
-      font-family: Consolas, "SFMono-Regular", monospace;
-      font-size: 13px;
-      line-height: 1.6;
     }
     .meta {
       display: flex;
@@ -170,7 +157,6 @@
           <span>请求未发出</span>
         </div>
         <div class="answer" id="answerBox">请在左侧输入路口编号并点击“获取方案”。</div>
-        <div class="result" id="resultBox">完整 JSON 会显示在这里。</div>
       </div>
     </div>
   </div>
@@ -180,7 +166,6 @@
     const requestText = document.getElementById('requestText');
     const queryBtn = document.getElementById('queryBtn');
     const answerBox = document.getElementById('answerBox');
-    const resultBox = document.getElementById('resultBox');
     const metaLine = document.getElementById('metaLine');
 
     function renderMeta(status, message) {
@@ -200,20 +185,17 @@
       if (!value) {
         renderMeta('error', '请输入路口编号');
         answerBox.textContent = 'cross_id 不能为空。';
-        resultBox.textContent = '';
         return;
       }
       if (!request) {
         renderMeta('error', '请输入需求描述');
         answerBox.textContent = 'request_text 不能为空。';
-        resultBox.textContent = '';
         return;
       }
 
       queryBtn.disabled = true;
       renderMeta('ok', '正在请求 Qwen 编排方案');
       answerBox.textContent = '请求中...';
-      resultBox.textContent = '';
       try {
         const response = await fetch('/api/agent/signal-timing', {
           method: 'POST',
@@ -224,18 +206,15 @@
         if (!response.ok) {
           renderMeta('error', payload.error || '请求失败');
           answerBox.textContent = payload.error || '请求失败。';
-          resultBox.textContent = JSON.stringify(payload, null, 2);
           return;
         }
 
         const agentResult = payload.result || {};
         renderMeta('ok', `路口 ${payload.cross_id} 已生成方案`);
         answerBox.textContent = agentResult.summary || agentResult.data?.answer || '已生成方案。';
-        resultBox.textContent = JSON.stringify(payload, null, 2);
       } catch (error) {
         renderMeta('error', '网络请求失败');
         answerBox.textContent = String(error);
-        resultBox.textContent = '';
       } finally {
         queryBtn.disabled = false;
       }
