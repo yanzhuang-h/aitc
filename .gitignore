@@ -39,3 +39,9 @@ infra/data/runtime/
 *.log
 *.tmp
 *.bak
+
+# Local model weights
+infra/model/**/Qwen[0-9]*/
+*.safetensors
+
+./todo-done
