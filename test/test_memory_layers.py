@@ -38,6 +38,19 @@ class MemoryLayersTest(unittest.TestCase):
             self.assertEqual(records[0]["key"], "morning_peak")
             self.assertEqual(records[0]["value"]["strategy"], "extend_green")
 
+    def test_config_pool_is_persisted_and_queryable(self):
+        with tempfile.TemporaryDirectory() as root:
+            long_term = LongTermMemory(root=root)
+            long_term.set_config("signal_policy", {"enabled": True}, namespace="signal")
+            query = MemoryQueryLayer(ShortTermMemory(), ResultWarehouse(), ConfigService(), long_term)
+
+            item = query.get_config_pool("signal_policy", namespace="signal")
+            records = query.get_config_pool(namespace="signal")
+
+            self.assertTrue(item["enabled"])
+            self.assertEqual(records[0]["key"], "signal_policy")
+            self.assertTrue(records[0]["value"]["enabled"])
+
 
 if __name__ == "__main__":
     unittest.main()

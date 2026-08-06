@@ -99,6 +99,13 @@ class MemoryQueryLayer:
             return self._config_service.get_time_schedule_manifest() if cross_id is None else self._config_service.get_time_schedule(cross_id)
         raise ValueError(f"unsupported config resource: {config_resource}")
 
+    def get_config_pool(self, key: str | None = None, namespace: str | None = None) -> Any:
+        if self._long_term_memory is None:
+            raise RuntimeError("long-term memory is not configured")
+        if key is not None:
+            return copy.deepcopy(self._long_term_memory.get_config(key, namespace or "default"))
+        return copy.deepcopy(self._long_term_memory.list_config(namespace=namespace))
+
     @staticmethod
     def _data_kind(kind: DataKind | str) -> DataKind:
         if isinstance(kind, DataKind):

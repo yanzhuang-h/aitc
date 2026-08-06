@@ -72,6 +72,18 @@ class DataQueryTools:
             },
         },
         {
+            "name": "query_config_pool",
+            "description": "查询长期记忆中的持久化配置池，可按命名空间或键读取。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "namespace": {"type": "string"},
+                    "key": {"type": "string"},
+                    "detail": {"type": "string", "enum": [SUMMARY, FULL]},
+                },
+            },
+        },
+        {
             "name": "query_experience_pool",
             "description": "查询长期记忆中的经验池，可按分类或键读取。",
             "parameters": {
@@ -100,6 +112,7 @@ class DataQueryTools:
             "query_runtime_history": self.query_runtime_history,
             "query_latest_results": self.query_latest_results,
             "query_config_snapshot": self.query_config_snapshot,
+            "query_config_pool": self.query_config_pool,
             "query_experience_pool": self.query_experience_pool,
         }
         handler = handlers.get(name)
@@ -202,6 +215,35 @@ class DataQueryTools:
         except (ValueError, RuntimeError) as error:
             return self._error(str(error))
 
+    def query_config_pool(
+        self,
+        namespace: str | None = None,
+        key: str | None = None,
+        detail: str = SUMMARY,
+    ) -> dict[str, Any]:
+        """查询长期记忆中的持久化配置池。"""
+        try:
+            data = self.query_service.get_config_pool(key=key, namespace=namespace)
+            normalized_detail = self._detail(detail)
+            if isinstance(data, list):
+                formatted = self._format_config_pool_records(data, normalized_detail)
+                count = len(data)
+            else:
+                formatted = data if normalized_detail == self.FULL else self._format_config(data, normalized_detail)
+                count = 0 if data is None else 1
+            return self._success(
+                f"已获取 {count} 条配置池数据。",
+                formatted,
+                {
+                    "namespace": namespace,
+                    "key": key,
+                    "source": "config_pool",
+                    "detail": normalized_detail,
+                },
+            )
+        except (ValueError, RuntimeError) as error:
+            return self._error(str(error))
+
     def query_experience_pool(
         self,
         category: str | None = None,
@@ -294,6 +336,23 @@ class DataQueryTools:
                 {
                     "key": record.get("key"),
                     "category": record.get("category"),
+                    "updated_at": record.get("updated_at"),
+                    "value_fields": sorted(record.get("value", {}).keys()) if isinstance(record.get("value"), Mapping) else [],
+                }
+                for record in records
+            ],
+        }
+
+    @classmethod
+    def _format_config_pool_records(cls, records: list[dict[str, Any]], detail: str) -> Any:
+        if detail == cls.FULL:
+            return records
+        return {
+            "count": len(records),
+            "items": [
+                {
+                    "key": record.get("key"),
+                    "namespace": record.get("namespace"),
                     "updated_at": record.get("updated_at"),
                     "value_fields": sorted(record.get("value", {}).keys()) if isinstance(record.get("value"), Mapping) else [],
                 }

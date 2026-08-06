@@ -20,6 +20,18 @@ class _QueryServiceStub:
     def get_config_snapshot(self, resource, cross_id=None):
         return {"resource": resource, "cross_id": cross_id}
 
+    def get_config_pool(self, key=None, namespace=None):
+        if key:
+            return {"enabled": True}
+        return [
+            {
+                "key": "signal_policy",
+                "namespace": namespace or "default",
+                "value": {"enabled": True},
+                "updated_at": "2026-08-06T00:00:00+00:00",
+            }
+        ]
+
     def get_experience(self, key=None, category=None):
         if key:
             return {"strategy": "extend_green"}
@@ -68,7 +80,17 @@ class DataQueryToolsTest(unittest.TestCase):
         names = {item["name"] for item in self.tools.tool_schemas()}
         self.assertIn("query_recent_runtime_data", names)
         self.assertIn("query_config_snapshot", names)
+        self.assertIn("query_config_pool", names)
         self.assertIn("query_experience_pool", names)
+
+    def test_config_pool_tool_contract(self) -> None:
+        result = self.tools.invoke(
+            "query_config_pool",
+            {"namespace": "signal", "detail": "summary"},
+        )
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["meta"]["source"], "config_pool")
+        self.assertEqual(result["data"]["items"][0]["key"], "signal_policy")
 
     def test_experience_pool_tool_contract(self) -> None:
         result = self.tools.invoke(
