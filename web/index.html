@@ -40,6 +40,7 @@
       font-size: 22px;
       font-weight: 700;
       margin: 0;
+      letter-spacing: 0;
     }
     .sub {
       margin: 4px 0 0;
@@ -93,6 +94,15 @@
       color: var(--muted);
       line-height: 1.5;
     }
+    .answer {
+      margin-bottom: 12px;
+      padding: 12px;
+      border-radius: 6px;
+      background: var(--accent-soft);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 64px;
+    }
     .result {
       white-space: pre-wrap;
       word-break: break-word;
@@ -100,7 +110,7 @@
       border: 1px solid var(--border);
       border-radius: 6px;
       padding: 12px;
-      min-height: 420px;
+      min-height: 340px;
       font-family: Consolas, "SFMono-Regular", monospace;
       font-size: 13px;
       line-height: 1.6;
@@ -131,9 +141,9 @@
     <div class="topbar">
       <div>
         <h1 class="title">AITC 路口方案查询</h1>
-        <p class="sub">输入路口编号和需求，获取当前方案。</p>
+        <p class="sub">输入路口编号和自然语言需求，由 Qwen 编排工具生成当前方案。</p>
       </div>
-      <div class="badge">Signal Timing</div>
+      <div class="badge">Qwen Agent</div>
     </div>
 
     <div class="grid">
@@ -150,7 +160,7 @@
           <button id="queryBtn">获取方案</button>
         </div>
         <div class="hint">
-          当前页面先直接调用后端单路口方案接口。后续可以把这里替换成大模型解析，再自动选择 tool。
+          当前页面调用后端 Agent 接口。后端先请求 Qwen 选择工具，再调用单路口放行时间工具。
         </div>
       </div>
 
@@ -159,7 +169,8 @@
           <span class="badge">待查询</span>
           <span>请求未发出</span>
         </div>
-        <div class="result" id="resultBox">请在左侧输入路口编号并点击“获取方案”。</div>
+        <div class="answer" id="answerBox">请在左侧输入路口编号并点击“获取方案”。</div>
+        <div class="result" id="resultBox">完整 JSON 会显示在这里。</div>
       </div>
     </div>
   </div>
@@ -168,6 +179,7 @@
     const crossId = document.getElementById('crossId');
     const requestText = document.getElementById('requestText');
     const queryBtn = document.getElementById('queryBtn');
+    const answerBox = document.getElementById('answerBox');
     const resultBox = document.getElementById('resultBox');
     const metaLine = document.getElementById('metaLine');
 
@@ -187,14 +199,23 @@
       const request = requestText.value.trim();
       if (!value) {
         renderMeta('error', '请输入路口编号');
-        resultBox.textContent = 'cross_id 不能为空。';
+        answerBox.textContent = 'cross_id 不能为空。';
+        resultBox.textContent = '';
         return;
       }
+      if (!request) {
+        renderMeta('error', '请输入需求描述');
+        answerBox.textContent = 'request_text 不能为空。';
+        resultBox.textContent = '';
+        return;
+      }
+
       queryBtn.disabled = true;
-      renderMeta('ok', '正在请求方案');
-      resultBox.textContent = '请求中...';
+      renderMeta('ok', '正在请求 Qwen 编排方案');
+      answerBox.textContent = '请求中...';
+      resultBox.textContent = '';
       try {
-        const response = await fetch('/api/signal-timing', {
+        const response = await fetch('/api/agent/signal-timing', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ cross_id: value, request_text: request })
@@ -202,14 +223,19 @@
         const payload = await response.json();
         if (!response.ok) {
           renderMeta('error', payload.error || '请求失败');
+          answerBox.textContent = payload.error || '请求失败。';
           resultBox.textContent = JSON.stringify(payload, null, 2);
           return;
         }
+
+        const agentResult = payload.result || {};
         renderMeta('ok', `路口 ${payload.cross_id} 已生成方案`);
+        answerBox.textContent = agentResult.summary || agentResult.data?.answer || '已生成方案。';
         resultBox.textContent = JSON.stringify(payload, null, 2);
       } catch (error) {
         renderMeta('error', '网络请求失败');
-        resultBox.textContent = String(error);
+        answerBox.textContent = String(error);
+        resultBox.textContent = '';
       } finally {
         queryBtn.disabled = false;
       }

@@ -34,6 +34,15 @@ class _SignalTimingTool:
         return {"cross_id": kwargs["cross_id"], "signal_timing": [15, 20]}
 
 
+class _QwenAgent:
+    def __init__(self):
+        self.calls = []
+
+    def run(self, request):
+        self.calls.append(request)
+        return {"summary": "ok", "data": request}
+
+
 class HttpRuntimeServerTest(unittest.TestCase):
     def setUp(self):
         self.ingestor = _Ingestor()
@@ -44,6 +53,7 @@ class HttpRuntimeServerTest(unittest.TestCase):
             config_service=_ConfigService(),
             query_service=_QueryService(),
             signal_timing_tool=_SignalTimingTool(),
+            qwen_agent=_QwenAgent(),
         )
         self.server.start()
 
@@ -89,6 +99,17 @@ class HttpRuntimeServerTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(payload["cross_id"], "1300068")
         self.assertEqual(payload["result"]["signal_timing"], [15, 20])
+
+    def test_post_agent_signal_timing_returns_result(self):
+        status, payload = self._request(
+            "POST",
+            "/api/agent/signal-timing",
+            json.dumps({"cross_id": "1300068", "request_text": "请给出放行方案"}),
+        )
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["cross_id"], "1300068")
+        self.assertEqual(payload["result"]["summary"], "ok")
 
 
 if __name__ == "__main__":

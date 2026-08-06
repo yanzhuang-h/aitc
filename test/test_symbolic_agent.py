@@ -5,7 +5,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 
-from agent.qwen_agent import SymbolicDataAgent
+from agent.qwen_agent import QwenSignalTimingAgent, SymbolicDataAgent
 from agent.tools import DataQueryTools
 from app.core.tools import SingleIntersectionSignalTimingTool
 from infra.data import (
@@ -26,6 +26,24 @@ class _MemoryWriter:
 
 class _Lambdas:
     location_to_intersection_lambda = {1: ("1300068", "U")}
+
+
+class _ChatResult:
+    def __init__(self, content):
+        self.content = content
+
+
+class _LLMClient:
+    model = "fake-qwen"
+
+    def __init__(self):
+        self.calls = []
+
+    def chat(self, messages, **kwargs):
+        self.calls.append((messages, kwargs))
+        if len(self.calls) == 1:
+            return _ChatResult('{"action":"signal.timing.single","arguments":{"cross_id":"1300068"}}')
+        return _ChatResult("路口 1300068 的放行方案已生成。")
 
 
 class SymbolicDataAgentTest(unittest.TestCase):
@@ -60,6 +78,10 @@ class SymbolicDataAgentTest(unittest.TestCase):
         self.agent_with_signal_tool = SymbolicDataAgent(
             DataQueryTools(query_service, signal_timing_tool=signal_tool)
         )
+        self.qwen_agent = QwenSignalTimingAgent(
+            _LLMClient(),
+            DataQueryTools(query_service, signal_timing_tool=signal_tool),
+        )
 
     def test_full_history_query_flow(self) -> None:
         result = self.agent.run(
@@ -91,6 +113,18 @@ class SymbolicDataAgentTest(unittest.TestCase):
         self.assertEqual(result["status"], "ok")
         self.assertEqual(result["meta"]["tool_name"], "generate_single_intersection_signal_timing")
         self.assertEqual(result["data"]["signal_timing"], [10, 20])
+
+    def test_qwen_agent_selects_signal_timing_tool(self) -> None:
+        result = self.qwen_agent.run(
+            {
+                "cross_id": "1300068",
+                "request_text": "请给出当前路口的放行方案",
+            }
+        )
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["meta"]["tool_name"], "generate_single_intersection_signal_timing")
+        self.assertEqual(result["data"]["tool_result"]["data"]["signal_timing"], [10, 20])
+        self.assertIn("放行方案", result["summary"])
 
 
 if __name__ == "__main__":

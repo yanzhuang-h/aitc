@@ -42,6 +42,7 @@ class HttpRuntimeServer:
         config_service: Any,
         query_service: Any,
         signal_timing_tool: Any | None = None,
+        qwen_agent: Any | None = None,
         logger: Any | None = None,
     ) -> None:
         self.host = host
@@ -50,6 +51,7 @@ class HttpRuntimeServer:
         self.config_service = config_service
         self.query_service = query_service
         self.signal_timing_tool = signal_timing_tool
+        self.qwen_agent = qwen_agent
         self.logger = logger
         self._stop_event = threading.Event()
         self._server: HTTPServer | None = None
@@ -127,6 +129,9 @@ class HttpRuntimeServer:
                 if path == "/api/signal-timing":
                     self._handle_signal_timing(body)
                     return
+                if path == "/api/agent/signal-timing":
+                    self._handle_qwen_signal_timing(body)
+                    return
                 if path.startswith(("/road_info", "/cross_info")) and self._try_handle_config("POST", body):
                     return
                 if not isinstance(body, (dict, list)):
@@ -154,6 +159,9 @@ class HttpRuntimeServer:
                 if path == "/api/signal-timing":
                     self._send_json(405, {"error": "Use POST for signal timing requests"})
                     return
+                if path == "/api/agent/signal-timing":
+                    self._send_json(405, {"error": "Use POST for agent signal timing requests"})
+                    return
                 if path.startswith(("/road_info", "/cross_info")) and self._try_handle_config("GET", None):
                     return
                 self._send_json(200, runtime_server._health_payload())
@@ -169,6 +177,21 @@ class HttpRuntimeServer:
                     return
                 except Exception:
                     runtime_server._error("Error generating signal timing", exc_info=True)
+                    self._send_json(500, {"error": "internal server error"})
+                    return
+                self._send_json(200, payload)
+
+            def _handle_qwen_signal_timing(self, body: Any) -> None:
+                if not isinstance(body, dict):
+                    self._send_json(400, {"error": "Request body must be an object"})
+                    return
+                try:
+                    payload = runtime_server._generate_qwen_signal_timing(body)
+                except ValueError as error:
+                    self._send_json(400, {"error": str(error)})
+                    return
+                except Exception:
+                    runtime_server._error("Error generating Qwen signal timing", exc_info=True)
                     self._send_json(500, {"error": "internal server error"})
                     return
                 self._send_json(200, payload)
@@ -260,6 +283,18 @@ class HttpRuntimeServer:
             "cross_id": cross_id.strip(),
             "result": result,
         }
+
+    def _generate_qwen_signal_timing(self, body: dict[str, Any]) -> dict[str, Any]:
+        if self.qwen_agent is None:
+            raise RuntimeError("qwen agent is not configured")
+        request_text = body.get("request_text")
+        cross_id = body.get("cross_id")
+        if not isinstance(request_text, str) or not request_text.strip():
+            raise ValueError("request_text must be a non-empty string")
+        if not isinstance(cross_id, str) or not cross_id.strip():
+            raise ValueError("cross_id must be a non-empty string")
+        payload = self.qwen_agent.run({"request_text": request_text.strip(), "cross_id": cross_id.strip()})
+        return {"status": "success", "cross_id": cross_id.strip(), "result": payload}
 
     @staticmethod
     def _is_cross_origin_request(origin: str | None, host: str | None) -> bool:
