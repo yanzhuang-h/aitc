@@ -167,6 +167,12 @@ class KeyValueRepository:
     def get(self, storage_key: str, default: Any = None) -> Any:
         return self.all().get(storage_key, default)
 
+    def values(self, prefix: str | None = None) -> list[Any]:
+        data = self.all()
+        if prefix is None:
+            return list(data.values())
+        return [value for key, value in data.items() if key.startswith(prefix)]
+
     def set(self, storage_key: str, value: Any) -> Any:
         data = self.all()
         data[storage_key] = value
@@ -191,6 +197,10 @@ class ConfigRepository:
             return default
         return item.get("value", default)
 
+    def list(self, namespace: str | None = None) -> list[dict[str, Any]]:
+        prefix = f"{namespace}:" if namespace is not None else None
+        return self.items.values(prefix=prefix)
+
 
 class ExperienceRepository:
     """Persist and query experience-pool items."""
@@ -213,6 +223,10 @@ class ExperienceRepository:
         if item is None:
             return default
         return item.get("value", default)
+
+    def list(self, category: str | None = None) -> list[dict[str, Any]]:
+        prefix = f"{category}:" if category is not None else None
+        return self.items.values(prefix=prefix)
 
 
 class DataFoundationRepository:

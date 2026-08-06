@@ -72,6 +72,17 @@ class MemoryQueryLayer:
     def get_latest_results(self) -> list[dict[str, Any]]:
         return copy.deepcopy(self._result_warehouse.snapshot())
 
+    def get_experience(
+        self,
+        key: str | None = None,
+        category: str | None = None,
+    ) -> Any:
+        if self._long_term_memory is None:
+            raise RuntimeError("long-term memory is not configured")
+        if key is not None:
+            return copy.deepcopy(self._long_term_memory.get_experience(key, category or "default"))
+        return copy.deepcopy(self._long_term_memory.list_experience(category=category))
+
     def get_config_snapshot(self, resource: ConfigResource | str, cross_id: str | None = None) -> Any:
         config_resource = ConfigResource(resource)
         if config_resource in {ConfigResource.ROAD_INFO, ConfigResource.CROSS_INFO}:

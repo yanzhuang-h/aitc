@@ -25,6 +25,19 @@ class MemoryLayersTest(unittest.TestCase):
             self.assertEqual(query.get_runtime_size(DataKind.FLOW), 1)
             self.assertEqual(query.get_runtime_history(DataKind.FLOW)[0]["payload"]["value"], 1)
 
+    def test_experience_pool_is_persisted_and_queryable(self):
+        with tempfile.TemporaryDirectory() as root:
+            long_term = LongTermMemory(root=root)
+            long_term.set_experience("morning_peak", {"strategy": "extend_green"}, category="signal")
+            query = MemoryQueryLayer(ShortTermMemory(), ResultWarehouse(), ConfigService(), long_term)
+
+            item = query.get_experience("morning_peak", category="signal")
+            records = query.get_experience(category="signal")
+
+            self.assertEqual(item["strategy"], "extend_green")
+            self.assertEqual(records[0]["key"], "morning_peak")
+            self.assertEqual(records[0]["value"]["strategy"], "extend_green")
+
 
 if __name__ == "__main__":
     unittest.main()

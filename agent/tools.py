@@ -71,6 +71,19 @@ class DataQueryTools:
                 "required": ["resource"],
             },
         },
+        {
+            "name": "query_experience_pool",
+            "description": "查询长期记忆中的经验池，可按分类或键读取。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "category": {"type": "string"},
+                    "key": {"type": "string"},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": MAX_LIMIT},
+                    "detail": {"type": "string", "enum": [SUMMARY, FULL]},
+                },
+            },
+        },
     ]
 
     def __init__(self, query_service: MemoryQueryLayer) -> None:
@@ -87,6 +100,7 @@ class DataQueryTools:
             "query_runtime_history": self.query_runtime_history,
             "query_latest_results": self.query_latest_results,
             "query_config_snapshot": self.query_config_snapshot,
+            "query_experience_pool": self.query_experience_pool,
         }
         handler = handlers.get(name)
         if handler is None:
@@ -188,6 +202,37 @@ class DataQueryTools:
         except (ValueError, RuntimeError) as error:
             return self._error(str(error))
 
+    def query_experience_pool(
+        self,
+        category: str | None = None,
+        key: str | None = None,
+        limit: int = DEFAULT_LIMIT,
+        detail: str = SUMMARY,
+    ) -> dict[str, Any]:
+        """查询长期记忆中的经验池。"""
+        try:
+            data = self.query_service.get_experience(key=key, category=category)
+            normalized_detail = self._detail(detail)
+            if isinstance(data, list):
+                data = data[-self._limit(limit):]
+                formatted = self._format_experience_records(data, normalized_detail)
+                count = len(data)
+            else:
+                formatted = data if normalized_detail == self.FULL else self._format_config(data, normalized_detail)
+                count = 0 if data is None else 1
+            return self._success(
+                f"已获取 {count} 条经验池数据。",
+                formatted,
+                {
+                    "category": category,
+                    "key": key,
+                    "source": "experience_pool",
+                    "detail": normalized_detail,
+                },
+            )
+        except (ValueError, RuntimeError) as error:
+            return self._error(str(error))
+
     @classmethod
     def _limit(cls, value: int) -> int:
         if isinstance(value, bool) or not isinstance(value, int):
@@ -238,6 +283,23 @@ class DataQueryTools:
         if isinstance(data, list):
             return {"type": "list", "item_count": len(data)}
         return {"type": type(data).__name__, "value": data}
+
+    @classmethod
+    def _format_experience_records(cls, records: list[dict[str, Any]], detail: str) -> Any:
+        if detail == cls.FULL:
+            return records
+        return {
+            "count": len(records),
+            "items": [
+                {
+                    "key": record.get("key"),
+                    "category": record.get("category"),
+                    "updated_at": record.get("updated_at"),
+                    "value_fields": sorted(record.get("value", {}).keys()) if isinstance(record.get("value"), Mapping) else [],
+                }
+                for record in records
+            ],
+        }
 
     @staticmethod
     def _success(summary: str, data: Any, meta: dict[str, Any]) -> dict[str, Any]:

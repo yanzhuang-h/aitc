@@ -64,6 +64,7 @@
 - 2026-08-06: 删除孤立的 `infra/data/ports.py`。其中未使用的运行历史、结果仓库 Protocol 一并移除；仍被预测服务使用的 `PredictionStore` 收回到 `runtime/prediction_service.py`，避免单消费者专用协议占用独立目录文件。全量自动化测试 46 项、编译和差异检查通过。
 - 2026-08-06: 按记忆架构统一 `infra/data/memory/` 模块名称：`shorttermmemory.py`、`longtermmemory.py`、`memoryquerylayer.py` 分别调整为 `short_term.py`、`long_term.py`、`manage.py`。类名与公共导出不变，运行模块内部导入、文档与迁移规划已同步更新；全量自动化测试 46 项、编译和差异检查通过。
 - 2026-08-06: 继续收紧记忆门面，将 `LongTermMemory` 的底层 `DataFoundationRepository` 改为私有 `_repository`，`MemoryQueryLayer` 的注入依赖改为私有字段，减少外部对底层实现的直接耦合；全量自动化测试 46 项、编译和差异检查通过。
+- 2026-08-06: 明确经验池属于长期记忆的必要持久化分支。`ExperienceRepository` 保留并补充按分类列表查询能力，`LongTermMemory`、`MemoryQueryLayer` 和 `DataQueryTools` 增加经验池只读查询入口，便于后续 Qwen/Agent 读取经验数据；全量自动化测试增至 48 项并通过。
 - Pending: Continue project cleanup before the enterprise refactor, especially separating source, generated runtime data, configs, and tests.
 - Next suggested step: 继续明确短期记忆、长期记忆、结果仓库与预测仓库的存储端口边界，为 JSONL、文件、Redis 和数据库实现建立统一替换点。
 

@@ -20,6 +20,18 @@ class _QueryServiceStub:
     def get_config_snapshot(self, resource, cross_id=None):
         return {"resource": resource, "cross_id": cross_id}
 
+    def get_experience(self, key=None, category=None):
+        if key:
+            return {"strategy": "extend_green"}
+        return [
+            {
+                "key": "morning_peak",
+                "category": category or "signal",
+                "value": {"strategy": "extend_green"},
+                "updated_at": "2026-08-06T00:00:00+00:00",
+            }
+        ]
+
 
 class DataQueryToolsTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -56,6 +68,16 @@ class DataQueryToolsTest(unittest.TestCase):
         names = {item["name"] for item in self.tools.tool_schemas()}
         self.assertIn("query_recent_runtime_data", names)
         self.assertIn("query_config_snapshot", names)
+        self.assertIn("query_experience_pool", names)
+
+    def test_experience_pool_tool_contract(self) -> None:
+        result = self.tools.invoke(
+            "query_experience_pool",
+            {"category": "signal", "detail": "summary"},
+        )
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["meta"]["source"], "experience_pool")
+        self.assertEqual(result["data"]["items"][0]["key"], "morning_peak")
 
 
 if __name__ == "__main__":

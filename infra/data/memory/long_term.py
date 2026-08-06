@@ -84,6 +84,9 @@ class LongTermMemory:
     def get_config(self, key: str, namespace: str = "default", default: Any = None) -> Any:
         return self._repository.config.get(key=key, namespace=namespace, default=default)
 
+    def list_config(self, namespace: str | None = None) -> list[dict[str, Any]]:
+        return self._repository.config.list(namespace=namespace)
+
     def set_experience(
         self,
         key: str,
@@ -99,3 +102,6 @@ class LongTermMemory:
         default: dict[str, Any] | None = None,
     ) -> dict[str, Any] | None:
         return self._repository.experience.get(key=key, category=category, default=default)
+
+    def list_experience(self, category: str | None = None) -> list[dict[str, Any]]:
+        return self._repository.experience.list(category=category)
