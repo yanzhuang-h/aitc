@@ -24,16 +24,16 @@ class MemoryQueryLayer:
         long_term_memory: LongTermMemory | None = None,
         quality_monitor: DataQualityMonitor | None = None,
     ) -> None:
-        self.short_term_memory = short_term_memory
-        self.long_term_memory = long_term_memory
-        if self.short_term_memory is None or result_warehouse is None or config_service is None:
+        self._short_term_memory = short_term_memory
+        self._long_term_memory = long_term_memory
+        if self._short_term_memory is None or result_warehouse is None or config_service is None:
             raise TypeError("short_term_memory, result_warehouse and config_service are required")
-        self.result_warehouse = result_warehouse
-        self.config_service = config_service
-        self.quality_monitor = quality_monitor
+        self._result_warehouse = result_warehouse
+        self._config_service = config_service
+        self._quality_monitor = quality_monitor
 
     def get_data_quality_snapshot(self) -> dict[str, Any]:
-        return self.quality_monitor.snapshot() if self.quality_monitor is not None else {
+        return self._quality_monitor.snapshot() if self._quality_monitor is not None else {
             "total_issues": 0,
             "issues_by_kind": {},
             "recent_issues": [],
@@ -41,13 +41,13 @@ class MemoryQueryLayer:
 
     def get_runtime_data(self, kind: DataKind | str, limit: int | None = None) -> list[dict[str, Any]]:
         data_kind = self._data_kind(kind)
-        records = self.short_term_memory.recent_data(data_kind)
+        records = self._short_term_memory.recent_data(data_kind)
         if limit is not None:
             records = records[-max(0, limit):]
         return copy.deepcopy(records)
 
     def get_runtime_size(self, kind: DataKind | str) -> int:
-        return self.short_term_memory.size(self._data_kind(kind))
+        return self._short_term_memory.size(self._data_kind(kind))
 
     def get_runtime_history(
         self,
@@ -57,35 +57,35 @@ class MemoryQueryLayer:
         start_at: str | None = None,
         end_at: str | None = None,
     ) -> list[dict[str, Any]]:
-        if self.long_term_memory is None:
+        if self._long_term_memory is None:
             raise RuntimeError("long-term memory is not configured")
-        return self.long_term_memory.get_runtime_history(
+        return self._long_term_memory.get_runtime_history(
             self._data_kind(kind), limit, intersection_id, start_at, end_at
         )
 
     def get_runtime_snapshot(self, limit_per_kind: int | None = None) -> dict[str, list[dict[str, Any]]]:
         return {
             kind.value: self.get_runtime_data(kind, limit=limit_per_kind)
-            for kind in self.short_term_memory.windows
+            for kind in self._short_term_memory.windows
         }
 
     def get_latest_results(self) -> list[dict[str, Any]]:
-        return copy.deepcopy(self.result_warehouse.snapshot())
+        return copy.deepcopy(self._result_warehouse.snapshot())
 
     def get_config_snapshot(self, resource: ConfigResource | str, cross_id: str | None = None) -> Any:
         config_resource = ConfigResource(resource)
         if config_resource in {ConfigResource.ROAD_INFO, ConfigResource.CROSS_INFO}:
             if cross_id is None:
                 raise ValueError(f"cross_id is required for {config_resource.value}")
-            return self.config_service.query(config_resource, cross_id)
+            return self._config_service.query(config_resource, cross_id)
         if config_resource == ConfigResource.ROAD_STATE:
-            return self.config_service.get_road_state()
+            return self._config_service.get_road_state()
         if config_resource == ConfigResource.FLOATING_VALUE:
-            return self.config_service.get_floating_value()
+            return self._config_service.get_floating_value()
         if config_resource == ConfigResource.INTERSECTION_RESULT:
-            return self.config_service.get_intersection_result_config()
+            return self._config_service.get_intersection_result_config()
         if config_resource == ConfigResource.TIME_SCHEDULE:
-            return self.config_service.get_time_schedule_manifest() if cross_id is None else self.config_service.get_time_schedule(cross_id)
+            return self._config_service.get_time_schedule_manifest() if cross_id is None else self._config_service.get_time_schedule(cross_id)
         raise ValueError(f"unsupported config resource: {config_resource}")
 
     @staticmethod
