@@ -2,9 +2,31 @@
 
 from __future__ import annotations
 
-from typing import Any
+from datetime import datetime
+from typing import Any, Iterable, Protocol
 
-from infra.data.ports import PredictionStore
+
+class PredictionStore(Protocol):
+    """预测服务实际依赖的最小持久化能力。"""
+
+    def read_history(
+        self,
+        category: str,
+        windows: Iterable[tuple[datetime, datetime]],
+    ) -> list[dict[str, Any]]: ...
+
+    def save_daily_predictions(
+        self,
+        category: str,
+        prediction_date: datetime,
+        predictions: dict[str, Any],
+    ) -> Any: ...
+
+    def get_current_prediction(
+        self,
+        category: str,
+        current_time: datetime,
+    ) -> dict[str, Any] | None: ...
 
 
 class FlowPredictionService:
