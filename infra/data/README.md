@@ -7,7 +7,7 @@
 - `memory/shorttermmemory.py`：短期记忆，保存带时间窗口的实时运行数据。当前使用线程安全内存实现，不绑定 Redis。
 - `memory/longtermmemory.py`：长期记忆，保存运行历史、配置和经验数据。当前使用 JSON/JSONL 文件实现，不绑定具体数据库。
 - `memory/memoryquerylayer.py`：统一查询层，为 Agent、HTTP 健康接口和运行决策提供只读查询。
-- 根目录的三个同名模块、`runtime_cache.py`、`api.py`：历史兼容入口，新代码不应继续直接依赖其中的旧名称。
+- 记忆模块只从 `infra.data.memory` 或 `infra.data` 的公共导出访问，避免维护重复兼容入口。
 
 ## 数据工具组件
 

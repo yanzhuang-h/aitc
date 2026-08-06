@@ -2,16 +2,17 @@ import tempfile
 import unittest
 
 from infra.data import ConfigService, LongTermMemory, MemoryQueryLayer, ResultWarehouse, ShortTermMemory
-from infra.data.api import DataRepository, RuntimeDataQueryService
-from infra.data.runtime_cache import RuntimeDataCache
+from infra.data.memory import LongTermMemory as PackageLongTermMemory
+from infra.data.memory import MemoryQueryLayer as PackageMemoryQueryLayer
+from infra.data.memory import ShortTermMemory as PackageShortTermMemory
 from infra.data.classifier import DataKind
 
 
 class MemoryLayersTest(unittest.TestCase):
-    def test_new_layers_are_canonical_compatibility_targets(self):
-        self.assertIs(DataRepository, LongTermMemory)
-        self.assertIs(RuntimeDataQueryService, MemoryQueryLayer)
-        self.assertIs(RuntimeDataCache, ShortTermMemory)
+    def test_data_foundation_exports_memory_package_types(self):
+        self.assertIs(PackageLongTermMemory, LongTermMemory)
+        self.assertIs(PackageMemoryQueryLayer, MemoryQueryLayer)
+        self.assertIs(PackageShortTermMemory, ShortTermMemory)
 
     def test_memory_entrypoints_preserve_existing_behavior(self):
         with tempfile.TemporaryDirectory() as root:

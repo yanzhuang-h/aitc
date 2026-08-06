@@ -4,7 +4,6 @@
 查询接口。
 """
 
-from .api import DataRepository, RuntimeDataQueryService, get_default_repository
 from .classifier import ClassifiedData, DataKind, DataSource, classify_data
 from .config import ConfigResource, ConfigService
 from .config_sync import ConfigSyncManager
@@ -17,7 +16,6 @@ from .runtime_processor import RuntimeDataProcessor
 from .result_sender import ResultSender
 from .result_warehouse import ResultWarehouse
 from .receiver import RuntimeDataReceiver, TrafficReceiver
-from .runtime_cache import RuntimeDataCache
 from .writer import RuntimeDataWriter
 from .validation import is_millisecond_timestamp
 
@@ -29,16 +27,13 @@ __all__ = [
     "CONTRACTS",
     "DataKind",
     "DataContract",
-    "DataRepository",
     "DataSource",
     "FilePredictionRepository",
     "LongTermMemory",
     "MemoryQueryLayer",
     "DataQualityMonitor",
     "RuntimeDataProcessor",
-    "RuntimeDataCache",
     "RuntimeDataIngestor",
-    "RuntimeDataQueryService",
     "RuntimeDataReceiver",
     "RuntimeDataWriter",
     "ShortTermMemory",
@@ -46,7 +41,6 @@ __all__ = [
     "ResultWarehouse",
     "TrafficReceiver",
     "classify_data",
-    "get_default_repository",
     "is_millisecond_timestamp",
     "validate_contract",
 ]

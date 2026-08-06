@@ -10,10 +10,10 @@ from agent.tools import DataQueryTools
 from infra.data import (
     ConfigService,
     DataKind,
-    DataRepository,
+    LongTermMemory,
     ResultWarehouse,
-    RuntimeDataCache,
-    RuntimeDataQueryService,
+    ShortTermMemory,
+    MemoryQueryLayer,
     RuntimeDataReceiver,
 )
 
@@ -32,8 +32,8 @@ class SymbolicDataAgentTest(unittest.TestCase):
         self.tempdir = tempfile.TemporaryDirectory()
         self.addCleanup(self.tempdir.cleanup)
 
-        repository = DataRepository(root=self.tempdir.name)
-        cache = RuntimeDataCache({DataKind.FLOW: 60})
+        repository = LongTermMemory(root=self.tempdir.name)
+        cache = ShortTermMemory({DataKind.FLOW: 60})
         receiver = RuntimeDataReceiver(
             cache=cache,
             writer=_MemoryWriter(),
@@ -44,7 +44,7 @@ class SymbolicDataAgentTest(unittest.TestCase):
 
         results = ResultWarehouse()
         results.replace([{"Cross_id": "1300068", "result_action": [1, 2, 3]}])
-        query_service = RuntimeDataQueryService(
+        query_service = MemoryQueryLayer(
             cache=cache,
             result_warehouse=results,
             config_service=ConfigService(),

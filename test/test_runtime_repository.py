@@ -8,10 +8,10 @@ import unittest
 from infra.data import (
     ConfigService,
     DataKind,
-    DataRepository,
+    LongTermMemory,
     ResultWarehouse,
-    RuntimeDataCache,
-    RuntimeDataQueryService,
+    ShortTermMemory,
+    MemoryQueryLayer,
     RuntimeDataReceiver,
     DataQualityMonitor,
 )
@@ -32,16 +32,16 @@ class _Lambdas:
 class RuntimeRepositoryTest(unittest.TestCase):
     def test_receiver_records_contract_issues_without_blocking_data(self) -> None:
         monitor = DataQualityMonitor()
-        receiver = RuntimeDataReceiver(cache=RuntimeDataCache({DataKind.FLOW: 60}), writer=_MemoryWriter(), quality_monitor=monitor)
+        receiver = RuntimeDataReceiver(cache=ShortTermMemory({DataKind.FLOW: 60}), writer=_MemoryWriter(), quality_monitor=monitor)
         receiver.receive_tcp({"ycsb_xsfx": "U"})
         self.assertEqual(len(receiver.recent(DataKind.FLOW)), 1)
         self.assertEqual(monitor.snapshot()["total_issues"], 1)
     def test_receiver_persists_classified_runtime_record(self) -> None:
         with tempfile.TemporaryDirectory() as root:
-            repository = DataRepository(root=root)
+            repository = LongTermMemory(root=root)
             writer = _MemoryWriter()
             receiver = RuntimeDataReceiver(
-                cache=RuntimeDataCache({DataKind.FLOW: 60}),
+                cache=ShortTermMemory({DataKind.FLOW: 60}),
                 writer=writer,
                 repository=repository,
                 lambdas_module=_Lambdas(),
@@ -58,7 +58,7 @@ class RuntimeRepositoryTest(unittest.TestCase):
             self.assertEqual(len(receiver.recent(DataKind.FLOW)), 1)
             self.assertEqual(len(writer.records), 1)
 
-            query_service = RuntimeDataQueryService(
+            query_service = MemoryQueryLayer(
                 cache=receiver.cache,
                 result_warehouse=ResultWarehouse(),
                 config_service=ConfigService(),
@@ -71,7 +71,7 @@ class RuntimeRepositoryTest(unittest.TestCase):
 
     def test_history_query_filters_and_retention(self) -> None:
         with tempfile.TemporaryDirectory() as root:
-            repository = DataRepository(root=root, runtime_max_records_per_kind=2)
+            repository = LongTermMemory(root=root, runtime_max_records_per_kind=2)
             repository.store_runtime_data(
                 DataKind.FLOW,
                 {"sequence": 1},
@@ -105,7 +105,7 @@ class RuntimeRepositoryTest(unittest.TestCase):
 
     def test_runtime_record_normalizes_timestamp(self) -> None:
         with tempfile.TemporaryDirectory() as root:
-            repository = DataRepository(root=root)
+            repository = LongTermMemory(root=root)
             record = repository.store_runtime_data(
                 DataKind.FLOW,
                 {"sequence": 1},

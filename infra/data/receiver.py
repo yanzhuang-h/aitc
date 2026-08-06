@@ -10,14 +10,13 @@ from .memory.longtermmemory import LongTermMemory
 from .quality import DataQualityMonitor
 from .memory.shorttermmemory import ShortTermMemory
 from .writer import RuntimeDataWriter
-from .api import get_default_repository
 
 
 class TrafficReceiver:
     """接收外部生产方的交通数据。"""
 
     def __init__(self, repository: LongTermMemory | None = None) -> None:
-        self.repository = repository or get_default_repository()
+        self.repository = repository or LongTermMemory()
 
     def receive(
         self,
