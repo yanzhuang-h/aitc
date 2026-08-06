@@ -55,6 +55,7 @@
 - 2026-08-05: 新增 `DataQualityMonitor`，`RuntimeDataReceiver` 在分类后执行非阻断式契约校验并记录问题；查询服务及 HTTP 健康响应暴露累计数量、分类统计与近期问题。数据照常持久化、缓存和参与旧算法。全量自动化测试共 35 项通过。
 - 2026-08-06: 建立记忆语义入口模块：`infra/data/shorttermmemory.py` 提供 `ShortTermMemory`，`longtermmemory.py` 提供 `LongTermMemory`，`memoryquerylayer.py` 提供 `MemoryQueryLayer`。应用装配已切换到新名称，旧 `RuntimeDataCache`、`DataRepository`、`RuntimeDataQueryService` 暂作兼容入口；全量自动化测试共 36 项通过。
 - 2026-08-06: 完成记忆仓库实现迁移。`ShortTermMemory`、`LongTermMemory`、`MemoryQueryLayer` 已成为唯一实际实现；`runtime_cache.py` 和 `api.py` 仅保留旧名称别名。接收器、聚合器、Agent 工具和应用装配已改用新语义类型，并验证 37 项测试及编译检查通过。
+- 2026-08-06: 将三个通用记忆模块迁入 `infra/data/memory/` 独立子包，根目录同名文件改为兼容入口。数据底座其他模块继续按接入、校验、存储、处理、输出职责作为工具组件保留，避免过早拆分出过多目录。
 - Pending: Continue project cleanup before the enterprise refactor, especially separating source, generated runtime data, configs, and tests.
 - Next suggested step: 盘点根目录剩余的数据处理与预测模块，区分算法实现和运行编排职责，再决定下一批可迁入 `runtime/` 或 `infra/data/` 的边界。
 

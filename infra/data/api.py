@@ -6,8 +6,8 @@
 
 from functools import lru_cache
 
-from .longtermmemory import LongTermMemory
-from .memoryquerylayer import MemoryQueryLayer
+from .memory.longtermmemory import LongTermMemory
+from .memory.memoryquerylayer import MemoryQueryLayer
 
 
 # 旧名称保留为别名，避免产生两套不一致的仓库实现。
