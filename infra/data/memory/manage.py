@@ -7,10 +7,10 @@ from typing import Any
 
 from ..classifier import DataKind
 from ..config import ConfigResource, ConfigService
-from .longtermmemory import LongTermMemory
+from .long_term import LongTermMemory
 from ..quality import DataQualityMonitor
 from ..result_warehouse import ResultWarehouse
-from .shorttermmemory import ShortTermMemory
+from .short_term import ShortTermMemory
 
 
 class MemoryQueryLayer:

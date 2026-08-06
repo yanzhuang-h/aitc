@@ -4,9 +4,9 @@
 
 ## 记忆层
 
-- `memory/shorttermmemory.py`：短期记忆，保存带时间窗口的实时运行数据。当前使用线程安全内存实现，不绑定 Redis。
-- `memory/longtermmemory.py`：长期记忆，保存运行历史、配置和经验数据。当前使用 JSON/JSONL 文件实现，不绑定具体数据库。
-- `memory/memoryquerylayer.py`：统一查询层，为 Agent、HTTP 健康接口和运行决策提供只读查询。
+- `memory/short_term.py`：短期记忆，保存带时间窗口的实时运行数据。当前使用线程安全内存实现，不绑定 Redis。
+- `memory/long_term.py`：长期记忆，保存运行历史、配置和经验数据。当前使用 JSON/JSONL 文件实现，不绑定具体数据库。
+- `memory/manage.py`：统一记忆管理与查询层，为 Agent、HTTP 健康接口和运行决策提供只读查询。
 - 记忆模块只从 `infra.data.memory` 或 `infra.data` 的公共导出访问，避免维护重复兼容入口。
 - `MemoryQueryLayer` 只接受语义化参数 `short_term_memory` 和 `long_term_memory`，不再保留旧参数别名。
 

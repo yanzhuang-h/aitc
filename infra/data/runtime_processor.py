@@ -6,7 +6,7 @@ from typing import Any
 
 from . import cache_processor
 from .classifier import DataKind
-from .memory.shorttermmemory import ShortTermMemory
+from .memory.short_term import ShortTermMemory
 
 
 class RuntimeDataProcessor:

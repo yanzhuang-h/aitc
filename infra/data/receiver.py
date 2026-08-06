@@ -6,9 +6,9 @@ from typing import Any, Mapping
 
 from .classifier import ClassifiedData, DataKind, DataSource, classify_data
 from .contracts import validate_contract
-from .memory.longtermmemory import LongTermMemory
+from .memory.long_term import LongTermMemory
 from .quality import DataQualityMonitor
-from .memory.shorttermmemory import ShortTermMemory
+from .memory.short_term import ShortTermMemory
 from .writer import RuntimeDataWriter
 
 
