@@ -4,18 +4,19 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from .api import DataRepository, get_default_repository
 from .classifier import ClassifiedData, DataKind, DataSource, classify_data
 from .contracts import validate_contract
+from .longtermmemory import LongTermMemory
 from .quality import DataQualityMonitor
-from .runtime_cache import RuntimeDataCache
+from .shorttermmemory import ShortTermMemory
 from .writer import RuntimeDataWriter
+from .api import get_default_repository
 
 
 class TrafficReceiver:
     """接收外部生产方的交通数据。"""
 
-    def __init__(self, repository: DataRepository | None = None) -> None:
+    def __init__(self, repository: LongTermMemory | None = None) -> None:
         self.repository = repository or get_default_repository()
 
     def receive(
@@ -44,16 +45,16 @@ class RuntimeDataReceiver:
 
     def __init__(
         self,
-        cache: RuntimeDataCache | None = None,
+        cache: ShortTermMemory | None = None,
         writer: RuntimeDataWriter | None = None,
-        repository: DataRepository | None = None,
+        repository: LongTermMemory | None = None,
         lambdas_module: Any | None = None,
         overflow_warning_map: dict[str, Any] | None = None,
         radar_event_map: dict[str, Any] | None = None,
         logger: Any | None = None,
         quality_monitor: DataQualityMonitor | None = None,
     ) -> None:
-        self.cache = cache or RuntimeDataCache()
+        self.cache = cache or ShortTermMemory()
         self.writer = writer or RuntimeDataWriter()
         self.repository = repository
         self.lambdas = lambdas_module

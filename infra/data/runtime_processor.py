@@ -6,13 +6,13 @@ from typing import Any
 
 from . import cache_processor
 from .classifier import DataKind
-from .runtime_cache import RuntimeDataCache
+from .shorttermmemory import ShortTermMemory
 
 
 class RuntimeDataProcessor:
     """将运行窗口转换为既有决策算法需要的数据结构。"""
 
-    def __init__(self, cache: RuntimeDataCache, lambdas_module: Any) -> None:
+    def __init__(self, cache: ShortTermMemory, lambdas_module: Any) -> None:
         self.cache = cache
         self.lambdas = lambdas_module
 

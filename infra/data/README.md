@@ -1,17 +1,25 @@
 # 数据底座
 
-`infra/data` 是 AITC 的独立数据底座，负责运行数据的接收、分类、缓存、持久化、聚合和查询，并为 Agent 与决策运行层提供稳定接口。
+`infra/data` 是 AITC 的独立数据底座，负责数据接入、分类、短期记忆、长期记忆、结果仓库和统一查询。
 
-## 当前职责
+## 记忆层
 
-- `ingest.py`、`receiver.py`：统一接入 TCP/HTTP 完成协议解析后的数据。
-- `classifier.py`：按现有字段规则识别运行数据类型。
-- `runtime_cache.py`：维护各类数据的内存时间窗口。
-- `repository.py`、`api.py`：持久化运行记录并提供只读查询。
-- `output_store.py`、`writer.py`：将运行输出写入兼容的 `logs_data` 文件结构。
-- `cache_processor.py`：在不改变算法逻辑的前提下，将窗口数据聚合为既有算法所需结构。
-- `runtime_processor.py`：连接 `RuntimeDataCache` 与聚合函数，作为决策管线的数据处理入口。
+- `shorttermmemory.py`：短期记忆，保存带时间窗口的实时运行数据。当前使用线程安全内存实现，不绑定 Redis。
+- `longtermmemory.py`：长期记忆，保存运行历史、配置和经验数据。当前使用 JSON/JSONL 文件实现，不绑定具体数据库。
+- `memoryquerylayer.py`：统一查询层，为 Agent、HTTP 健康接口和运行决策提供只读查询。
+- `runtime_cache.py`、`api.py`：历史兼容入口，新代码不应继续直接依赖其中的旧名称。
+
+## 其他组件
+
+- `ingest.py`、`receiver.py`：统一接收 TCP/HTTP 协议解析后的数据。
+- `classifier.py`、`contracts.py`：数据分类和契约校验。
+- `repository.py`：长期记忆当前使用的文件存储实现。
+- `runtime_processor.py`、`cache_processor.py`：将短期记忆快照适配为既有算法输入。
 - `result_warehouse.py`、`result_sender.py`：保存最新结果并负责向客户端发送。
-- `config.py`、`config_sync.py`：提供配置访问与配置同步边界。
+- `config.py`、`config_sync.py`：配置访问与配置同步边界。
 
-运行记录默认写入 `infra/data/runtime/`，运行日志默认写入 `logs_data/`；两者均为本地产物，不提交到 Git。
+## 设计原则
+
+短期记忆和长期记忆表达的是数据生命周期语义，而不是数据库类型。未来可以在不修改接收器、Agent 和查询层的情况下，将底层实现替换为 Redis、SQLite、PostgreSQL 或其他存储。
+
+运行记录默认写入 `infra/data/runtime/`，运行日志写入 `logs_data/`。这些本地产物不提交到 Git。

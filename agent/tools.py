@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 from typing import Any, Mapping
 
-from infra.data import RuntimeDataQueryService
+from infra.data import MemoryQueryLayer
 
 
 class DataQueryTools:
@@ -72,7 +72,7 @@ class DataQueryTools:
         },
     ]
 
-    def __init__(self, query_service: RuntimeDataQueryService) -> None:
+    def __init__(self, query_service: MemoryQueryLayer) -> None:
         self.query_service = query_service
 
     def tool_schemas(self) -> list[dict[str, Any]]:

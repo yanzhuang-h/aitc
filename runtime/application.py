@@ -111,7 +111,7 @@ def create_application(logger=None) -> AITCApplication:
     ingestor = RuntimeDataIngestor(receiver)
     config_service = ConfigService()
     warehouse = ResultWarehouse()
-    query_service = MemoryQueryLayer(cache=cache, result_warehouse=warehouse, config_service=config_service, repository=repository, quality_monitor=quality_monitor)
+    query_service = MemoryQueryLayer(short_term_memory=cache, result_warehouse=warehouse, config_service=config_service, long_term_memory=repository, quality_monitor=quality_monitor)
     sender = ResultSender(writer=writer, logger=logger)
     prediction_repository = FilePredictionRepository()
     flow_predictor = FlowPredictionService(Flow_predict, prediction_repository)
