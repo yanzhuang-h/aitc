@@ -58,6 +58,7 @@
 - 2026-08-06: 将三个通用记忆模块迁入 `infra/data/memory/` 独立子包，根目录同名文件改为兼容入口。数据底座其他模块继续按接入、校验、存储、处理、输出职责作为工具组件保留，避免过早拆分出过多目录。
 - 2026-08-06: 在全量测试通过后移除旧记忆兼容入口 `api.py`、`runtime_cache.py` 和根目录三份同名记忆模块；运行代码与测试统一使用 `infra.data.memory` 的正式语义接口。
 - 2026-08-06: 建立 `app/config.py` 的零依赖运行配置基线，并让 `runtime.create_application()` 接受可选 `RuntimeSettings`。默认端口、目录、周期和预测调度保持旧行为；配置来源清单记录在 `todo-done/runtime-configuration-baseline.md`。
+- 2026-08-06: `RuntimeSettings` 增加 replay、development、production 三种运行模式。回放模式默认关闭配置同步和预测调度，开发模式保持原本地行为，生产模式默认监听全部网络接口；后台任务仍可由环境变量显式覆盖。
 - Pending: Continue project cleanup before the enterprise refactor, especially separating source, generated runtime data, configs, and tests.
 - Next suggested step: 盘点根目录剩余的数据处理与预测模块，区分算法实现和运行编排职责，再决定下一批可迁入 `runtime/` 或 `infra/data/` 的边界。
 

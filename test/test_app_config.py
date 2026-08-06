@@ -2,7 +2,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-from app.config import RuntimeSettings
+from app.config import RunMode, RuntimeSettings
 
 
 class RuntimeSettingsTest(unittest.TestCase):
@@ -30,3 +30,17 @@ class RuntimeSettingsTest(unittest.TestCase):
     def test_invalid_port_is_rejected(self):
         with self.assertRaises(ValueError):
             RuntimeSettings(tcp_port=0).validate()
+
+    def test_replay_mode_disables_external_background_tasks(self):
+        with patch.dict(os.environ, {"AITC_RUN_MODE": "replay"}, clear=True):
+            settings = RuntimeSettings.from_environment().validate()
+        self.assertEqual(settings.run_mode, RunMode.REPLAY)
+        self.assertFalse(settings.enable_config_sync)
+        self.assertFalse(settings.enable_prediction_scheduler)
+
+    def test_production_mode_binds_all_interfaces(self):
+        with patch.dict(os.environ, {"AITC_RUN_MODE": "production"}, clear=True):
+            settings = RuntimeSettings.from_environment().validate()
+        self.assertEqual(settings.run_mode, RunMode.PRODUCTION)
+        self.assertEqual(settings.tcp_host, "0.0.0.0")
+        self.assertEqual(settings.http_host, "0.0.0.0")

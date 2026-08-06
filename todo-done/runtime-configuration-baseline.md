@@ -25,6 +25,16 @@
 
 当前运行服务通过 `ConfigSyncManager` 启动 floating value、路况、路口结果和时段方案同步任务。时段方案发布脚本仍单独使用 `NACOS_SERVER_URL`、`NACOS_CONSOLE_URL`、`NACOS_USERNAME`、`NACOS_PASSWORD`、`NACOS_NAMESPACE`、`NACOS_GROUP`、`NACOS_TIMEOUT`。本阶段不修改这些旧同步协议，后续再将其收敛到基础设施配置适配层。
 
+## 运行模式
+
+| 模式 | `AITC_RUN_MODE` | 网络绑定 | 配置同步与预测调度 |
+| --- | --- | --- | --- |
+| 本地回放 | `replay` | `127.0.0.1` | 默认关闭，避免回放触发外部同步和每日预测任务。 |
+| 开发服务 | `development` 或未设置 | `127.0.0.1` | 默认开启，保持当前行为。 |
+| 生产服务 | `production` | `0.0.0.0` | 默认开启。 |
+
+可通过 `AITC_ENABLE_CONFIG_SYNC` 和 `AITC_ENABLE_PREDICTION_SCHEDULER` 显式覆盖对应模式的后台任务策略。
+
 ## 约束
 
 - 未设置环境变量时必须保持现有端口、路径和调度时刻。

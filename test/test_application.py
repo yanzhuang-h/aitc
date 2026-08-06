@@ -30,3 +30,14 @@ class ApplicationTest(unittest.TestCase):
         self.assertIn("broadcast", tcp.calls)
         self.assertIn("stop", tcp.calls)
         self.assertGreaterEqual(pipeline.calls, 1)
+
+    def test_replay_mode_skips_external_background_tasks(self):
+        config, http, tcp, scheduler, pipeline = _Component(), _Component(), _Component(), _Component(), _Pipeline()
+        app = AITCApplication(config_sync_manager=config, http_server=http, tcp_server=tcp, decision_pipeline=pipeline, prediction_scheduler=scheduler, send_interval=0.01, enable_config_sync=False, enable_prediction_scheduler=False)
+        app.start()
+        time.sleep(0.03)
+        app.stop()
+        self.assertEqual(config.calls, [])
+        self.assertEqual(scheduler.calls, [])
+        self.assertIn("broadcast", tcp.calls)
+        self.assertIn("stop", tcp.calls)
