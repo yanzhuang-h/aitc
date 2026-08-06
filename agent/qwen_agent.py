@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
+from app.core.models import ToolResponse
 from .tools import DataQueryTools
 
 
@@ -43,14 +44,13 @@ class SymbolicDataAgent:
             return self._error("arguments must be an object")
 
         result = self.tools.invoke(tool_name, arguments)
-        meta = dict(result.get("meta", {}))
-        meta.update({"action": action, "tool_name": tool_name})
-        return {
-            "status": result["status"],
-            "summary": result["summary"],
-            "data": result["data"],
-            "meta": meta,
-        }
+        response = ToolResponse(
+            status=result["status"],
+            summary=result["summary"],
+            data=result["data"],
+            meta=result.get("meta", {}),
+        )
+        return response.with_meta(action=action, tool_name=tool_name).to_dict()
 
     def action_schemas(self) -> list[dict[str, Any]]:
         """返回符号动作与底层工具之间的可审计映射。"""
@@ -66,9 +66,4 @@ class SymbolicDataAgent:
 
     @staticmethod
     def _error(message: str) -> dict[str, Any]:
-        return {
-            "status": "error",
-            "summary": message,
-            "data": None,
-            "meta": {},
-        }
+        return ToolResponse.error(message).to_dict()

@@ -59,8 +59,9 @@
 - 2026-08-06: 在全量测试通过后移除旧记忆兼容入口 `api.py`、`runtime_cache.py` 和根目录三份同名记忆模块；运行代码与测试统一使用 `infra.data.memory` 的正式语义接口。
 - 2026-08-06: 建立 `app/config.py` 的零依赖运行配置基线，并让 `runtime.create_application()` 接受可选 `RuntimeSettings`。默认端口、目录、周期和预测调度保持旧行为；配置来源清单记录在 `todo-done/runtime-configuration-baseline.md`。
 - 2026-08-06: `RuntimeSettings` 增加 replay、development、production 三种运行模式。回放模式默认关闭配置同步和预测调度，开发模式保持原本地行为，生产模式默认监听全部网络接口；后台任务仍可由环境变量显式覆盖。
+- 2026-08-06: 新增 `app/core/models` 跨模块模型包。`ToolResponse` 收敛 Agent 工具和符号 Agent 的成功/失败响应；`DecisionResult` 封装控制结果并通过 `to_payload()` 保持 TCP 控制报文不变。`ResultWarehouse` 可接受模型和旧字典，快照深拷贝隔离调用方修改。新增兼容性测试后全量自动化测试共 46 项通过，编译与差异检查通过。
 - Pending: Continue project cleanup before the enterprise refactor, especially separating source, generated runtime data, configs, and tests.
-- Next suggested step: 盘点根目录剩余的数据处理与预测模块，区分算法实现和运行编排职责，再决定下一批可迁入 `runtime/` 或 `infra/data/` 的边界。
+- Next suggested step: 明确短期记忆、长期记忆、结果仓库与预测仓库的存储端口边界，为 JSONL、文件、Redis 和数据库实现建立统一替换点。
 
 
 

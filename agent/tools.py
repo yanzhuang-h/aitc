@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 from typing import Any, Mapping
 
+from app.core.models import ToolResponse
 from infra.data import MemoryQueryLayer
 
 
@@ -240,8 +241,8 @@ class DataQueryTools:
 
     @staticmethod
     def _success(summary: str, data: Any, meta: dict[str, Any]) -> dict[str, Any]:
-        return {"status": "ok", "summary": summary, "data": data, "meta": meta}
+        return ToolResponse.ok(summary, data, meta).to_dict()
 
     @staticmethod
     def _error(message: str) -> dict[str, Any]:
-        return {"status": "error", "summary": message, "data": None, "meta": {}}
+        return ToolResponse.error(message).to_dict()

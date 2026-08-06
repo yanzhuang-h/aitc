@@ -6,6 +6,8 @@ import copy
 import random
 from typing import Any
 
+from app.core.models import DecisionResult
+
 
 def format_result(
     intersection_id: str,
@@ -16,7 +18,7 @@ def format_result(
     lambdas_module: Any,
 ) -> dict[str, Any]:
     """保持既有报文结构，将单路口决策格式化为发送结果。"""
-    return {
+    payload = {
         "additional": {
             "tlLogic": {
                 "id": intersection_id,
@@ -32,6 +34,7 @@ def format_result(
         ),
         "modelInfo": build_model_info(model_info_list, intersection_id),
     }
+    return DecisionResult.from_payload(payload).to_payload()
 
 
 def build_phase(result_to_send: list[Any]) -> list[dict[str, Any]]:
