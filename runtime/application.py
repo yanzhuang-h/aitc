@@ -14,6 +14,8 @@ from lib.DQN_Select import DQN_select
 from lib.Global_intersection_coordinate import coordinate
 from phase_check import phase_check
 
+from app.config import RuntimeSettings
+
 from infra.data import (
     ConfigService,
     ConfigSyncManager,
@@ -31,6 +33,7 @@ from infra.data import (
     RuntimeDataWriter,
     is_millisecond_timestamp,
 )
+from infra.data.output_store import FileRuntimeOutputStore
 
 from .decision_pipeline import PeriodicDecisionPipeline
 from .http_server import HttpRuntimeServer
@@ -95,15 +98,16 @@ class AITCApplication:
             self.logger.error(message, *args, **kwargs)
 
 
-def create_application(logger=None) -> AITCApplication:
+def create_application(logger=None, settings: RuntimeSettings | None = None) -> AITCApplication:
     """按当前兼容配置创建完整运行应用。"""
+    settings = (settings or RuntimeSettings.from_environment()).validate()
     cache = ShortTermMemory({
         DataKind.FLOW: 600, DataKind.QUEUE: 240, DataKind.STAGE: 600,
         DataKind.EXTEND: 600, DataKind.ONLINE: 1800, DataKind.LATEST: 1800,
         DataKind.RADAR: 600, DataKind.BOYAN: 600,
     })
-    writer = RuntimeDataWriter()
-    repository = LongTermMemory()
+    writer = RuntimeDataWriter(FileRuntimeOutputStore(settings.runtime_output_dir))
+    repository = LongTermMemory(root=settings.runtime_data_dir)
     overflow_warning_map = copy.deepcopy(Lambdas.map_lambda)
     quality_monitor = DataQualityMonitor()
     radar_event_map = {key: {} for key in Lambdas.radar_event_list}
@@ -113,11 +117,11 @@ def create_application(logger=None) -> AITCApplication:
     warehouse = ResultWarehouse()
     query_service = MemoryQueryLayer(short_term_memory=cache, result_warehouse=warehouse, config_service=config_service, long_term_memory=repository, quality_monitor=quality_monitor)
     sender = ResultSender(writer=writer, logger=logger)
-    prediction_repository = FilePredictionRepository()
+    prediction_repository = FilePredictionRepository(root=settings.prediction_data_dir)
     flow_predictor = FlowPredictionService(Flow_predict, prediction_repository)
     queue_predictor = QueuePredictionService(Queue_predict, prediction_repository)
-    http_server = HttpRuntimeServer(host="127.0.0.1", port=8088, ingestor=ingestor, config_service=config_service, query_service=query_service, logger=logger)
-    tcp_server = TcpRuntimeServer(host="127.0.0.1", port=65432, buffer_size=1024 * 1024, ingestor=ingestor, result_warehouse=warehouse, result_sender=sender, send_interval=50, logger=logger)
-    pipeline = PeriodicDecisionPipeline(cache=cache, data_processor=RuntimeDataProcessor(cache, Lambdas), lambdas_module=Lambdas, writer=writer, result_warehouse=warehouse, flow_predictor=flow_predictor, queue_predictor=queue_predictor, dqn_select=DQN_select, coordinate=coordinate, phase_check=phase_check, select_data_to_send=partial(format_result, lambdas_module=Lambdas), is_millisecond_timestamp=is_millisecond_timestamp, overflow_warning_map=overflow_warning_map, radar_event_map=radar_event_map, flow_duration_seconds=150, logger=logger)
-    prediction_scheduler = PredictionScheduler(flow_job=flow_predictor.daily_prediction_job, queue_job=queue_predictor.daily_queue_prediction, hour=3, minute=0, logger=logger)
-    return AITCApplication(config_sync_manager=ConfigSyncManager(), http_server=http_server, tcp_server=tcp_server, decision_pipeline=pipeline, prediction_scheduler=prediction_scheduler, send_interval=50, logger=logger)
+    http_server = HttpRuntimeServer(host=settings.http_host, port=settings.http_port, ingestor=ingestor, config_service=config_service, query_service=query_service, logger=logger)
+    tcp_server = TcpRuntimeServer(host=settings.tcp_host, port=settings.tcp_port, buffer_size=settings.tcp_buffer_size, ingestor=ingestor, result_warehouse=warehouse, result_sender=sender, send_interval=settings.result_send_interval_seconds, logger=logger)
+    pipeline = PeriodicDecisionPipeline(cache=cache, data_processor=RuntimeDataProcessor(cache, Lambdas), lambdas_module=Lambdas, writer=writer, result_warehouse=warehouse, flow_predictor=flow_predictor, queue_predictor=queue_predictor, dqn_select=DQN_select, coordinate=coordinate, phase_check=phase_check, select_data_to_send=partial(format_result, lambdas_module=Lambdas), is_millisecond_timestamp=is_millisecond_timestamp, overflow_warning_map=overflow_warning_map, radar_event_map=radar_event_map, flow_duration_seconds=settings.flow_duration_seconds, logger=logger)
+    prediction_scheduler = PredictionScheduler(flow_job=flow_predictor.daily_prediction_job, queue_job=queue_predictor.daily_queue_prediction, hour=settings.prediction_hour, minute=settings.prediction_minute, logger=logger)
+    return AITCApplication(config_sync_manager=ConfigSyncManager(), http_server=http_server, tcp_server=tcp_server, decision_pipeline=pipeline, prediction_scheduler=prediction_scheduler, send_interval=settings.decision_interval_seconds, logger=logger)
