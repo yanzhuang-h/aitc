@@ -7,6 +7,7 @@ import unittest
 
 from agent.qwen_agent import SymbolicDataAgent
 from agent.tools import DataQueryTools
+from app.core.tools import SingleIntersectionSignalTimingTool
 from infra.data import (
     ConfigService,
     DataKind,
@@ -52,6 +53,14 @@ class SymbolicDataAgentTest(unittest.TestCase):
         )
         self.agent = SymbolicDataAgent(DataQueryTools(query_service))
 
+        def fake_dqn_select(*args):
+            return [10, 20], {"Start1": 1}, {"model": "fake"}, {"exp": "ok"}
+
+        signal_tool = SingleIntersectionSignalTimingTool(dqn_select=fake_dqn_select)
+        self.agent_with_signal_tool = SymbolicDataAgent(
+            DataQueryTools(query_service, signal_timing_tool=signal_tool)
+        )
+
     def test_full_history_query_flow(self) -> None:
         result = self.agent.run(
             {
@@ -71,6 +80,17 @@ class SymbolicDataAgentTest(unittest.TestCase):
         result = self.agent.run({"action": "config.write", "arguments": {}})
         self.assertEqual(result["status"], "error")
         self.assertIn("read-only", result["summary"])
+
+    def test_single_intersection_signal_timing_action(self) -> None:
+        result = self.agent_with_signal_tool.run(
+            {
+                "action": "signal.timing.single",
+                "arguments": {"cross_id": "1300068"},
+            }
+        )
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["meta"]["tool_name"], "generate_single_intersection_signal_timing")
+        self.assertEqual(result["data"]["signal_timing"], [10, 20])
 
 
 if __name__ == "__main__":

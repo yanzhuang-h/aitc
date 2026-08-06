@@ -20,6 +20,7 @@ class SymbolicDataAgent:
         "runtime.history": "query_runtime_history",
         "results.latest": "query_latest_results",
         "config.snapshot": "query_config_snapshot",
+        "signal.timing.single": "generate_single_intersection_signal_timing",
     }
 
     def __init__(self, tools: DataQueryTools) -> None:

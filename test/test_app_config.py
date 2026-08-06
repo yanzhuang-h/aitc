@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import unittest
 from unittest.mock import patch
 
@@ -28,7 +29,7 @@ class RuntimeSettingsTest(unittest.TestCase):
         self.assertEqual(settings.tcp_port, 60000)
         self.assertEqual(settings.http_port, 9000)
         self.assertEqual(settings.decision_interval_seconds, 5.5)
-        self.assertEqual(str(settings.runtime_data_dir), "var\\runtime")
+        self.assertEqual(settings.runtime_data_dir, Path("var/runtime"))
         self.assertEqual(settings.llm_base_url, "http://localhost:8000/v1")
         self.assertEqual(settings.llm_model, "Qwen3-0.6B")
         self.assertEqual(settings.llm_max_tokens, 256)

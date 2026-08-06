@@ -96,10 +96,34 @@ class DataQueryTools:
                 },
             },
         },
+        {
+            "name": "generate_single_intersection_signal_timing",
+            "description": "调用既有 DQN_Select 算法生成单个路口的放行时间。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "cross_id": {"type": "string", "description": "路口编号。"},
+                    "traffic_vector": {"type": "array", "description": "路口交通流向量。"},
+                    "queue_vector": {"type": "object", "description": "路口排队长度数据。"},
+                    "traffic_vector_duration2": {"type": "array", "description": "指定时间窗内的交通流向量。"},
+                    "flow_map": {"type": "object", "description": "路口流量时序数据。"},
+                    "queue_map": {"type": "object", "description": "路口排队时序数据。"},
+                    "stage_map": {"type": "object", "description": "路口相位阶段数据。"},
+                    "extend_map": {"type": "object", "description": "路口扩展数据。"},
+                    "overflow_map": {"type": "object", "description": "路口溢出预警数据。"},
+                    "radar_map": {"type": "object", "description": "路口雷达事件数据。"},
+                    "boyan_map": {"type": "object", "description": "路口博研数据。"},
+                    "flow_prediction": {"type": "object", "description": "当前流量预测数据。"},
+                    "queue_prediction": {"type": "object", "description": "当前排队预测数据。"},
+                },
+                "required": ["cross_id"],
+            },
+        },
     ]
 
-    def __init__(self, query_service: MemoryQueryLayer) -> None:
+    def __init__(self, query_service: MemoryQueryLayer, signal_timing_tool: Any | None = None) -> None:
         self.query_service = query_service
+        self.signal_timing_tool = signal_timing_tool
 
     def tool_schemas(self) -> list[dict[str, Any]]:
         """返回可交给 Qwen 或其他工具调用框架的工具定义。"""
@@ -114,6 +138,7 @@ class DataQueryTools:
             "query_config_snapshot": self.query_config_snapshot,
             "query_config_pool": self.query_config_pool,
             "query_experience_pool": self.query_experience_pool,
+            "generate_single_intersection_signal_timing": self.generate_single_intersection_signal_timing,
         }
         handler = handlers.get(name)
         if handler is None:
@@ -271,6 +296,24 @@ class DataQueryTools:
                     "source": "experience_pool",
                     "detail": normalized_detail,
                 },
+            )
+        except (ValueError, RuntimeError) as error:
+            return self._error(str(error))
+
+    def generate_single_intersection_signal_timing(
+        self,
+        cross_id: str,
+        **context: Any,
+    ) -> dict[str, Any]:
+        """调用既有 DQN_Select 算法生成单路口放行时间。"""
+        if self.signal_timing_tool is None:
+            return self._error("signal timing tool is not configured")
+        try:
+            result = self.signal_timing_tool.generate(cross_id=cross_id, **context)
+            return self._success(
+                f"已生成路口 {cross_id} 的放行时间。",
+                result,
+                {"cross_id": cross_id, "source": "lib.DQN_Select.DQN_select"},
             )
         except (ValueError, RuntimeError) as error:
             return self._error(str(error))

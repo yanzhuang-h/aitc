@@ -5,6 +5,7 @@ from __future__ import annotations
 import unittest
 
 from agent.tools import DataQueryTools
+from app.core.tools import SingleIntersectionSignalTimingTool
 
 
 class _QueryServiceStub:
@@ -100,6 +101,29 @@ class DataQueryToolsTest(unittest.TestCase):
         self.assertEqual(result["status"], "ok")
         self.assertEqual(result["meta"]["source"], "experience_pool")
         self.assertEqual(result["data"]["items"][0]["key"], "morning_peak")
+
+    def test_signal_timing_tool_is_optional(self) -> None:
+        result = self.tools.invoke(
+            "generate_single_intersection_signal_timing",
+            {"cross_id": "1300068"},
+        )
+        self.assertEqual(result["status"], "error")
+        self.assertIn("not configured", result["summary"])
+
+    def test_signal_timing_tool_contract(self) -> None:
+        def fake_dqn_select(*args):
+            self.assertEqual(args[13], "1300068")
+            return [12, 18], {"Start1": 1}, {"model": "fake"}, {"exp": "ok"}
+
+        signal_tool = SingleIntersectionSignalTimingTool(dqn_select=fake_dqn_select)
+        tools = DataQueryTools(_QueryServiceStub(), signal_timing_tool=signal_tool)
+        result = tools.invoke(
+            "generate_single_intersection_signal_timing",
+            {"cross_id": "1300068", "traffic_vector": [1, 2, 3, 4]},
+        )
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["data"]["signal_timing"], [12, 18])
+        self.assertEqual(result["meta"]["source"], "lib.DQN_Select.DQN_select")
 
 
 if __name__ == "__main__":
