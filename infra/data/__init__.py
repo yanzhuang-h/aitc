@@ -11,6 +11,9 @@ from .config_sync import ConfigSyncManager
 from .contracts import CONTRACTS, DataContract, validate_contract
 from .ingest import RuntimeDataIngestor
 from .prediction_repository import FilePredictionRepository
+from .longtermmemory import LongTermMemory
+from .memoryquerylayer import MemoryQueryLayer
+from .shorttermmemory import ShortTermMemory
 from .quality import DataQualityMonitor
 from .runtime_processor import RuntimeDataProcessor
 from .result_sender import ResultSender
@@ -31,6 +34,8 @@ __all__ = [
     "DataRepository",
     "DataSource",
     "FilePredictionRepository",
+    "LongTermMemory",
+    "MemoryQueryLayer",
     "DataQualityMonitor",
     "RuntimeDataProcessor",
     "RuntimeDataCache",
@@ -38,6 +43,7 @@ __all__ = [
     "RuntimeDataQueryService",
     "RuntimeDataReceiver",
     "RuntimeDataWriter",
+    "ShortTermMemory",
     "ResultSender",
     "ResultWarehouse",
     "TrafficReceiver",

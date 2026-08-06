@@ -53,6 +53,7 @@
 - 2026-08-05: 建立运行数据契约基线。`infra/data/contracts.py` 定义 flow、queue、stage、雷达等 11 类数据的来源、最小字段、时间和路口识别规则，`todo-done/data-contract.md` 记录中文契约表；校验为非阻断式以兼容旧链路。新增契约测试后全量自动化测试共 34 项通过，编译检查通过。
 - 2026-08-05: 新增 `infra/data/ports.py`，定义运行历史、预测与结果存储的 Protocol 端口；预测运行服务已按 `PredictionStore` 依赖，为后续 Redis/数据库实现保留替换边界。预测相关测试与编译检查通过。
 - 2026-08-05: 新增 `DataQualityMonitor`，`RuntimeDataReceiver` 在分类后执行非阻断式契约校验并记录问题；查询服务及 HTTP 健康响应暴露累计数量、分类统计与近期问题。数据照常持久化、缓存和参与旧算法。全量自动化测试共 35 项通过。
+- 2026-08-06: 建立记忆语义入口模块：`infra/data/shorttermmemory.py` 提供 `ShortTermMemory`，`longtermmemory.py` 提供 `LongTermMemory`，`memoryquerylayer.py` 提供 `MemoryQueryLayer`。应用装配已切换到新名称，旧 `RuntimeDataCache`、`DataRepository`、`RuntimeDataQueryService` 暂作兼容入口；全量自动化测试共 36 项通过。
 - Pending: Continue project cleanup before the enterprise refactor, especially separating source, generated runtime data, configs, and tests.
 - Next suggested step: 盘点根目录剩余的数据处理与预测模块，区分算法实现和运行编排职责，再决定下一批可迁入 `runtime/` 或 `infra/data/` 的边界。
 

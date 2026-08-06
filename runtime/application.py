@@ -18,15 +18,15 @@ from infra.data import (
     ConfigService,
     ConfigSyncManager,
     DataKind,
-    DataRepository,
+    LongTermMemory,
     DataQualityMonitor,
     FilePredictionRepository,
     RuntimeDataProcessor,
     ResultSender,
     ResultWarehouse,
-    RuntimeDataCache,
+    ShortTermMemory,
     RuntimeDataIngestor,
-    RuntimeDataQueryService,
+    MemoryQueryLayer,
     RuntimeDataReceiver,
     RuntimeDataWriter,
     is_millisecond_timestamp,
@@ -97,13 +97,13 @@ class AITCApplication:
 
 def create_application(logger=None) -> AITCApplication:
     """按当前兼容配置创建完整运行应用。"""
-    cache = RuntimeDataCache({
+    cache = ShortTermMemory({
         DataKind.FLOW: 600, DataKind.QUEUE: 240, DataKind.STAGE: 600,
         DataKind.EXTEND: 600, DataKind.ONLINE: 1800, DataKind.LATEST: 1800,
         DataKind.RADAR: 600, DataKind.BOYAN: 600,
     })
     writer = RuntimeDataWriter()
-    repository = DataRepository()
+    repository = LongTermMemory()
     overflow_warning_map = copy.deepcopy(Lambdas.map_lambda)
     quality_monitor = DataQualityMonitor()
     radar_event_map = {key: {} for key in Lambdas.radar_event_list}
@@ -111,7 +111,7 @@ def create_application(logger=None) -> AITCApplication:
     ingestor = RuntimeDataIngestor(receiver)
     config_service = ConfigService()
     warehouse = ResultWarehouse()
-    query_service = RuntimeDataQueryService(cache=cache, result_warehouse=warehouse, config_service=config_service, repository=repository, quality_monitor=quality_monitor)
+    query_service = MemoryQueryLayer(cache=cache, result_warehouse=warehouse, config_service=config_service, repository=repository, quality_monitor=quality_monitor)
     sender = ResultSender(writer=writer, logger=logger)
     prediction_repository = FilePredictionRepository()
     flow_predictor = FlowPredictionService(Flow_predict, prediction_repository)
