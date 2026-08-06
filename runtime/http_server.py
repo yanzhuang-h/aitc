@@ -1,8 +1,9 @@
-"""HTTP 雷达接收、配置转发与健康检查服务。"""
+"""HTTP 数据接收、配置转发、健康检查与轻量前端服务。"""
 
 from __future__ import annotations
 
 import json
+from pathlib import Path
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any
@@ -12,7 +13,7 @@ from infra.data.classifier import DataKind
 
 
 class HttpRuntimeServer:
-    """管理 HTTP 数据入口，保持协议层与数据底座解耦。"""
+    """管理 HTTP 数据入口，并提供单路口方案查询页面。"""
 
     _BLOCKED_CORS_HEADERS = {
         "access-control-allow-origin",
@@ -40,6 +41,7 @@ class HttpRuntimeServer:
         ingestor: Any,
         config_service: Any,
         query_service: Any,
+        signal_timing_tool: Any | None = None,
         logger: Any | None = None,
     ) -> None:
         self.host = host
@@ -47,10 +49,12 @@ class HttpRuntimeServer:
         self.ingestor = ingestor
         self.config_service = config_service
         self.query_service = query_service
+        self.signal_timing_tool = signal_timing_tool
         self.logger = logger
         self._stop_event = threading.Event()
         self._server: HTTPServer | None = None
         self._thread: threading.Thread | None = None
+        self._frontend_dir = Path(__file__).resolve().parent.parent / "web"
 
     @property
     def address(self) -> tuple[str, int]:
@@ -68,7 +72,7 @@ class HttpRuntimeServer:
         self._server.timeout = 1.0
         self._thread = threading.Thread(target=self._serve, daemon=True)
         self._thread.start()
-        self._info("Radar HTTP server started on %s:%s", *self.address)
+        self._info("HTTP server started on %s:%s", *self.address)
 
     def stop(self) -> None:
         self._stop_event.set()
@@ -115,11 +119,14 @@ class HttpRuntimeServer:
             def do_POST(self):
                 if self._reject_cross_origin_request():
                     return
+                path = urlparse(self.path).path
                 body = self._read_json_body()
                 if body is None:
                     return
 
-                path = urlparse(self.path).path
+                if path == "/api/signal-timing":
+                    self._handle_signal_timing(body)
+                    return
                 if path.startswith(("/road_info", "/cross_info")) and self._try_handle_config("POST", body):
                     return
                 if not isinstance(body, (dict, list)):
@@ -138,17 +145,33 @@ class HttpRuntimeServer:
                 if self._reject_cross_origin_request():
                     return
                 path = urlparse(self.path).path
+                if path in {"/", "/index.html"}:
+                    self._send_html(runtime_server._read_frontend_file("index.html"))
+                    return
+                if path == "/health":
+                    self._send_json(200, runtime_server._health_payload())
+                    return
+                if path == "/api/signal-timing":
+                    self._send_json(405, {"error": "Use POST for signal timing requests"})
+                    return
                 if path.startswith(("/road_info", "/cross_info")) and self._try_handle_config("GET", None):
                     return
-                self._send_json(
-                    200,
-                    {
-                        "status": "running",
-                        "service": "radar_data_receiver",
-                        "radar_cache_size": runtime_server.query_service.get_runtime_size(DataKind.RADAR),
-                        "data_quality": runtime_server.query_service.get_data_quality_snapshot(),
-                    },
-                )
+                self._send_json(200, runtime_server._health_payload())
+
+            def _handle_signal_timing(self, body: Any) -> None:
+                if not isinstance(body, dict):
+                    self._send_json(400, {"error": "Request body must be an object"})
+                    return
+                try:
+                    payload = runtime_server._generate_signal_timing(body)
+                except ValueError as error:
+                    self._send_json(400, {"error": str(error)})
+                    return
+                except Exception:
+                    runtime_server._error("Error generating signal timing", exc_info=True)
+                    self._send_json(500, {"error": "internal server error"})
+                    return
+                self._send_json(200, payload)
 
             def _read_json_body(self):
                 content_length = int(self.headers.get("Content-Length", 0))
@@ -179,7 +202,12 @@ class HttpRuntimeServer:
                 host = self.headers.get("Host")
                 if not runtime_server._is_cross_origin_request(origin, host):
                     return False
-                runtime_server._warning("Blocked cross-origin request: origin=%s host=%s path=%s", origin, host, self.path)
+                runtime_server._warning(
+                    "Blocked cross-origin request: origin=%s host=%s path=%s",
+                    origin,
+                    host,
+                    self.path,
+                )
                 self._send_json(403, {"error": "Cross-origin requests are not allowed"})
                 return True
 
@@ -191,10 +219,47 @@ class HttpRuntimeServer:
                 self.end_headers()
                 self.wfile.write(body)
 
+            def _send_html(self, html: str) -> None:
+                body = html.encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
             def log_message(self, format, *args):
-                runtime_server._info("HTTP Radar Server: %s", format % args)
+                runtime_server._info("HTTP Server: %s", format % args)
 
         return RuntimeRequestHandler
+
+    def _health_payload(self) -> dict[str, Any]:
+        return {
+            "status": "running",
+            "service": "aitc_runtime_http",
+            "radar_cache_size": self.query_service.get_runtime_size(DataKind.RADAR),
+            "data_quality": self.query_service.get_data_quality_snapshot(),
+        }
+
+    def _read_frontend_file(self, filename: str) -> str:
+        path = self._frontend_dir / filename
+        if not path.exists():
+            return "<html><body><h1>AITC</h1></body></html>"
+        return path.read_text(encoding="utf-8")
+
+    def _generate_signal_timing(self, body: dict[str, Any]) -> dict[str, Any]:
+        if self.signal_timing_tool is None:
+            raise RuntimeError("signal timing tool is not configured")
+        cross_id = body.get("cross_id")
+        if not isinstance(cross_id, str) or not cross_id.strip():
+            raise ValueError("cross_id must be a non-empty string")
+        request_body = dict(body)
+        request_body.pop("cross_id", None)
+        result = self.signal_timing_tool.generate(cross_id=cross_id.strip(), **request_body)
+        return {
+            "status": "success",
+            "cross_id": cross_id.strip(),
+            "result": result,
+        }
 
     @staticmethod
     def _is_cross_origin_request(origin: str | None, host: str | None) -> bool:

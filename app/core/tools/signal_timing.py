@@ -32,6 +32,7 @@ class SingleIntersectionSignalTimingTool:
         self,
         cross_id: str,
         *,
+        request_text: str | None = None,
         traffic_vector: list[Any] | None = None,
         queue_vector: Mapping[str, Any] | None = None,
         traffic_vector_duration2: list[Any] | None = None,
