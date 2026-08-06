@@ -79,6 +79,12 @@ class RuntimeSettings:
     prediction_data_dir: Path = Path("logs_data")
     enable_config_sync: bool = True
     enable_prediction_scheduler: bool = True
+    llm_base_url: str = "http://127.0.0.1:8000/v1"
+    llm_model: str = "Qwen3-0.6B"
+    llm_api_key: str = "EMPTY"
+    llm_timeout_seconds: float = 60
+    llm_max_tokens: int = 1024
+    llm_enable_thinking: bool = False
 
     @classmethod
     def from_environment(cls) -> "RuntimeSettings":
@@ -121,6 +127,12 @@ class RuntimeSettings:
             prediction_data_dir=_read_path("AITC_PREDICTION_DATA_DIR", "logs_data"),
             enable_config_sync=_read_bool("AITC_ENABLE_CONFIG_SYNC", mode_defaults["enable_config_sync"]),
             enable_prediction_scheduler=_read_bool("AITC_ENABLE_PREDICTION_SCHEDULER", mode_defaults["enable_prediction_scheduler"]),
+            llm_base_url=os.getenv("AITC_LLM_BASE_URL", "http://127.0.0.1:8000/v1"),
+            llm_model=os.getenv("AITC_LLM_MODEL", "Qwen3-0.6B"),
+            llm_api_key=os.getenv("AITC_LLM_API_KEY", "EMPTY"),
+            llm_timeout_seconds=_read_float("AITC_LLM_TIMEOUT_SECONDS", 60),
+            llm_max_tokens=_read_int("AITC_LLM_MAX_TOKENS", 1024),
+            llm_enable_thinking=_read_bool("AITC_LLM_ENABLE_THINKING", False),
         )
 
     def validate(self) -> "RuntimeSettings":
@@ -136,5 +148,13 @@ class RuntimeSettings:
             raise ValueError("flow_duration_seconds must be positive")
         if not 0 <= self.prediction_hour <= 23 or not 0 <= self.prediction_minute <= 59:
             raise ValueError("prediction schedule is out of range")
+        if not self.llm_base_url.strip():
+            raise ValueError("llm_base_url must not be empty")
+        if not self.llm_model.strip():
+            raise ValueError("llm_model must not be empty")
+        if self.llm_timeout_seconds <= 0:
+            raise ValueError("llm_timeout_seconds must be positive")
+        if self.llm_max_tokens <= 0:
+            raise ValueError("llm_max_tokens must be positive")
         return self
     run_mode: RunMode = RunMode.DEVELOPMENT

@@ -20,12 +20,18 @@ class RuntimeSettingsTest(unittest.TestCase):
             "AITC_HTTP_PORT": "9000",
             "AITC_DECISION_INTERVAL_SECONDS": "5.5",
             "AITC_RUNTIME_DATA_DIR": "var/runtime",
+            "AITC_LLM_BASE_URL": "http://localhost:8000/v1",
+            "AITC_LLM_MODEL": "Qwen3-0.6B",
+            "AITC_LLM_MAX_TOKENS": "256",
         }, clear=True):
             settings = RuntimeSettings.from_environment().validate()
         self.assertEqual(settings.tcp_port, 60000)
         self.assertEqual(settings.http_port, 9000)
         self.assertEqual(settings.decision_interval_seconds, 5.5)
         self.assertEqual(str(settings.runtime_data_dir), "var\\runtime")
+        self.assertEqual(settings.llm_base_url, "http://localhost:8000/v1")
+        self.assertEqual(settings.llm_model, "Qwen3-0.6B")
+        self.assertEqual(settings.llm_max_tokens, 256)
 
     def test_invalid_port_is_rejected(self):
         with self.assertRaises(ValueError):
