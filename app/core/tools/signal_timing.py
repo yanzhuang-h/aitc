@@ -11,7 +11,7 @@ from collections.abc import Callable, Mapping
 from typing import Any
 
 import Lambdas
-from lib.DQN_Select import DQN_select
+from app.core.tools.legacy_algorithms import DQN_select
 
 
 class SingleIntersectionSignalTimingTool:

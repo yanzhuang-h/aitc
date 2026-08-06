@@ -1,6 +1,10 @@
 from datetime import datetime, timedelta, time
+import logging
 import Lambdas
 from infra.data.prediction_repository import FilePredictionRepository
+
+
+logger = logging.getLogger(__name__)
 
 
 def flow_pre_json_Gen(intersection_flow_duration1, intersection_flow_duration2, end_time):
@@ -146,7 +150,7 @@ def daily_prediction_job(repository=None, current_time=None):
     """每日预测任务入口"""
     repository = repository or FilePredictionRepository()
     now = current_time or datetime.now()
-    print("####################start daily prediction job######################")
+    logger.info("开始生成流量预测文件")
     # 生成当天所有时间窗口
     time_windows = generate_time_windows("05:00", "23:50")
     # 存储所有预测结果
@@ -158,7 +162,7 @@ def daily_prediction_job(repository=None, current_time=None):
         daily_predictions[result["timestamp"]] = result["data"]
     
     filepath = repository.save_daily_predictions("flow", now, daily_predictions)
-    print(f"预测文件已生成：{filepath}")
+    logger.info("流量预测文件已生成: %s", filepath)
 
 def get_current_flow_prediction(current_time=None, repository=None):
     """

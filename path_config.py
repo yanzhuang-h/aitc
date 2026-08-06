@@ -1,6 +1,10 @@
 # path_config.py
 import os
 import sys
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 # 获取项目根目录
 def get_project_root():
@@ -36,7 +40,7 @@ DIRECTORIES = {
 def create_directories():
     for name, path in DIRECTORIES.items():
         os.makedirs(path, exist_ok=True)
-        print(f"Created directory: {name} -> {path}")
+        logger.debug("Created directory: %s -> %s", name, path)
 
 # 获取路径
 def get_path(name):

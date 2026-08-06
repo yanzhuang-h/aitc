@@ -1,6 +1,10 @@
 from datetime import datetime, timedelta
+import logging
 import Lambdas
 from infra.data.prediction_repository import FilePredictionRepository
+
+
+logger = logging.getLogger(__name__)
 
 # 所有需要处理的路口ID列表
 INTERSECTION_IDS = Lambdas.intersection_list
@@ -104,7 +108,7 @@ def daily_queue_prediction(repository=None, current_time=None):
     """每日预测任务"""
     repository = repository or FilePredictionRepository()
     now = current_time or datetime.now()
-    print("############## 开始排队数据预测任务 ##############")
+    logger.info("开始生成排队预测文件")
     
     time_windows = generate_time_windows()
     predictions = {}
@@ -126,7 +130,7 @@ def daily_queue_prediction(repository=None, current_time=None):
         predictions[window_str] = result
 
     filepath = repository.save_daily_predictions("queue", now, predictions)
-    print(f"排队预测文件已生成：{filepath}")
+    logger.info("排队预测文件已生成: %s", filepath)
 
 def get_current_queue_prediction(current_time=None, repository=None):
     """

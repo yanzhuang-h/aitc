@@ -52,7 +52,7 @@ def process_flow_data(cache, lambdas_module):
             elif direction == "D":
                 intersection_flow[intersection_id][3] += 1
             else:
-                print(f"Unknown direction: {direction}")
+                logger.warning("Unknown flow direction: %s", direction)
     except KeyError as e:
         logger.error(f"Missing key in flow data: {e}")
     except Exception as e:
@@ -123,7 +123,7 @@ def process_queue_data(cache, lambdas_module):
             logger.error(f"Error processing queue data: Missing expected key {e}")
         except Exception as e:
             logger.error(f"Error processing queue data: {e}")
-    print(f"{valid_data_count} queue data processed")
+    logger.info("Queue data processed: %s valid records", valid_data_count)
     return max_queue_lengths,queue_map
 
 def process_stage_data(cache, lambdas_module):
@@ -158,7 +158,7 @@ def process_extend_data(cache, lambdas_module):
     try:
         for extend_data in cache:
             if len(extend_data) != 2 or not isinstance(extend_data[1], dict):
-                print(f"Skipped invalid data type: {type(extend_data)}")
+                logger.warning("Skipped invalid extend data type: %s", type(extend_data))
                 continue
             intersection_id = extend_data[1].get('CrossId')
             if lambdas_module.aibi_to_xinkongji.__contains__(intersection_id):
@@ -171,7 +171,7 @@ def process_extend_data(cache, lambdas_module):
         logger.error(f"Missing key in extend data: {e}")
     except Exception as e:
         logger.error(f"Error processing extend data: {e}")
-    logger.info(f"extend data processed:{extend_map}")
+    logger.debug("Extend data processed: %s", extend_map)
     return extend_map
 
 def parse_timestamp(raw, divisor=1000):
@@ -185,7 +185,7 @@ def process_online_data(cache, lambdas_module):
 
     for online_data in cache:
         if len(online_data) != 2 or not isinstance(online_data[1], dict):
-            print(f"Skipped invalid data type: {type(online_data)}")
+            logger.warning("Skipped invalid online data type: %s", type(online_data))
             continue
         
         
@@ -193,16 +193,16 @@ def process_online_data(cache, lambdas_module):
         rid=data_dict.get('rid')
         
         if None in (rid, raw_time):
-            print(f"Missing required fields in online data: {online_data}")
+            logger.warning("Missing required fields in online data: %s", online_data)
             continue
         
         start_time_sec = raw_time
         if start_time_sec is None:
-            print(f"Invalid timestamp: {raw_time}")
+            logger.warning("Invalid online timestamp: %s", raw_time)
             continue
 
         if rid not in online_map:
-            print(f"Unregistered rid: {rid}")
+            logger.warning("Unregistered online rid: %s", rid)
             continue
 
         online_map[rid].setdefault(start_time_sec, []).append(data_dict)
@@ -216,7 +216,7 @@ def process_latest_data(cache, lambdas_module):
     for latest_data in cache:
 
         if len(latest_data) != 2 or not isinstance(latest_data[1], dict):
-            print(f"Invalid latest data structure: {latest_data}")
+            logger.warning("Invalid latest data structure: %s", latest_data)
             continue
         
 
@@ -225,11 +225,11 @@ def process_latest_data(cache, lambdas_module):
         start_time_sec = raw_time
 
         if None in (inter_id, start_time_sec):
-            print(f"Missing required fields in latest data: {latest_data}")
+            logger.warning("Missing required fields in latest data: %s", latest_data)
             continue
 
         if inter_id not in latest_map:
-            print(f"Unregistered inter_id: {inter_id}")
+            logger.warning("Unregistered latest inter_id: %s", inter_id)
             continue
 
         latest_map[inter_id].setdefault(start_time_sec, []).append(data_dict)

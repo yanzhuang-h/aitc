@@ -10,7 +10,6 @@ from typing import Any
 import Flow_predict
 import Queue_predict
 import Lambdas
-from lib.DQN_Select import DQN_select
 from lib.Global_intersection_coordinate import coordinate
 from phase_check import phase_check
 
@@ -45,6 +44,7 @@ from agent.qwen_agent import QwenSignalTimingAgent
 from agent.tools import DataQueryTools
 from app.infrastructure.llm import OpenAICompatibleLLMClient
 from app.core.tools import SingleIntersectionSignalTimingTool
+from app.core.tools.legacy_algorithms import DQN_select
 
 
 class AITCApplication:

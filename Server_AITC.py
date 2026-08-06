@@ -10,7 +10,7 @@ from runtime import create_application
 def setup_logging():
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
-    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s")
     for handler in (logging.StreamHandler(), logging.handlers.TimedRotatingFileHandler("server.log", when="midnight", backupCount=7)):
         handler.setLevel(logging.INFO)
         handler.setFormatter(formatter)
