@@ -23,7 +23,8 @@ class ResultSender:
         for client_socket in clients:
             try:
                 for result in results:
-                    client_socket.sendall(json.dumps(result).encode("utf-8"))
+                    # 与 TCP 接收端一致，使用 \n 作为帧分隔符
+                    client_socket.sendall((json.dumps(result) + "\n").encode("utf-8"))
                     if self.writer is not None:
                         self.writer.write_send_result(result)
             except (socket.error, BrokenPipeError):
