@@ -72,3 +72,16 @@
 - 聚合和 `lib/` 算法仍是兼容边界：`RuntimeDataProcessor` 将底座缓存转换成既有算法需要的输入，当前不应改动算法实现。
 - `Server_AITC.py` 仍承担协议服务、周期调度、跨路口编排、全局后处理和客户端管理；这正是下一阶段要拆出的应用编排层。
 - 周期决策管线已完成抽取，保留对 `RuntimeDataProcessor`、`DQN_select`、`coordinate`、`phase_check` 和 `ResultWarehouse` 的显式依赖；`Server_AITC.py` 只负责启动和停止。
+
+## 7. 真实数据回放验证（2026-08-10）
+
+用 `test/client_tcp.py` 回放运维提供的真实数据（`test/flow_data`、`test/extend_data`、`test/online_data`），验证数据底座与决策链路：
+
+1. **回放客户端修复**：`--start-timestamp` 参数支持从指定时间戳定位起点（此前硬编码 6-29 起点，导致 7-29 数据全部被过滤）；`_run_timed_enhanced` 改为在窗口内只遍历实际存在的时间点、发完即止（此前按 `duration_sec` 空转）。
+2. **回放结果**：
+   - flow（2026-07-29，300s 窗口）：发送 2470 条 → `flow.jsonl` 714KB
+   - extend（2026-07-29，300s 窗口）：发送 18928 条 → `extend.jsonl` 2.85MB
+   - online（2026-05-14，round_robin preload 5000）：发送 5000 条 → `online.jsonl` 150KB
+3. **决策消费**：下一周期决策日志中 `result_action`/`traffic_vector`/`model_info_list` 由空数据全 0 变为真实值（如 `traffic_vector: [24, 32, 6, 5]`），证明 接收 → 分类 → 落盘 → 聚合 → DQN 决策全链路打通。
+4. **回归**：全量测试 93 项通过（含回放客户端 3 项）。
+

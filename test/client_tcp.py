@@ -228,6 +228,8 @@ class MultilineJSONParser:
         logger.info(f"  无效对象: {self.stats['invalid_objects']}")
         logger.info(f"  解析错误: {self.stats['parse_errors']}")
 
+
+
 class EnhancedDataSender:
     """增强的数据发送器，支持跨行JSON"""
     
@@ -239,59 +241,61 @@ class EnhancedDataSender:
         self.parallel_enabled = True
         self.max_workers = 8
         self.use_threading = True
-        
+        data1='2026-06-29'
+        Send_time = 1782662541598//1000+3600*6+60*30
         # 数据类型配置
+        sudu=0.1
         self.data_configs = {
             'flow': {
                 'enabled': True,
-                'file_path': '2026-02-09_flow.txt',
+                'file_path': "D:\\桌面\\Data_ANS\Data_ANS\\Flow_data\\" +data1 + '_flow.txt',
                 'timestamp_field': 'ts',
                 'send_mode': 'timed',
-                'send_interval': 1.0,
+                'send_interval': sudu,
                 'duration_sec': 3600,
-                'start_timestamp':  1770627600,
+                'start_timestamp':  Send_time,
             },
             'queue': {
                 'enabled': False,
-                'file_path': 'carqueue.txt',
-                'timestamp_field': 'start_time',
+                'file_path': 'over_flow.txt',
+                'timestamp_field': 'ts',
                 'send_mode': 'timed',
-                'send_interval': 1.0,
+                'send_interval': 1,
                 'duration_sec': 3600,
-                'start_timestamp': 1770627600,
+                'start_timestamp': 1764137866,
             },
             'stage': {
-                'enabled': True,
-                'file_path': '2026-02-09_stage.txt',
+                'enabled':  False,
+                'file_path': '2025-09-09_stage.txt',
                 'timestamp_field': 'time',
                 'send_mode': 'timed',
-                'send_interval': 1.0,
+                'send_interval': 1,
                 'duration_sec': 3600,
-                'start_timestamp': 1770627600,
+                'start_timestamp': Send_time,
             },
             'online': {
-                'enabled': True,
-                'file_path': '2026-02-09_online.txt',
+                'enabled':False,
+                'file_path': "D:\\桌面\\Data_ANS\Data_ANS\\online_data\\" +data1 + '_online.txt',
                 'id_field': 'rid',
                 'send_mode': 'round_robin',
-                'send_interval': 5.0,
+                'send_interval': 10,
                 'max_preload_records': 15000,
             },
             'extend': {
-                'enabled': True,
-                'file_path': '2026-02-09_extend.txt',
+                'enabled':  True,
+                'file_path': "D:\\桌面\\Data_ANS\Data_ANS\\Extend_data\\" +data1 + '_extend.txt',
                 'timestamp_field': 'time',
                 'send_mode': 'timed',
-                'send_interval': 1.0,
+                'send_interval': sudu,
                 'duration_sec': 3600,
-                'start_timestamp': 1770627600,
+                'start_timestamp': Send_time,
             },
             'radar': {
                 'enabled': False,
-                'file_path': 'radar.2025-08-22.log',
-                'id_field': 'deviceId',
+                'file_path': 'over_flow.txt',
+                'id_field': 'jtll_ddbh',
                 'send_mode': 'round_robin',
-                'send_interval': 2.0,
+                'send_interval': 1,
                 'max_preload_records': 2000,
                 'use_regex_parser': False,
             }
@@ -329,7 +333,7 @@ class EnhancedDataSender:
                 config['send_interval'] = args.interval
             if args.duration:
                 config['duration_sec'] = args.duration
-            if args.start_timestamp is not None:
+            if args.start_timestamp:
                 config['start_timestamp'] = args.start_timestamp
             if args.max_preload:
                 config['max_preload_records'] = args.max_preload
@@ -516,28 +520,25 @@ class EnhancedSingleSender:
                 self.socket.close()
     
     def _run_timed_enhanced(self, interval):
-        """增强的时间模式运行"""
+        """增强的时间模式运行：在窗口内只发送实际存在的时间点，发完即止。"""
         if not self.time_to_data_map:
             return
-            
+
         start_time = min(self.time_to_data_map.keys())
-        configured_end_time = start_time + self.config['duration_sec']
-        last_data_time = max(self.time_to_data_map.keys())
-        end_time = min(configured_end_time, last_data_time)
-        
-        current_time = start_time
-        while current_time <= end_time:
+        end_time = start_time + self.config['duration_sec']
+
+        for current_time in sorted(self.time_to_data_map.keys()):
+            if current_time > end_time:
+                break
             data_to_send = self.time_to_data_map.get(current_time, [])
-            
-            if data_to_send:
-                if self.send_fast(data_to_send):
-                    logger.info(f"[{self.data_type}] 发送 {current_time}s: {len(data_to_send)} 条")
-                else:
-                    if self.connect_fast():
-                        self.send_fast(data_to_send)
-            
+            if not data_to_send:
+                continue
+            if self.send_fast(data_to_send):
+                logger.info(f"[{self.data_type}] 发送 {current_time}s: {len(data_to_send)} 条")
+            else:
+                if self.connect_fast():
+                    self.send_fast(data_to_send)
             time.sleep(interval)
-            current_time += 1
     
     def _run_round_robin_enhanced(self, interval):
         """增强的轮询模式运行"""
@@ -593,7 +594,7 @@ def create_parser():
     parser.add_argument('--interval', type=float, help='发送间隔(秒)')
     parser.add_argument('--duration', type=int, help='发送时长(秒)')
     parser.add_argument('--start-timestamp', type=int,
-                        help='定时回放起始 Unix 时间戳(秒)')
+                        help='起始时间戳(秒)，用于定位数据回放起点')
     parser.add_argument('--max-preload', type=int, help='最大预读取数')
     
     parser.add_argument('--verbose', '-v', action='store_true', help='详细输出')
