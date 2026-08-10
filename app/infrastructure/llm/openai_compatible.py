@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import json
+import time
 from typing import Any, Mapping, Sequence
 from urllib import error, request
 
@@ -22,6 +23,18 @@ class ChatCompletionResult:
     raw: Mapping[str, Any] = field(default_factory=dict)
 
 
+class LLMServiceError(RuntimeError):
+    """LLM 服务调用失败，携带可选的 HTTP 状态码（网络错误为 None）。"""
+
+    def __init__(self, message: str, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+
+
+# 可重试的 HTTP 状态码：限流与服务端临时错误
+_RETRYABLE_HTTP_CODES = {429, 500, 502, 503, 504}
+
+
 class OpenAICompatibleLLMClient:
     """Small dependency-free client for OpenAI-compatible model services."""
 
@@ -33,6 +46,7 @@ class OpenAICompatibleLLMClient:
         timeout_seconds: float = 60,
         default_max_tokens: int = 1024,
         enable_thinking: bool = False,
+        max_retries: int = 2,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
@@ -40,6 +54,7 @@ class OpenAICompatibleLLMClient:
         self.timeout_seconds = timeout_seconds
         self.default_max_tokens = default_max_tokens
         self.enable_thinking = enable_thinking
+        self.max_retries = max_retries
 
     def chat(
         self,
@@ -48,7 +63,9 @@ class OpenAICompatibleLLMClient:
         top_p: float = 0.8,
         max_tokens: int | None = None,
         extra_body: Mapping[str, Any] | None = None,
+        max_retries: int | None = None,
     ) -> ChatCompletionResult:
+        """发送对话请求；对限流/服务端错误/网络错误做退避重试。"""
         payload: dict[str, Any] = {
             "model": self.model,
             "messages": [dict(message) for message in messages],
@@ -61,7 +78,18 @@ class OpenAICompatibleLLMClient:
         if extra_body:
             payload.setdefault("extra_body", {}).update(dict(extra_body))
 
-        response = self._post_json("/chat/completions", payload)
+        retries = self.max_retries if max_retries is None else max_retries
+        attempt = 0
+        while True:
+            try:
+                response = self._post_json("/chat/completions", payload)
+                break
+            except LLMServiceError as exc:
+                if attempt >= retries or not self._is_retryable(exc.status_code):
+                    raise
+                attempt += 1
+                time.sleep(0.5 * (2 ** (attempt - 1)))
+
         choices = response.get("choices") or []
         if not choices:
             raise RuntimeError("LLM response does not contain choices")
@@ -101,9 +129,19 @@ class OpenAICompatibleLLMClient:
                 return json.loads(response.read().decode("utf-8"))
         except error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
-            raise RuntimeError(f"LLM service returned HTTP {exc.code}: {detail}") from exc
+            raise LLMServiceError(
+                f"LLM service returned HTTP {exc.code}: {detail}",
+                status_code=exc.code,
+            ) from exc
         except error.URLError as exc:
-            raise RuntimeError(f"LLM service is unavailable: {exc.reason}") from exc
+            raise LLMServiceError(f"LLM service is unavailable: {exc.reason}") from exc
+
+    @staticmethod
+    def _is_retryable(status_code: int | None) -> bool:
+        """网络错误（无状态码）与限流/服务端临时错误可重试，其余不重试。"""
+        if status_code is None:
+            return True
+        return status_code in _RETRYABLE_HTTP_CODES
 
     def _headers(self) -> dict[str, str]:
         return {

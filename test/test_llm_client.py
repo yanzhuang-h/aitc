@@ -1,8 +1,10 @@
 import json
 import unittest
 from unittest.mock import patch
+from urllib.error import HTTPError, URLError
 
 from app.infrastructure.llm import OpenAICompatibleLLMClient
+from app.infrastructure.llm.openai_compatible import LLMServiceError
 
 
 class _Response:
@@ -17,6 +19,15 @@ class _Response:
 
     def read(self):
         return json.dumps(self.payload).encode("utf-8")
+
+
+class _ErrorBody:
+    def read(self):
+        return b'{"error": "boom"}'
+
+
+def _http_error(code):
+    return HTTPError("http://localhost:8000", code, "error", {}, _ErrorBody())
 
 
 class OpenAICompatibleLLMClientTest(unittest.TestCase):
@@ -56,6 +67,66 @@ class OpenAICompatibleLLMClientTest(unittest.TestCase):
         self.assertEqual(captured["payload"]["extra_body"]["enable_thinking"], True)
         self.assertEqual(result.content, "ok")
         self.assertEqual(result.reasoning_content, "thinking")
+
+    def test_retries_on_rate_limit_then_succeeds(self):
+        calls = []
+
+        def fake_urlopen(req, timeout):
+            calls.append(1)
+            if len(calls) == 1:
+                raise _http_error(429)
+            return _Response({"choices": [{"message": {"content": "ok"}}]})
+
+        client = OpenAICompatibleLLMClient(base_url="http://localhost:8000/v1", max_retries=2)
+        with patch("app.infrastructure.llm.openai_compatible.request.urlopen", fake_urlopen), \
+             patch("app.infrastructure.llm.openai_compatible.time.sleep"):
+            result = client.chat([{"role": "user", "content": "hi"}])
+        self.assertEqual(result.content, "ok")
+        self.assertEqual(len(calls), 2)
+
+    def test_retries_on_network_error_then_succeeds(self):
+        calls = []
+
+        def fake_urlopen(req, timeout):
+            calls.append(1)
+            if len(calls) == 1:
+                raise URLError("connection refused")
+            return _Response({"choices": [{"message": {"content": "ok"}}]})
+
+        client = OpenAICompatibleLLMClient(base_url="http://localhost:8000/v1", max_retries=2)
+        with patch("app.infrastructure.llm.openai_compatible.request.urlopen", fake_urlopen), \
+             patch("app.infrastructure.llm.openai_compatible.time.sleep"):
+            result = client.chat([{"role": "user", "content": "hi"}])
+        self.assertEqual(result.content, "ok")
+        self.assertEqual(len(calls), 2)
+
+    def test_does_not_retry_on_client_error(self):
+        calls = []
+
+        def fake_urlopen(req, timeout):
+            calls.append(1)
+            raise _http_error(400)
+
+        client = OpenAICompatibleLLMClient(base_url="http://localhost:8000/v1", max_retries=2)
+        with patch("app.infrastructure.llm.openai_compatible.request.urlopen", fake_urlopen), \
+             patch("app.infrastructure.llm.openai_compatible.time.sleep"):
+            with self.assertRaises(LLMServiceError):
+                client.chat([{"role": "user", "content": "hi"}])
+        self.assertEqual(len(calls), 1)
+
+    def test_zero_retries_does_not_retry_and_keeps_status_code(self):
+        calls = []
+
+        def fake_urlopen(req, timeout):
+            calls.append(1)
+            raise _http_error(503)
+
+        client = OpenAICompatibleLLMClient(base_url="http://localhost:8000/v1", max_retries=0)
+        with patch("app.infrastructure.llm.openai_compatible.request.urlopen", fake_urlopen):
+            with self.assertRaises(LLMServiceError) as ctx:
+                client.chat([{"role": "user", "content": "hi"}])
+        self.assertEqual(ctx.exception.status_code, 503)
+        self.assertEqual(len(calls), 1)
 
 
 if __name__ == "__main__":
