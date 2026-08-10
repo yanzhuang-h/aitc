@@ -5,6 +5,7 @@ import socket
 import json
 import time
 import collections
+import itertools
 import threading
 import argparse
 import sys
@@ -241,18 +242,19 @@ class EnhancedDataSender:
         self.parallel_enabled = True
         self.max_workers = 8
         self.use_threading = True
-        data1='2026-06-29'
-        Send_time = 1782662541598//1000+3600*6+60*30
-        # 数据类型配置
+        data1='2026-07-29'
+        Send_time = 1785255292
+        # 数据类型配置（真实数据位于 test/flow_data、test/extend_data、test/online_data，请在项目根目录运行）
+        # 默认快速冒烟规模：只回放少量数据验证链路畅通；要全量回放可用 --duration 300 --max-preload 5000 覆盖
         sudu=0.1
         self.data_configs = {
             'flow': {
                 'enabled': True,
-                'file_path': "D:\\桌面\\Data_ANS\Data_ANS\\Flow_data\\" +data1 + '_flow.txt',
+                'file_path': "test/flow_data/" + data1 + '_flow.txt',
                 'timestamp_field': 'ts',
                 'send_mode': 'timed',
                 'send_interval': sudu,
-                'duration_sec': 3600,
+                'duration_sec': 60,
                 'start_timestamp':  Send_time,
             },
             'queue': {
@@ -274,20 +276,20 @@ class EnhancedDataSender:
                 'start_timestamp': Send_time,
             },
             'online': {
-                'enabled':False,
-                'file_path': "D:\\桌面\\Data_ANS\Data_ANS\\online_data\\" +data1 + '_online.txt',
+                'enabled':True,
+                'file_path': "test/online_data/2026-05-14_online.txt",
                 'id_field': 'rid',
                 'send_mode': 'round_robin',
-                'send_interval': 10,
-                'max_preload_records': 15000,
+                'send_interval': sudu,
+                'max_preload_records': 500,
             },
             'extend': {
                 'enabled':  True,
-                'file_path': "D:\\桌面\\Data_ANS\Data_ANS\\Extend_data\\" +data1 + '_extend.txt',
+                'file_path': "test/extend_data/" + data1 + '_extend.txt',
                 'timestamp_field': 'time',
                 'send_mode': 'timed',
                 'send_interval': sudu,
-                'duration_sec': 3600,
+                'duration_sec': 60,
                 'start_timestamp': Send_time,
             },
             'radar': {
@@ -372,9 +374,16 @@ class EnhancedSingleSender:
             return
         
         try:
-            # 读取整个文件内容
-            with open(filename, 'r', encoding='utf-8') as file:
-                content = file.read()
+            if send_mode == 'round_robin' and self.config.get('max_preload_records'):
+                # 轮询模式快速验证：只读文件头部若干行（够 preload 即可），避免解析超大文件
+                max_records = self.config.get('max_preload_records', 50000)
+                head_lines = max_records * 3  # 留冗余覆盖无效/跨行记录
+                with open(filename, 'r', encoding='utf-8') as file:
+                    content = ''.join(itertools.islice(file, head_lines))
+            else:
+                # 读取整个文件内容
+                with open(filename, 'r', encoding='utf-8') as file:
+                    content = file.read()
             
             # 使用多行JSON解析器
             parser = MultilineJSONParser(self.data_type)
