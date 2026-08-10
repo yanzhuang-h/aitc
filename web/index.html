@@ -118,6 +118,69 @@
     }
     .status-ok { color: var(--success); }
     .status-error { color: var(--danger); }
+
+    /* 标签与分步流程展示 */
+    .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+    .tab-btn {
+      flex: 0 0 auto;
+      width: auto;
+      min-width: 140px;
+      background: var(--panel);
+      color: var(--muted);
+      border: 1px solid var(--border);
+      font-weight: 600;
+    }
+    .tab-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .steps { display: flex; flex-direction: column; gap: 12px; }
+    .step-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent);
+      border-radius: 8px;
+      padding: 14px 16px;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity .4s ease, transform .4s ease;
+    }
+    .step-card.visible { opacity: 1; transform: translateY(0); }
+    .step-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .step-no {
+      flex: 0 0 auto;
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .step-title { font-weight: 700; font-size: 15px; }
+    .thought {
+      background: #f3f6ff;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 13px;
+      line-height: 1.7;
+      margin-bottom: 8px;
+    }
+    .thought::before { content: "🤖 思考"; display: block; font-size: 12px; color: var(--accent); margin-bottom: 4px; }
+    details.step-data { font-size: 12px; }
+    details.step-data summary { cursor: pointer; color: var(--muted); user-select: none; }
+    pre.json {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px;
+      overflow: auto;
+      max-height: 320px;
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .empty { color: var(--muted); text-align: center; padding: 40px 0; }
+
     @media (max-width: 900px) {
       .grid { grid-template-columns: 1fr; }
     }
@@ -133,7 +196,12 @@
       <div class="badge">Qwen Agent</div>
     </div>
 
-    <div class="grid">
+    <div class="tabs">
+      <button class="tab-btn active" id="tabSimple" data-tab="simple">路口方案</button>
+      <button class="tab-btn" id="tabProcess" data-tab="process">放行控制流程</button>
+    </div>
+
+    <div class="grid" id="viewSimple">
       <div class="panel">
         <div class="field">
           <label for="crossId">路口编号</label>
@@ -159,42 +227,88 @@
         <div class="answer" id="answerBox">请在左侧输入路口编号并点击“获取方案”。</div>
       </div>
     </div>
+
+    <!-- 分步放行控制流程 -->
+    <div class="grid" id="viewProcess" style="display:none">
+      <div class="panel">
+        <div class="field">
+          <label for="pcCrossId">路口编号</label>
+          <input id="pcCrossId" value="1300068" placeholder="例如 1300068">
+        </div>
+        <div class="field">
+          <label for="pcRequestText">需求描述（可选）</label>
+          <textarea id="pcRequestText" placeholder="例如：请为这个路口生成一次放行控制方案。">请为这个路口生成一次放行控制方案。</textarea>
+        </div>
+        <div class="field">
+          <button id="pcBtn">开始流程</button>
+        </div>
+        <div class="hint">
+          后端按 10 个步骤逐步执行（规则函数判断 + 大模型逐步思考），
+          前端按步逐条展示，模拟 Agent 决策过程。
+        </div>
+      </div>
+      <div class="panel">
+        <div class="meta" id="pcMeta">
+          <span class="badge">待查询</span>
+          <span>请求未发出</span>
+        </div>
+        <div class="steps" id="pcSteps">
+          <div class="empty">输入路口编号并点击“开始流程”，将逐步展示放行控制决策过程。</div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
-    const crossId = document.getElementById('crossId');
-    const requestText = document.getElementById('requestText');
-    const queryBtn = document.getElementById('queryBtn');
-    const answerBox = document.getElementById('answerBox');
-    const metaLine = document.getElementById('metaLine');
+    const $ = (id) => document.getElementById(id);
 
-    function renderMeta(status, message) {
-      metaLine.innerHTML = '';
+    // 标签切换
+    const tabSimple = $('tabSimple');
+    const tabProcess = $('tabProcess');
+    function switchTab(name) {
+      tabSimple.classList.toggle('active', name === 'simple');
+      tabProcess.classList.toggle('active', name === 'process');
+      $('viewSimple').style.display = name === 'simple' ? '' : 'none';
+      $('viewProcess').style.display = name === 'process' ? '' : 'none';
+    }
+    tabSimple.addEventListener('click', () => switchTab('simple'));
+    tabProcess.addEventListener('click', () => switchTab('process'));
+
+    // 通用状态栏
+    function renderMeta(container, status, message) {
+      container.innerHTML = '';
       const badge = document.createElement('span');
       badge.className = 'badge ' + (status === 'error' ? 'status-error' : 'status-ok');
       badge.textContent = status === 'error' ? '失败' : '完成';
       const text = document.createElement('span');
       text.textContent = message;
-      metaLine.appendChild(badge);
-      metaLine.appendChild(text);
+      container.appendChild(badge);
+      container.appendChild(text);
     }
+
+    // ---------- 简单方案 ----------
+    const crossId = $('crossId');
+    const requestText = $('requestText');
+    const queryBtn = $('queryBtn');
+    const answerBox = $('answerBox');
+    const metaLine = $('metaLine');
 
     queryBtn.addEventListener('click', async () => {
       const value = crossId.value.trim();
       const request = requestText.value.trim();
       if (!value) {
-        renderMeta('error', '请输入路口编号');
+        renderMeta(metaLine, 'error', '请输入路口编号');
         answerBox.textContent = 'cross_id 不能为空。';
         return;
       }
       if (!request) {
-        renderMeta('error', '请输入需求描述');
+        renderMeta(metaLine, 'error', '请输入需求描述');
         answerBox.textContent = 'request_text 不能为空。';
         return;
       }
 
       queryBtn.disabled = true;
-      renderMeta('ok', '正在请求 Qwen 编排方案');
+      renderMeta(metaLine, 'ok', '正在请求 Qwen 编排方案');
       answerBox.textContent = '请求中...';
       try {
         const response = await fetch('/api/agent/signal-timing', {
@@ -204,19 +318,101 @@
         });
         const payload = await response.json();
         if (!response.ok) {
-          renderMeta('error', payload.error || '请求失败');
+          renderMeta(metaLine, 'error', payload.error || '请求失败');
           answerBox.textContent = payload.error || '请求失败。';
           return;
         }
 
         const agentResult = payload.result || {};
-        renderMeta('ok', `路口 ${payload.cross_id} 已生成方案`);
+        renderMeta(metaLine, 'ok', `路口 ${payload.cross_id} 已生成方案`);
         answerBox.textContent = agentResult.summary || agentResult.data?.answer || '已生成方案。';
       } catch (error) {
-        renderMeta('error', '网络请求失败');
+        renderMeta(metaLine, 'error', '网络请求失败');
         answerBox.textContent = String(error);
       } finally {
         queryBtn.disabled = false;
+      }
+    });
+
+    // ---------- 分步放行控制流程 ----------
+    const pcBtn = $('pcBtn');
+    const pcMeta = $('pcMeta');
+    const pcSteps = $('pcSteps');
+
+    function appendStep(step, index) {
+      const card = document.createElement('div');
+      card.className = 'step-card';
+
+      const head = document.createElement('div');
+      head.className = 'step-head';
+      const no = document.createElement('span');
+      no.className = 'step-no';
+      no.textContent = String(index);
+      const title = document.createElement('span');
+      title.className = 'step-title';
+      title.textContent = step.title;
+      head.appendChild(no);
+      head.appendChild(title);
+      card.appendChild(head);
+
+      const thought = document.createElement('div');
+      thought.className = 'thought';
+      thought.textContent = step.llm_thought || '';
+      card.appendChild(thought);
+
+      const details = document.createElement('details');
+      details.className = 'step-data';
+      const summary = document.createElement('summary');
+      summary.textContent = '查看规则结果';
+      const pre = document.createElement('pre');
+      pre.className = 'json';
+      pre.textContent = JSON.stringify(step.data, null, 2);
+      details.appendChild(summary);
+      details.appendChild(pre);
+      card.appendChild(details);
+
+      pcSteps.appendChild(card);
+      requestAnimationFrame(() => card.classList.add('visible'));
+    }
+
+    pcBtn.addEventListener('click', async () => {
+      const value = $('pcCrossId').value.trim();
+      const request = $('pcRequestText').value.trim();
+      if (!value) {
+        renderMeta(pcMeta, 'error', '请输入路口编号');
+        return;
+      }
+
+      pcBtn.disabled = true;
+      pcSteps.innerHTML = '';
+      renderMeta(pcMeta, 'ok', '正在执行放行控制流程（逐步思考中）');
+      try {
+        const response = await fetch('/api/agent/control-process', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cross_id: value, request_text: request })
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          renderMeta(pcMeta, 'error', payload.error || '请求失败');
+          pcSteps.innerHTML = '<div class="empty">' + (payload.error || '请求失败。') + '</div>';
+          return;
+        }
+        const result = payload.result || {};
+        const steps = result.data?.steps || [];
+        const source = result.data?.data_source === 'data_hub' ? '数据底座' : '默认模拟数据';
+        renderMeta(pcMeta, 'ok', `路口 ${payload.cross_id} · 流程 ${steps.length} 步 · 数据来源：${source}`);
+        pcSteps.innerHTML = '';
+        for (let i = 0; i < steps.length; i++) {
+          appendStep(steps[i], i + 1);
+          await new Promise((resolve) => setTimeout(resolve, 600));
+          pcSteps.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      } catch (error) {
+        renderMeta(pcMeta, 'error', '网络请求失败');
+        pcSteps.innerHTML = '<div class="empty">' + String(error) + '</div>';
+      } finally {
+        pcBtn.disabled = false;
       }
     });
   </script>

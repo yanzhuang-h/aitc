@@ -37,6 +37,7 @@ logs_data/
 **/logs_data/
 infra/data/runtime/
 *.log
+server.log.*
 *.tmp
 *.bak
 

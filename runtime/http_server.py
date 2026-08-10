@@ -43,6 +43,7 @@ class HttpRuntimeServer:
         query_service: Any,
         signal_timing_tool: Any | None = None,
         qwen_agent: Any | None = None,
+        control_process_agent: Any | None = None,
         logger: Any | None = None,
     ) -> None:
         self.host = host
@@ -52,6 +53,7 @@ class HttpRuntimeServer:
         self.query_service = query_service
         self.signal_timing_tool = signal_timing_tool
         self.qwen_agent = qwen_agent
+        self.control_process_agent = control_process_agent
         self.logger = logger
         self._stop_event = threading.Event()
         self._server: HTTPServer | None = None
@@ -132,6 +134,9 @@ class HttpRuntimeServer:
                 if path == "/api/agent/signal-timing":
                     self._handle_qwen_signal_timing(body)
                     return
+                if path == "/api/agent/control-process":
+                    self._handle_control_process(body)
+                    return
                 if path.startswith(("/road_info", "/cross_info")) and self._try_handle_config("POST", body):
                     return
                 if not isinstance(body, (dict, list)):
@@ -161,6 +166,9 @@ class HttpRuntimeServer:
                     return
                 if path == "/api/agent/signal-timing":
                     self._send_json(405, {"error": "Use POST for agent signal timing requests"})
+                    return
+                if path == "/api/agent/control-process":
+                    self._send_json(405, {"error": "Use POST for control process requests"})
                     return
                 if path.startswith(("/road_info", "/cross_info")) and self._try_handle_config("GET", None):
                     return
@@ -192,6 +200,21 @@ class HttpRuntimeServer:
                     return
                 except Exception:
                     runtime_server._error("Error generating Qwen signal timing", exc_info=True)
+                    self._send_json(500, {"error": "internal server error"})
+                    return
+                self._send_json(200, payload)
+
+            def _handle_control_process(self, body: Any) -> None:
+                if not isinstance(body, dict):
+                    self._send_json(400, {"error": "Request body must be an object"})
+                    return
+                try:
+                    payload = runtime_server._generate_control_process(body)
+                except ValueError as error:
+                    self._send_json(400, {"error": str(error)})
+                    return
+                except Exception:
+                    runtime_server._error("Error generating control process", exc_info=True)
                     self._send_json(500, {"error": "internal server error"})
                     return
                 self._send_json(200, payload)
@@ -294,6 +317,18 @@ class HttpRuntimeServer:
         if not isinstance(cross_id, str) or not cross_id.strip():
             raise ValueError("cross_id must be a non-empty string")
         payload = self.qwen_agent.run({"request_text": request_text.strip(), "cross_id": cross_id.strip()})
+        return {"status": "success", "cross_id": cross_id.strip(), "result": payload}
+
+    def _generate_control_process(self, body: dict[str, Any]) -> dict[str, Any]:
+        if self.control_process_agent is None:
+            raise RuntimeError("control process agent is not configured")
+        cross_id = body.get("cross_id")
+        if not isinstance(cross_id, str) or not cross_id.strip():
+            raise ValueError("cross_id must be a non-empty string")
+        payload = self.control_process_agent.run({
+            "cross_id": cross_id.strip(),
+            "request_text": body.get("request_text"),
+        })
         return {"status": "success", "cross_id": cross_id.strip(), "result": payload}
 
     @staticmethod

@@ -43,9 +43,26 @@ class _QwenAgent:
         return {"summary": "ok", "data": request}
 
 
+class _ControlProcessAgent:
+    def __init__(self):
+        self.calls = []
+
+    def run(self, request):
+        self.calls.append(request)
+        return {
+            "summary": "ok",
+            "data": {
+                "steps": [
+                    {"step": 1, "title": "任务与输入摘要", "llm_thought": "思考中", "data": {}}
+                ]
+            },
+        }
+
+
 class HttpRuntimeServerTest(unittest.TestCase):
     def setUp(self):
         self.ingestor = _Ingestor()
+        self.control_process_agent = _ControlProcessAgent()
         self.server = HttpRuntimeServer(
             host="127.0.0.1",
             port=0,
@@ -54,6 +71,7 @@ class HttpRuntimeServerTest(unittest.TestCase):
             query_service=_QueryService(),
             signal_timing_tool=_SignalTimingTool(),
             qwen_agent=_QwenAgent(),
+            control_process_agent=self.control_process_agent,
         )
         self.server.start()
 
@@ -110,6 +128,18 @@ class HttpRuntimeServerTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(payload["cross_id"], "1300068")
         self.assertEqual(payload["result"]["summary"], "ok")
+
+    def test_post_control_process_returns_steps(self):
+        status, payload = self._request(
+            "POST",
+            "/api/agent/control-process",
+            json.dumps({"cross_id": "1300068", "request_text": "生成一次放行控制方案"}),
+        )
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["cross_id"], "1300068")
+        self.assertEqual(payload["result"]["data"]["steps"][0]["title"], "任务与输入摘要")
+        self.assertEqual(self.control_process_agent.calls[0]["cross_id"], "1300068")
 
 
 if __name__ == "__main__":
