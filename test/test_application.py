@@ -17,6 +17,20 @@ class _Pipeline:
     def run_once(self): self.calls += 1
 
 
+class _LLMClient:
+    def __init__(self, ok=True):
+        self.ok = ok
+        self.base_url = "http://test-llm"
+        self.model = "test-model"
+        self.checked = 0
+
+    def list_models(self):
+        self.checked += 1
+        if not self.ok:
+            raise RuntimeError("LLM unavailable")
+        return {"data": []}
+
+
 class ApplicationTest(unittest.TestCase):
     def test_start_and_stop_manage_components(self):
         config, http, tcp, scheduler, pipeline = _Component(), _Component(), _Component(), _Component(), _Pipeline()
@@ -41,3 +55,26 @@ class ApplicationTest(unittest.TestCase):
         self.assertEqual(scheduler.calls, [])
         self.assertIn("broadcast", tcp.calls)
         self.assertIn("stop", tcp.calls)
+
+    def test_llm_ready_check_runs_on_start(self):
+        config, http, tcp, scheduler, pipeline = _Component(), _Component(), _Component(), _Component(), _Pipeline()
+        llm = _LLMClient(ok=True)
+        app = AITCApplication(config_sync_manager=config, http_server=http, tcp_server=tcp, decision_pipeline=pipeline, prediction_scheduler=scheduler, send_interval=0.01, llm_client=llm, llm_required=False)
+        app.start()
+        self.assertEqual(llm.checked, 1)
+        app.stop()
+
+    def test_llm_unavailable_warns_but_starts(self):
+        config, http, tcp, scheduler, pipeline = _Component(), _Component(), _Component(), _Component(), _Pipeline()
+        llm = _LLMClient(ok=False)
+        app = AITCApplication(config_sync_manager=config, http_server=http, tcp_server=tcp, decision_pipeline=pipeline, prediction_scheduler=scheduler, send_interval=0.01, llm_client=llm, llm_required=False)
+        app.start()  # 不抛错，仅降级
+        self.assertEqual(llm.checked, 1)
+        app.stop()
+
+    def test_llm_unavailable_required_blocks_start(self):
+        config, http, tcp, scheduler, pipeline = _Component(), _Component(), _Component(), _Component(), _Pipeline()
+        llm = _LLMClient(ok=False)
+        app = AITCApplication(config_sync_manager=config, http_server=http, tcp_server=tcp, decision_pipeline=pipeline, prediction_scheduler=scheduler, send_interval=0.01, llm_client=llm, llm_required=True)
+        with self.assertRaises(RuntimeError):
+            app.start()

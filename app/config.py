@@ -122,6 +122,7 @@ class RuntimeSettings:
     llm_timeout_seconds: float = 60
     llm_max_tokens: int = 1024
     llm_enable_thinking: bool = False
+    llm_required: bool = False
 
     @classmethod
     def from_environment(cls) -> "RuntimeSettings":
@@ -175,6 +176,7 @@ class RuntimeSettings:
             llm_timeout_seconds=_read_float("AITC_LLM_TIMEOUT_SECONDS", 60, "LLM_TIMEOUT_SECONDS"),
             llm_max_tokens=_read_int("AITC_LLM_MAX_TOKENS", 1024, "LLM_MAX_TOKENS"),
             llm_enable_thinking=_read_bool("AITC_LLM_ENABLE_THINKING", False, "LLM_ENABLE_THINKING"),
+            llm_required=_read_bool("AITC_LLM_REQUIRED", False, "LLM_REQUIRED"),
         )
 
     def validate(self) -> "RuntimeSettings":

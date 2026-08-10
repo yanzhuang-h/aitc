@@ -33,6 +33,7 @@
 | 请求超时 | `AITC_LLM_TIMEOUT_SECONDS` | `LLM_TIMEOUT_SECONDS` | `60` |
 | 最大生成 token | `AITC_LLM_MAX_TOKENS` | `LLM_MAX_TOKENS` | `1024` |
 | 思考模式 | `AITC_LLM_ENABLE_THINKING` | `LLM_ENABLE_THINKING` | `false` |
+| LLM 必需 | `AITC_LLM_REQUIRED` | `LLM_REQUIRED` | `false` |
 
 用法说明：
 
