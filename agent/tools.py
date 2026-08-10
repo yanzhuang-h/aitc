@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import copy
 from typing import Any, Mapping
 
+from agent.registry import ToolRegistry
 from app.core.models import ToolResponse
 from infra.data import MemoryQueryLayer
 
@@ -124,13 +124,11 @@ class DataQueryTools:
     def __init__(self, query_service: MemoryQueryLayer, signal_timing_tool: Any | None = None) -> None:
         self.query_service = query_service
         self.signal_timing_tool = signal_timing_tool
+        self.registry = ToolRegistry()
+        self._register_tools()
 
-    def tool_schemas(self) -> list[dict[str, Any]]:
-        """返回可交给 Qwen 或其他工具调用框架的工具定义。"""
-        return copy.deepcopy(self._TOOL_SCHEMAS)
-
-    def invoke(self, name: str, arguments: Mapping[str, Any] | None = None) -> dict[str, Any]:
-        """按工具名称调用，供模型工具调用适配层使用。"""
+    def _register_tools(self) -> None:
+        """把所有工具定义与处理函数注册进统一注册中心。"""
         handlers = {
             "query_recent_runtime_data": self.query_recent_runtime_data,
             "query_runtime_history": self.query_runtime_history,
@@ -140,11 +138,36 @@ class DataQueryTools:
             "query_experience_pool": self.query_experience_pool,
             "generate_single_intersection_signal_timing": self.generate_single_intersection_signal_timing,
         }
-        handler = handlers.get(name)
-        if handler is None:
+        actions = {
+            "query_recent_runtime_data": "runtime.recent",
+            "query_runtime_history": "runtime.history",
+            "query_latest_results": "results.latest",
+            "query_config_snapshot": "config.snapshot",
+            "generate_single_intersection_signal_timing": "signal.timing.single",
+        }
+        for spec in self._TOOL_SCHEMAS:
+            self.registry.register(
+                name=spec["name"],
+                description=spec["description"],
+                parameters=spec["parameters"],
+                handler=handlers[spec["name"]],
+                action=actions.get(spec["name"]),
+            )
+
+    def actions(self) -> dict[str, str]:
+        """返回符号路由动作名到工具名的映射。"""
+        return self.registry.actions()
+
+    def tool_schemas(self) -> list[dict[str, Any]]:
+        """返回可交给 Qwen 或其他工具调用框架的工具定义。"""
+        return self.registry.tool_schemas()
+
+    def invoke(self, name: str, arguments: Mapping[str, Any] | None = None) -> dict[str, Any]:
+        """按工具名称调用，供模型工具调用适配层使用。"""
+        if name not in self.registry:
             return self._error(f"unknown tool: {name}")
         try:
-            return handler(**dict(arguments or {}))
+            return self.registry.invoke(name, arguments)
         except (TypeError, ValueError, RuntimeError) as error:
             return self._error(str(error))
 

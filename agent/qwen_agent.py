@@ -27,13 +27,17 @@ class SymbolicDataAgent:
 
     def __init__(self, tools: DataQueryTools) -> None:
         self.tools = tools
+        # 优先使用统一注册中心维护的动作映射，未提供时回退到内置映射
+        self._action_to_tool = (
+            dict(tools.actions()) if hasattr(tools, "actions") else dict(self._ACTION_TO_TOOL)
+        )
 
     def run(self, request: Mapping[str, Any]) -> dict[str, Any]:
         action = request.get("action")
         if not isinstance(action, str):
             return self._error("action must be a string")
 
-        tool_name = self._ACTION_TO_TOOL.get(action)
+        tool_name = self._action_to_tool.get(action)
         if tool_name is None:
             return self._error(f"unsupported read-only action: {action}")
 
@@ -58,7 +62,7 @@ class SymbolicDataAgent:
                 "tool_name": tool_name,
                 "parameters": tool_schemas[tool_name]["parameters"],
             }
-            for action, tool_name in self._ACTION_TO_TOOL.items()
+            for action, tool_name in self._action_to_tool.items()
             if tool_name in tool_schemas
         ]
 
