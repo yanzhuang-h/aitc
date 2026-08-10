@@ -41,6 +41,7 @@ class HttpRuntimeServer:
         ingestor: Any,
         config_service: Any,
         query_service: Any,
+        agent_harness: Any | None = None,
         signal_timing_tool: Any | None = None,
         qwen_agent: Any | None = None,
         control_process_agent: Any | None = None,
@@ -51,10 +52,18 @@ class HttpRuntimeServer:
         self.ingestor = ingestor
         self.config_service = config_service
         self.query_service = query_service
-        self.signal_timing_tool = signal_timing_tool
-        self.qwen_agent = qwen_agent
-        self.control_process_agent = control_process_agent
         self.logger = logger
+        if agent_harness is None:
+            # 兼容旧调用：未显式提供 harness 时，用旧参数自动装配统一门面
+            from agent.harness import AgentHarness
+
+            agent_harness = AgentHarness(
+                signal_timing_tool=signal_timing_tool,
+                qwen_agent=qwen_agent,
+                control_process_agent=control_process_agent,
+                logger=logger,
+            )
+        self.agent_harness = agent_harness
         self._stop_event = threading.Event()
         self._server: HTTPServer | None = None
         self._thread: threading.Thread | None = None
@@ -293,43 +302,13 @@ class HttpRuntimeServer:
         return path.read_text(encoding="utf-8")
 
     def _generate_signal_timing(self, body: dict[str, Any]) -> dict[str, Any]:
-        if self.signal_timing_tool is None:
-            raise RuntimeError("signal timing tool is not configured")
-        cross_id = body.get("cross_id")
-        if not isinstance(cross_id, str) or not cross_id.strip():
-            raise ValueError("cross_id must be a non-empty string")
-        request_body = dict(body)
-        request_body.pop("cross_id", None)
-        result = self.signal_timing_tool.generate(cross_id=cross_id.strip(), **request_body)
-        return {
-            "status": "success",
-            "cross_id": cross_id.strip(),
-            "result": result,
-        }
+        return self.agent_harness.handle("signal_timing", body)
 
     def _generate_qwen_signal_timing(self, body: dict[str, Any]) -> dict[str, Any]:
-        if self.qwen_agent is None:
-            raise RuntimeError("qwen agent is not configured")
-        request_text = body.get("request_text")
-        cross_id = body.get("cross_id")
-        if not isinstance(request_text, str) or not request_text.strip():
-            raise ValueError("request_text must be a non-empty string")
-        if not isinstance(cross_id, str) or not cross_id.strip():
-            raise ValueError("cross_id must be a non-empty string")
-        payload = self.qwen_agent.run({"request_text": request_text.strip(), "cross_id": cross_id.strip()})
-        return {"status": "success", "cross_id": cross_id.strip(), "result": payload}
+        return self.agent_harness.handle("agent.signal_timing", body)
 
     def _generate_control_process(self, body: dict[str, Any]) -> dict[str, Any]:
-        if self.control_process_agent is None:
-            raise RuntimeError("control process agent is not configured")
-        cross_id = body.get("cross_id")
-        if not isinstance(cross_id, str) or not cross_id.strip():
-            raise ValueError("cross_id must be a non-empty string")
-        payload = self.control_process_agent.run({
-            "cross_id": cross_id.strip(),
-            "request_text": body.get("request_text"),
-        })
-        return {"status": "success", "cross_id": cross_id.strip(), "result": payload}
+        return self.agent_harness.handle("control_process", body)
 
     @staticmethod
     def _is_cross_origin_request(origin: str | None, host: str | None) -> bool:
