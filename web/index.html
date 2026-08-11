@@ -274,6 +274,17 @@
           <label for="apiCorridorId">走廊编号 corridor_id</label>
           <input id="apiCorridorId" value="lvbo_01" placeholder="例如 lvbo_01">
         </div>
+        <div class="field" id="apiParamCorridorObj" style="display:none">
+          <label for="apiCorridorObj">走廊配置 corridor (JSON)</label>
+          <textarea id="apiCorridorObj" style="min-height:220px" placeholder='走廊完整配置 JSON'>{"corridor_id":"lvbo_01","name":"测试路口绿波走廊","enabled":true,"cycle_seconds":90,"offset_step_seconds":3,"minimum_remaining_green_seconds":10,"simulation_target_elapsed_green_seconds":10,"cooldown_seconds":85,"intersections":[{"cross_id":"2705050","green_stage_index":0,"balance_stage_index":1,"default_red_seconds":15},{"cross_id":"1300370","green_stage_index":0,"balance_stage_index":1,"default_red_seconds":14}],"periods":[{"period_id":"morning","start_time":"07:30:00","end_time":"09:00:00","reference_cross_id":"1300248","intersection_order":["1300248","1300373","1300370","2705050"],"travel_seconds":{"1300248":0,"1300373":33,"1300370":72,"2705050":98}}],"road_junction":{},"topology":{}}</textarea>
+        </div>
+        <div class="field" id="apiParamEnabled" style="display:none">
+          <label for="apiEnabled">启用状态 enabled</label>
+          <select id="apiEnabled" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:#fff;">
+            <option value="true">true（启用）</option>
+            <option value="false">false（停用）</option>
+          </select>
+        </div>
         <div class="field" id="apiParamText" style="display:none">
           <label for="apiRequestText">需求描述 request_text</label>
           <textarea id="apiRequestText" placeholder="自然语言需求">请给出当前这个路口的放行方案。</textarea>
@@ -466,14 +477,26 @@
       { name: '单路口方案(直连DQN)', method: 'POST', path: '/api/signal-timing', params: ['cross'], bodyKeys: ['cross_id'] },
       { name: 'Qwen编排方案', method: 'POST', path: '/api/agent/signal-timing', params: ['cross', 'text'], bodyKeys: ['cross_id', 'request_text'] },
       { name: '分步放行控制', method: 'POST', path: '/api/agent/control-process', params: ['cross', 'text'], bodyKeys: ['cross_id', 'request_text'] },
+      { name: '绿波走廊-列表(摘要)', method: 'GET', path: '/green_wave', params: [] },
+      { name: '绿波走廊-列表(完整)', method: 'GET', path: '/green_wave?full=true', params: [] },
+      { name: '绿波走廊-查询单条', method: 'GET', path: '/green_wave/{corridor_id}', params: ['corridor'] },
+      { name: '绿波走廊-校验配置', method: 'POST', path: '/green_wave/validate', params: ['corridorObj'], bodyKeys: ['corridor'] },
+      { name: '绿波走廊-新增/更新', method: 'POST', path: '/green_wave/update', params: ['corridorObj'], bodyKeys: ['corridor'] },
+      { name: '绿波走廊-删除(停用)', method: 'POST', path: '/green_wave/delete', params: ['corridor'], bodyKeys: ['corridor_id'] },
+      { name: '绿波走廊-启用/停用', method: 'PATCH', path: '/green_wave/{corridor_id}/enabled', params: ['corridor', 'enabled'], bodyKeys: ['enabled'] },
+      { name: '绿波走廊-彻底删除', method: 'DELETE', path: '/green_wave/{corridor_id}', params: ['corridor'] },
     ];
 
     const apiSelect = $('apiSelect');
     const apiCrossId = $('apiCrossId');
     const apiCorridorId = $('apiCorridorId');
+    const apiCorridorObj = $('apiCorridorObj');
+    const apiEnabled = $('apiEnabled');
     const apiRequestText = $('apiRequestText');
     const apiParamCross = $('apiParamCross');
     const apiParamCorridor = $('apiParamCorridor');
+    const apiParamCorridorObj = $('apiParamCorridorObj');
+    const apiParamEnabled = $('apiParamEnabled');
     const apiParamText = $('apiParamText');
     const apiBtn = $('apiBtn');
     const apiMeta = $('apiMeta');
@@ -491,6 +514,8 @@
       const def = API_DEFS[Number(apiSelect.value)];
       apiParamCross.style.display = def.params.includes('cross') ? '' : 'none';
       apiParamCorridor.style.display = def.params.includes('corridor') ? '' : 'none';
+      apiParamCorridorObj.style.display = def.params.includes('corridorObj') ? '' : 'none';
+      apiParamEnabled.style.display = def.params.includes('enabled') ? '' : 'none';
       apiParamText.style.display = def.params.includes('text') ? '' : 'none';
       apiHint.textContent = '方法: ' + def.method + '   路径: ' + def.path;
     }
@@ -504,8 +529,16 @@
       const body = {};
       if (def.bodyKeys) {
         for (const key of def.bodyKeys) {
-          const value = key === 'cross_id' ? apiCrossId.value.trim() : apiRequestText.value.trim();
-          if (!value) {
+          let value;
+          if (key === 'cross_id') value = apiCrossId.value.trim();
+          else if (key === 'request_text') value = apiRequestText.value.trim();
+          else if (key === 'corridor_id') value = apiCorridorId.value.trim();
+          else if (key === 'enabled') value = apiEnabled.value === 'true';
+          else if (key === 'corridor') {
+            try { value = JSON.parse(apiCorridorObj.value.trim()); }
+            catch (e) { renderMeta(apiMeta, 'error', 'corridor 不是合法 JSON'); return; }
+          }
+          if (value === undefined || value === '' || value === null) {
             renderMeta(apiMeta, 'error', '缺少参数 ' + key);
             return;
           }
