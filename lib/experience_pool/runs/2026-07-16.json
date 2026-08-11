@@ -1,0 +1,1081 @@
+{
+  "schema_version": 1,
+  "source_date": "2026-07-16",
+  "triggered_at": "2026-08-02T14:32:08.878024+08:00",
+  "source_day_delay": 2,
+  "status": "completed_pool_updated_no_table_change",
+  "target_road_ids": [
+    "1300039",
+    "1300067",
+    "1300068",
+    "1300069",
+    "1300070",
+    "1300086",
+    "1300087",
+    "1300089",
+    "1300094",
+    "1300108",
+    "1300120",
+    "1300147",
+    "1300179",
+    "1300230",
+    "1300253",
+    "1300255",
+    "1300266",
+    "1300358",
+    "1300362",
+    "1300364",
+    "1700067",
+    "1700085",
+    "1700124",
+    "1700125",
+    "1700262",
+    "1700293"
+  ],
+  "pool_collection_road_ids": [
+    "1300039",
+    "1300067",
+    "1300068",
+    "1300069",
+    "1300070",
+    "1300086",
+    "1300087",
+    "1300089",
+    "1300094",
+    "1300108",
+    "1300120",
+    "1300147",
+    "1300179",
+    "1300230",
+    "1300253",
+    "1300255",
+    "1300266",
+    "1300358",
+    "1300362",
+    "1300364",
+    "1700067",
+    "1700085",
+    "1700124",
+    "1700125",
+    "1700262",
+    "1700293"
+  ],
+  "table_update_road_ids": [
+    "1300068",
+    "1300069",
+    "1300070",
+    "1700125"
+  ],
+  "observation_count": 7230,
+  "candidate_count": 655,
+  "minimum_sample_count": 30,
+  "selection_method": "densest_cluster_median",
+  "cluster_fraction": 0.5,
+  "pool_committed": true,
+  "table_updated": false,
+  "pool_summary": {
+    "candidate_samples_path": "E:\\AITC\\banben\\AITC_V2.63\\logs_data\\experience_pool\\daily\\2026-07-16\\near_capacity_candidates.json",
+    "full_pool_path": "E:\\AITC\\banben\\AITC_V2.63\\logs_data\\experience_pool\\experience_pool_full.json",
+    "old_table_path": "E:\\AITC\\banben\\AITC_V2.63\\lib\\new_wwx.json",
+    "effective_old_table_path": "E:\\AITC\\banben\\AITC_V2.63\\lib\\new_wwx.json",
+    "output_path": "E:\\AITC\\banben\\AITC_V2.63\\logs_data\\experience_pool\\rolling_experience_table.json",
+    "percentile": null,
+    "old_weight": 0.8,
+    "new_weight": 0.2,
+    "minimum_sample_count": 30,
+    "selection_method": "densest_cluster_median",
+    "cluster_fraction": 0.5,
+    "update_road_ids": [
+      "1300068",
+      "1300069",
+      "1300070",
+      "1700125"
+    ],
+    "authoritative_old_table": true,
+    "accumulation": {
+      "accepted_samples": 655,
+      "lane_records_added": 885,
+      "masked_lane_records": 5665,
+      "duplicate_samples": 0,
+      "invalid_direction": 0,
+      "invalid_green_time": 0,
+      "green_time_out_of_range": 0,
+      "invalid_flow_vector": 0
+    },
+    "blend": {
+      "changed_points": [],
+      "points_changed": 0
+    },
+    "days": {
+      "2026-07-16": {
+        "status": "pool_updated_threshold_not_met",
+        "expected_samples": 655,
+        "candidate_lane_cells": 449,
+        "update_allowed_lane_cells": 77,
+        "update_withheld_lane_cells": 372,
+        "accumulation": {
+          "accepted_samples": 655,
+          "lane_records_added": 885,
+          "masked_lane_records": 5665,
+          "duplicate_samples": 0,
+          "invalid_direction": 0,
+          "invalid_green_time": 0,
+          "green_time_out_of_range": 0,
+          "invalid_flow_vector": 0
+        },
+        "compression": {
+          "selection": "cumulative_near_capacity_lane_densest_cluster_median",
+          "selection_method": "densest_cluster_median",
+          "percentile": null,
+          "cluster_fraction": 0.5,
+          "minimum_sample_count": 30,
+          "updated_lane_cell_count": 77,
+          "summary": {
+            "insufficient_lane_cells": 77
+          },
+          "lane_cells": {
+            "1300068/L/51/3": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300068/L/52/3": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300068/L/62/2": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300068/L/63/3": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300068/L/66/3": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300068/L/85/3": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300068/R/51/3": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300068/R/57/3": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300068/R/63/2": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300068/R/66/3": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300068/U/43/1": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300068/U/46/2": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300068/U/53/1": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300068/U/53/2": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300068/U/54/2": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300069/D/64/3": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300069/D/66/3": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300069/D/68/3": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300069/DTL/42/1": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300069/L/41/3": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300069/L/41/4": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300069/L/41/5": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300069/L/59/3": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300069/L/59/4": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300069/L/67/3": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300069/U/63/3": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300069/U/66/3": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300069/U/67/4": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300069/UTL/36/1": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300069/UTL/37/1": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300069/UTL/43/1": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300069/UTL/44/1": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300069/UTL/45/1": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/DTL/50/1": {
+              "sample_count": 3,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/DTL/52/1": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/DTL/60/1": {
+              "sample_count": 2,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/L/48/3": {
+              "sample_count": 2,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/L/48/4": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/L/49/3": {
+              "sample_count": 4,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/L/49/4": {
+              "sample_count": 3,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/L/51/3": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/L/51/4": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/L/52/3": {
+              "sample_count": 6,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/L/52/4": {
+              "sample_count": 4,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/L/53/3": {
+              "sample_count": 5,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/L/53/4": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/LTL/36/1": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/LTL/37/1": {
+              "sample_count": 2,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/LTL/37/2": {
+              "sample_count": 3,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/LTL/41/1": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/LTL/42/1": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/LTL/43/1": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/LTL/47/1": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/LTL/47/2": {
+              "sample_count": 2,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/LTL/48/1": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/R/63/4": {
+              "sample_count": 2,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/R/64/3": {
+              "sample_count": 2,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/R/64/4": {
+              "sample_count": 5,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/R/65/4": {
+              "sample_count": 3,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/R/66/4": {
+              "sample_count": 2,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/R/67/4": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/RTL/51/2": {
+              "sample_count": 3,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/RTL/52/2": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/RTL/54/2": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/RTL/56/2": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/RTL/59/2": {
+              "sample_count": 4,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/U/68/3": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/UTL/60/1": {
+              "sample_count": 2,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/UTL/60/2": {
+              "sample_count": 5,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/UTL/63/1": {
+              "sample_count": 2,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/UTL/63/2": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/UTL/69/1": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1300070/UTL/71/1": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1700125/L/82/2": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1700125/L/82/3": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1700125/R/55/2": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            },
+            "1700125/R/82/2": {
+              "sample_count": 1,
+              "distinct_date_count": 1,
+              "dates": [
+                "2026-07-16"
+              ],
+              "minimum_sample_count": 30,
+              "selection_method": "densest_cluster_median",
+              "selected_value": null,
+              "selected_percentile_value": null,
+              "decision": "insufficient_cumulative_samples"
+            }
+          }
+        },
+        "blend": {
+          "old_weight": 0.8,
+          "new_weight": 0.2,
+          "changed_points": [],
+          "points_changed": 0
+        }
+      }
+    }
+  },
+  "release": null,
+  "artifacts": {
+    "observations": "E:\\AITC\\banben\\AITC_V2.63\\logs_data\\experience_pool\\daily\\2026-07-16\\observations.json",
+    "normalization_report": "E:\\AITC\\banben\\AITC_V2.63\\logs_data\\experience_pool\\daily\\2026-07-16\\normalization_report.json",
+    "candidates": "E:\\AITC\\banben\\AITC_V2.63\\logs_data\\experience_pool\\daily\\2026-07-16\\near_capacity_candidates.json",
+    "pool_report": "E:\\AITC\\banben\\AITC_V2.63\\logs_data\\experience_pool\\daily\\2026-07-16\\pool_update_report.json",
+    "full_pool": "E:\\AITC\\banben\\AITC_V2.63\\logs_data\\experience_pool\\experience_pool_full.json",
+    "rolling_table": "E:\\AITC\\banben\\AITC_V2.63\\logs_data\\experience_pool\\rolling_experience_table.json"
+  }
+}
