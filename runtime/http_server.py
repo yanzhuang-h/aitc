@@ -45,6 +45,7 @@ class HttpRuntimeServer:
         signal_timing_tool: Any | None = None,
         qwen_agent: Any | None = None,
         control_process_agent: Any | None = None,
+        green_wave_service: Any | None = None,
         logger: Any | None = None,
     ) -> None:
         self.host = host
@@ -52,6 +53,7 @@ class HttpRuntimeServer:
         self.ingestor = ingestor
         self.config_service = config_service
         self.query_service = query_service
+        self.green_wave_service = green_wave_service
         self.logger = logger
         if agent_harness is None:
             # 兼容旧调用：未显式提供 harness 时，用旧参数自动装配统一门面
@@ -169,6 +171,18 @@ class HttpRuntimeServer:
                     return
                 if path == "/health":
                     self._send_json(200, runtime_server._health_payload())
+                    return
+                if path == "/api/green-wave/status":
+                    self._send_json(200, runtime_server._green_wave_status())
+                    return
+                if path == "/api/green-wave/config":
+                    self._send_json(200, runtime_server._green_wave_config())
+                    return
+                if path == "/api/green-wave/plan":
+                    self._send_json(200, runtime_server._green_wave_plan())
+                    return
+                if path.startswith("/api/green-wave/config/"):
+                    self._send_json(200, runtime_server._green_wave_config(path.rsplit("/", 1)[-1]))
                     return
                 if path == "/api/signal-timing":
                     self._send_json(405, {"error": "Use POST for signal timing requests"})
@@ -309,6 +323,21 @@ class HttpRuntimeServer:
 
     def _generate_control_process(self, body: dict[str, Any]) -> dict[str, Any]:
         return self.agent_harness.handle("control_process", body)
+
+    def _green_wave_status(self) -> dict[str, Any]:
+        if self.green_wave_service is None:
+            raise RuntimeError("green wave service is not configured")
+        return self.green_wave_service.status()
+
+    def _green_wave_config(self, corridor_id: str | None = None) -> dict[str, Any]:
+        if self.green_wave_service is None:
+            raise RuntimeError("green wave service is not configured")
+        return self.green_wave_service.config(corridor_id)
+
+    def _green_wave_plan(self) -> dict[str, Any]:
+        if self.green_wave_service is None:
+            raise RuntimeError("green wave service is not configured")
+        return self.green_wave_service.plan()
 
     @staticmethod
     def _is_cross_origin_request(origin: str | None, host: str | None) -> bool:
