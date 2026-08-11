@@ -59,6 +59,67 @@ class GreenWaveDataService:
         except Exception as error:
             return self._error(f"读取绿波方案失败: {error}")
 
+    # ---- 走廊配置 CRUD（HTTP 层只负责接收，操作全部走 lib 现有函数）----
+
+    def list_corridors(self, full: bool = False) -> dict[str, Any]:
+        """走廊列表：full=false 返回摘要（编号/名称/启用），full=true 返回完整配置。"""
+        try:
+            result = green_wave_functions.list_green_wave_corridors({})
+            if full or result.get("status") != "success":
+                return result
+            result = dict(result)
+            result["items"] = [
+                {
+                    "corridor_id": item.get("corridor_id"),
+                    "name": item.get("name"),
+                    "enabled": item.get("enabled"),
+                }
+                for item in result.get("items", [])
+            ]
+            return result
+        except Exception as error:
+            return self._error(f"读取绿波走廊列表失败: {error}")
+
+    def get_corridor(self, corridor_id: str) -> dict[str, Any]:
+        """查询指定走廊完整配置。"""
+        try:
+            return green_wave_functions.get_green_wave_corridor_config(
+                {"corridor_id": corridor_id}
+            )
+        except Exception as error:
+            return self._error(f"查询绿波走廊失败: {error}")
+
+    def validate_corridor(self, corridor: dict[str, Any]) -> dict[str, Any]:
+        """只校验走廊配置，不保存。"""
+        try:
+            return green_wave_functions.save_green_wave_corridor_config(
+                {"dry_run": True, "corridor": corridor}
+            )
+        except Exception as error:
+            return self._error(f"校验绿波走廊失败: {error}")
+
+    def update_corridor(self, corridor: dict[str, Any]) -> dict[str, Any]:
+        """新增或更新走廊配置并保存。"""
+        try:
+            return green_wave_functions.save_green_wave_corridor_config(
+                {"dry_run": False, "corridor": corridor}
+            )
+        except Exception as error:
+            return self._error(f"保存绿波走廊失败: {error}")
+
+    def delete_corridor(self, corridor_id: str) -> dict[str, Any]:
+        """删除接口：当前无彻底删除函数，转成停用（配置保留，不再参与协调）。"""
+        return self.set_corridor_enabled(corridor_id, enabled=False)
+
+    def set_corridor_enabled(self, corridor_id: str, enabled: bool) -> dict[str, Any]:
+        """启用或停用一条走廊。"""
+        try:
+            return green_wave_functions.set_green_wave_corridor_enabled(
+                {"corridor_id": corridor_id, "enabled": enabled}
+            )
+        except Exception as error:
+            return self._error(f"更新绿波走廊状态失败: {error}")
+
     @staticmethod
     def _error(message: str) -> dict[str, Any]:
         return {"status": "error", "saved": False, "reason": message}

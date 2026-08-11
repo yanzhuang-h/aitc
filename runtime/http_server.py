@@ -148,6 +148,15 @@ class HttpRuntimeServer:
                 if path == "/api/agent/control-process":
                     self._handle_control_process(body)
                     return
+                if path == "/green_wave/validate":
+                    self._handle_green_wave_post("validate", body)
+                    return
+                if path == "/green_wave/update":
+                    self._handle_green_wave_post("update", body)
+                    return
+                if path == "/green_wave/delete":
+                    self._handle_green_wave_post("delete", body)
+                    return
                 if path.startswith(("/road_info", "/cross_info")) and self._try_handle_config("POST", body):
                     return
                 if not isinstance(body, (dict, list)):
@@ -161,6 +170,32 @@ class HttpRuntimeServer:
                     self._send_json(500, {"error": "internal server error"})
                     return
                 self._send_json(200, {"status": "success", "message": "Radar data received"})
+
+            def do_PATCH(self):
+                if self._reject_cross_origin_request():
+                    return
+                path = urlparse(self.path).path
+                body = self._read_json_body()
+                if body is None:
+                    return
+                if path.startswith("/green_wave/") and path.endswith("/enabled"):
+                    segment = path[len("/green_wave/"):-len("/enabled")]
+                    self._handle_green_wave_patch(segment, body)
+                    return
+                self._send_json(404, {"error": "not found"})
+
+            def do_DELETE(self):
+                if self._reject_cross_origin_request():
+                    return
+                path = urlparse(self.path).path
+                if path.startswith("/green_wave/"):
+                    segment = path[len("/green_wave/"):]
+                    if segment in ("validate", "update", "delete"):
+                        self._send_json(405, {"error": f"Method DELETE not allowed for /green_wave/{segment}"})
+                        return
+                    self._send_json(501, {"error": "彻底删除暂未实现：请改用 POST /green_wave/delete 停用，或由 lib 新增删除函数"})
+                    return
+                self._send_json(404, {"error": "not found"})
 
             def do_GET(self):
                 if self._reject_cross_origin_request():
@@ -183,6 +218,18 @@ class HttpRuntimeServer:
                     return
                 if path.startswith("/api/green-wave/config/"):
                     self._send_json(200, runtime_server._green_wave_config(path.rsplit("/", 1)[-1]))
+                    return
+                if path == "/green_wave":
+                    parsed = urlparse(self.path)
+                    full = bool(parsed.query) and "false" not in parsed.query.lower()
+                    self._send_json(200, runtime_server._green_wave_list(full=full))
+                    return
+                if path.startswith("/green_wave/"):
+                    segment = path[len("/green_wave/"):]
+                    if segment in ("validate", "update", "delete"):
+                        self._send_json(405, {"error": f"Use POST for /green_wave/{segment}"})
+                        return
+                    self._send_json(200, runtime_server._green_wave_get(segment))
                     return
                 if path == "/api/signal-timing":
                     self._send_json(405, {"error": "Use POST for signal timing requests"})
@@ -238,6 +285,41 @@ class HttpRuntimeServer:
                     return
                 except Exception:
                     runtime_server._error("Error generating control process", exc_info=True)
+                    self._send_json(500, {"error": "internal server error"})
+                    return
+                self._send_json(200, payload)
+
+            def _handle_green_wave_post(self, action: str, body: Any) -> None:
+                if not isinstance(body, dict):
+                    self._send_json(400, {"error": "Request body must be an object"})
+                    return
+                try:
+                    if action == "validate":
+                        payload = runtime_server._green_wave_validate(body)
+                    elif action == "update":
+                        payload = runtime_server._green_wave_update(body)
+                    else:
+                        payload = runtime_server._green_wave_delete(body)
+                except ValueError as error:
+                    self._send_json(400, {"error": str(error)})
+                    return
+                except Exception:
+                    runtime_server._error("Error handling green wave " + action, exc_info=True)
+                    self._send_json(500, {"error": "internal server error"})
+                    return
+                self._send_json(200, payload)
+
+            def _handle_green_wave_patch(self, segment: str, body: Any) -> None:
+                if not isinstance(body, dict):
+                    self._send_json(400, {"error": "Request body must be an object"})
+                    return
+                try:
+                    payload = runtime_server._green_wave_set_enabled(segment, body)
+                except ValueError as error:
+                    self._send_json(400, {"error": str(error)})
+                    return
+                except Exception:
+                    runtime_server._error("Error handling green wave patch", exc_info=True)
                     self._send_json(500, {"error": "internal server error"})
                     return
                 self._send_json(200, payload)
@@ -338,6 +420,44 @@ class HttpRuntimeServer:
         if self.green_wave_service is None:
             raise RuntimeError("green wave service is not configured")
         return self.green_wave_service.plan()
+
+    def _green_wave_list(self, full: bool = False) -> dict[str, Any]:
+        if self.green_wave_service is None:
+            raise RuntimeError("green wave service is not configured")
+        return self.green_wave_service.list_corridors(full=full)
+
+    def _green_wave_get(self, segment_id: str) -> dict[str, Any]:
+        if self.green_wave_service is None:
+            raise RuntimeError("green wave service is not configured")
+        return self.green_wave_service.get_corridor(segment_id)
+
+    def _green_wave_validate(self, body: Any) -> dict[str, Any]:
+        if not isinstance(body, dict) or "corridor" not in body:
+            raise ValueError("Request body must contain corridor")
+        if self.green_wave_service is None:
+            raise RuntimeError("green wave service is not configured")
+        return self.green_wave_service.validate_corridor(body["corridor"])
+
+    def _green_wave_update(self, body: Any) -> dict[str, Any]:
+        if not isinstance(body, dict) or "corridor" not in body:
+            raise ValueError("Request body must contain corridor")
+        if self.green_wave_service is None:
+            raise RuntimeError("green wave service is not configured")
+        return self.green_wave_service.update_corridor(body["corridor"])
+
+    def _green_wave_delete(self, body: Any) -> dict[str, Any]:
+        if not isinstance(body, dict) or "corridor_id" not in body:
+            raise ValueError("Request body must contain corridor_id")
+        if self.green_wave_service is None:
+            raise RuntimeError("green wave service is not configured")
+        return self.green_wave_service.delete_corridor(str(body["corridor_id"]))
+
+    def _green_wave_set_enabled(self, segment_id: str, body: Any) -> dict[str, Any]:
+        if not isinstance(body, dict) or "enabled" not in body or not isinstance(body["enabled"], bool):
+            raise ValueError("Request body must contain boolean enabled")
+        if self.green_wave_service is None:
+            raise RuntimeError("green wave service is not configured")
+        return self.green_wave_service.set_corridor_enabled(segment_id, body["enabled"])
 
     @staticmethod
     def _is_cross_origin_request(origin: str | None, host: str | None) -> bool:
