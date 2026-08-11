@@ -22,7 +22,7 @@ def zhao_wei(d,road_id):
 
 
     for lan,fu in lines3[road_id]["LaneNo"][d].items():
-            if fu=="1C":
+            if fu=="1A":
 
                 return int(lan)
 
@@ -182,9 +182,9 @@ def buqijingyanbiaod(road_id):
 
             c1 = zhao_wei(d[0], road_id)
 
-            # 没有1C，说明没有左转专用车道，直接跳过
+            # 没有1A，说明没有左转专用车道，直接跳过
             if c1 == -1:
-                print(f"{road_id} {d} 没有1C车道，跳过左转补齐")
+                print(f"{road_id} {d} 没有1A左转车道，跳过左转补齐")
                 continue
 
             # 按时间排序

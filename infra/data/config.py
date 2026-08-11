@@ -12,7 +12,8 @@ from typing import Any
 
 from lib.config_api import handle_config_request
 from lib.floating_value import (
-    get_floating_value_records,
+    # 新版 lib 未公开浮动值读取接口，适配层复用其无缓存读取函数（只读，不改 lib）
+    _read_floating_value_uncached,
     replace_floating_value_records,
     validate_and_save_floating_value,
 )
@@ -113,7 +114,7 @@ class ConfigService:
 
     def get_floating_value(self) -> list[dict[str, Any]]:
         """读取完整的浮动值配置。"""
-        return get_floating_value_records()
+        return _read_floating_value_uncached()
 
     def update_floating_value(
         self,

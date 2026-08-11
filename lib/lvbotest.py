@@ -1,50 +1,27 @@
 from collections import defaultdict
 from copy import deepcopy
 import copy
+import statistics
 from typing import Dict, List, Optional, Union
 from datetime import datetime
 import time
 
-# --------------------------------------相位差调整配置-------------------------------------
-REF_RID = "1300370"
-RIGHT_OFFSET_RID = "1300248"
-LEFT_OFFSET_RID = "2705050"
-LEFT_TARGET_OFFSET_MAP = {
-    "2705050": "0",
-    "1300370": "26",
-    "1300373": "65",
-    "1300248": "98",
-}
-RIGHT_TARGET_OFFSET_MAP = {
-    "2705050": "98",
-    "1300370": "72",
-    "1300373": "33",
-    "1300248": "0",
-}
-OFFSET_STEP = 8
+# --------------------------------------动态绿波配置-------------------------------------
+OFFSET_STEP = 3
 OFFSET_TOLERANCE = 1
+GREEN_BAND_OBSERVATION_CYCLES = 3
+GREEN_BAND_MIN_REMAIN_SECONDS = 10
+SIMULATION_TARGET_ELAPSED_GREEN_SECONDS = 10
+MAX_TIMING_MATCH_ERROR_SECONDS = 45
 DEFAULT_CORRIDOR_CYCLE = 90
-DEFAULT_RED_DURATIONS = {
-    "2705050": 15,
-    "1300370": 14,
-    "1300373": 0,
-    "1300248": 16,
-}
-PHASE_CHECK_BOUNDS = {
-    "2705050": {"p1": (30, 61), "p2": (25, 58)},
-    "1300370": {"p1": (35, 60), "p2": (30, 50)},
-    "1300373": {"p1": (24, 58), "p2": (24, 58)},
-    "1300248": {"p1": (15, 58), "p2": (30, 60)},
-}
-GREEN_WAVE_STAGE_INDEX = {
-    "2705050": 0,  # P1 是 LR 东西绿波干线
-    "1300370": 0,  # P1 是 LR 东西绿波干线
-    "1300373": 1,  # P2 是 LR 东西绿波干线
-    "1300248": 1,  # P2 是 LR 东西绿波干线
-}
+DEFAULT_RED_DURATIONS = {}
+COOLDOWN_SECONDS = 85
+GREEN_STAGE_INDEX_MAP = {}
+BALANCE_STAGE_INDEX_MAP = {}
+PERIOD_CONFIG_MAP = {}
 
 # --------------------------------------绿波控制全局状态-------------------------------------
-ORDER = ["2705050", "1300370", "1300373", "1300248"]
+ORDER = []
 start = False
 cycle_green = False
 offset_green = False
@@ -55,33 +32,195 @@ fix_plan = None
 direction = ""
 green_plan_map = {}
 last_green_wave_send_time = 0
+# 仅用于 online 回放测试：记录各路口在虚拟周期中的阶段 1 起点。
+# online 数据不含信控机阶段反馈，不能据此还原真实起绿时刻。
+simulation_offset_map = {}
+# 仅用于 online 回放测试：记录尚未完成的虚拟阶段 1 目标起点。
+# 目标起点与阶段时长分离，避免为了移动相位而持续拉长 P1、压缩 P2。
+simulation_target_start_map = {}
+_ACTIVE_CORRIDOR_ID = ""
+_ACTIVE_CORRIDOR_CONFIG = None
+_GREEN_WAVE_STATE_MAP = {}
+_GREEN_WAVE_CONFIG_MAP = {}
 
 
-def reset_green_wave_state():
-    """清理一轮绿波协调状态，避免非高峰继续沿用旧方案。"""
+def _stage_indices(rid):
+    return (
+        int(GREEN_STAGE_INDEX_MAP.get(str(rid), 0)),
+        int(BALANCE_STAGE_INDEX_MAP.get(str(rid), 1)),
+    )
+
+
+def _empty_state():
+    return {
+        "start": False,
+        "cycle_green": False,
+        "offset_green": False,
+        "cycle_done": False,
+        "offset_done": False,
+        "cnt": 0,
+        "fix_plan": None,
+        "direction": "",
+        "green_plan_map": {},
+        "last_green_wave_send_time": 0,
+        "simulation_offset_map": {},
+        "simulation_target_start_map": {},
+    }
+
+
+def _capture_active_state():
+    return {
+        "start": bool(start),
+        "cycle_green": bool(cycle_green),
+        "offset_green": bool(offset_green),
+        "cycle_done": bool(cycle_done),
+        "offset_done": bool(offset_done),
+        "cnt": int(cnt),
+        "fix_plan": copy.deepcopy(fix_plan),
+        "direction": str(direction),
+        "green_plan_map": copy.deepcopy(green_plan_map),
+        "last_green_wave_send_time": last_green_wave_send_time,
+        "simulation_offset_map": copy.deepcopy(simulation_offset_map),
+        "simulation_target_start_map": copy.deepcopy(simulation_target_start_map),
+    }
+
+
+def _restore_active_state(state_value):
     global start, cycle_green, offset_green, cycle_done, offset_done
     global cnt, fix_plan, direction, green_plan_map, last_green_wave_send_time
-    start = False
-    cycle_green = False
-    offset_green = False
-    cycle_done = False
-    offset_done = False
-    cnt = 0
-    fix_plan = None
-    direction = ""
-    green_plan_map = {}
-    last_green_wave_send_time = 0
+    global simulation_offset_map, simulation_target_start_map
+    value = copy.deepcopy(state_value or _empty_state())
+    start = value["start"]
+    cycle_green = value["cycle_green"]
+    offset_green = value["offset_green"]
+    cycle_done = value["cycle_done"]
+    offset_done = value["offset_done"]
+    cnt = value["cnt"]
+    fix_plan = value["fix_plan"]
+    direction = value["direction"]
+    green_plan_map = value["green_plan_map"]
+    last_green_wave_send_time = value["last_green_wave_send_time"]
+    simulation_offset_map = value["simulation_offset_map"]
+    simulation_target_start_map = value["simulation_target_start_map"]
+
+
+def _activate_corridor_config(corridor_config):
+    global _ACTIVE_CORRIDOR_ID, _ACTIVE_CORRIDOR_CONFIG
+    global ORDER
+    global OFFSET_STEP, GREEN_BAND_MIN_REMAIN_SECONDS
+    global SIMULATION_TARGET_ELAPSED_GREEN_SECONDS, DEFAULT_CORRIDOR_CYCLE
+    global DEFAULT_RED_DURATIONS, COOLDOWN_SECONDS
+    global GREEN_STAGE_INDEX_MAP, BALANCE_STAGE_INDEX_MAP, PERIOD_CONFIG_MAP
+
+    if not isinstance(corridor_config, dict):
+        raise ValueError("corridor_config 必须由绿波 JSON 配置加载")
+    config = copy.deepcopy(corridor_config)
+    corridor_id = str(config.get("corridor_id", "")).strip()
+    intersections = config.get("intersections") or []
+    if not corridor_id or len(intersections) < 2:
+        raise ValueError("corridor_config 缺少 corridor_id 或有效路口配置")
+    ORDER = [str(item["cross_id"]) for item in intersections]
+    DEFAULT_RED_DURATIONS = {
+        str(item["cross_id"]): int(item.get("default_red_seconds", 0))
+        for item in intersections
+    }
+    GREEN_STAGE_INDEX_MAP = {
+        str(item["cross_id"]): int(item.get("green_stage_index", 0))
+        for item in intersections
+    }
+    BALANCE_STAGE_INDEX_MAP = {
+        str(item["cross_id"]): int(item.get("balance_stage_index", 1))
+        for item in intersections
+    }
+    DEFAULT_CORRIDOR_CYCLE = int(config.get("cycle_seconds", 90))
+    OFFSET_STEP = int(config.get("offset_step_seconds", 3))
+    GREEN_BAND_MIN_REMAIN_SECONDS = int(
+        config.get("minimum_remaining_green_seconds", 10)
+    )
+    SIMULATION_TARGET_ELAPSED_GREEN_SECONDS = int(
+        config.get("simulation_target_elapsed_green_seconds", 10)
+    )
+    COOLDOWN_SECONDS = int(
+        config.get("cooldown_seconds", max(0, DEFAULT_CORRIDOR_CYCLE - 5))
+    )
+    PERIOD_CONFIG_MAP = {
+        str(item["period_id"]): copy.deepcopy(item)
+        for item in (config.get("periods") or [])
+    }
+    _ACTIVE_CORRIDOR_ID = corridor_id
+    _ACTIVE_CORRIDOR_CONFIG = config
+    _GREEN_WAVE_CONFIG_MAP[corridor_id] = copy.deepcopy(config)
+    _restore_active_state(_GREEN_WAVE_STATE_MAP.get(corridor_id))
+
+
+def _reset_active_state_values():
+    _restore_active_state(_empty_state())
+
+
+def _period_for_time(time_str):
+    try:
+        current = datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S").time()
+    except (TypeError, ValueError):
+        return None
+    for period in PERIOD_CONFIG_MAP.values():
+        try:
+            start_value = datetime.strptime(period["start_time"], "%H:%M:%S").time()
+            end_value = datetime.strptime(period["end_time"], "%H:%M:%S").time()
+        except (KeyError, TypeError, ValueError):
+            continue
+        if start_value <= current <= end_value:
+            return period
+    return None
+
+
+def _period_settings(period_id):
+    period = PERIOD_CONFIG_MAP.get(str(period_id))
+    if not period:
+        return None, {}
+    return (
+        str(period.get("reference_cross_id", "")),
+        {
+            str(rid): str(value)
+            for rid, value in (period.get("travel_seconds") or {}).items()
+        },
+    )
+
+
+def reset_green_wave_state(corridor_id=None):
+    """清理指定走廊状态；未指定时清理全部走廊状态。"""
+    global _GREEN_WAVE_STATE_MAP
+    if corridor_id is None:
+        _GREEN_WAVE_STATE_MAP = {}
+        _reset_active_state_values()
+        return
+    corridor_key = str(corridor_id)
+    _GREEN_WAVE_STATE_MAP.pop(corridor_key, None)
+    if corridor_key == _ACTIVE_CORRIDOR_ID:
+        _reset_active_state_values()
 
 
 def record_green_wave_final_plan(final_action_map):
-    """记录 phase_check 后实际下发的绿波方案，供下一轮继续修正。"""
-    global green_plan_map
-    if not start or not isinstance(final_action_map, dict):
+    """记录 phase_check 后各走廊实际下发方案，供下一轮继续修正。"""
+    global green_plan_map, _GREEN_WAVE_STATE_MAP
+    if not isinstance(final_action_map, dict):
         return
-    for item in ORDER:
-        plan = final_action_map.get(item)
-        if isinstance(plan, list) and len(plan) >= 2:
-            green_plan_map[item] = plan[:]
+    for corridor_id, state_value in list(_GREEN_WAVE_STATE_MAP.items()):
+        if not state_value.get("start"):
+            continue
+        config = _GREEN_WAVE_CONFIG_MAP.get(corridor_id) or {}
+        order = [
+            str(item["cross_id"])
+            for item in (config.get("intersections") or [])
+        ]
+        saved_plan = copy.deepcopy(state_value.get("green_plan_map") or {})
+        for item in order:
+            plan = final_action_map.get(item)
+            if isinstance(plan, list) and len(plan) >= 2:
+                saved_plan[item] = plan[:]
+        state_value["green_plan_map"] = saved_plan
+        _GREEN_WAVE_STATE_MAP[corridor_id] = state_value
+        if corridor_id == _ACTIVE_CORRIDOR_ID:
+            green_plan_map = copy.deepcopy(saved_plan)
 
 
 
@@ -132,16 +271,20 @@ def get_red_durations_from_extend(
                 start_ts = normalized[i][0]
                 while i < len(normalized) and normalized[i][1] == "-1":
                     i += 1
-                end_ts = normalized[i - 1][0]
+                # 使用离开 -1 的切换时刻作为结束边界，而不是最后一次 -1 采样时刻。
+                if i >= len(normalized):
+                    continue
+                end_ts = normalized[i][0]
                 dur = (end_ts - start_ts) / 1000.0
-                if dur > 0:
+                # 过滤数据中断形成的数百秒伪阶段。
+                if 1 <= dur <= 30:
                     minus_one_durations.append(dur)
             else:
                 i += 1
 
         if len(minus_one_durations) >= 2:
-            avg_single = sum(minus_one_durations) / len(minus_one_durations)
-            red_map[rid] = int(round(avg_single * 2))
+            median_single = statistics.median(minus_one_durations)
+            red_map[rid] = int(round(median_single * 2))
         else:
             red_map[rid] = DEFAULT_RED_DURATIONS.get(rid, 12)
 
@@ -160,18 +303,15 @@ def adjust_cycle_to_corridor(
     new_map = copy.deepcopy(result_action_map)
 
     for rid, plan in result_action_map.items():
-        if not isinstance(plan, list) or len(plan) < 2:
+        green_index, balance_index = _stage_indices(rid)
+        if not isinstance(plan, list) or len(plan) <= max(green_index, balance_index):
             continue
 
         r_i = red_durations_map.get(rid, DEFAULT_RED_DURATIONS.get(rid, 12))
         target_green_sum = max(20, corridor_cycle - r_i)
 
-        bounds = PHASE_CHECK_BOUNDS.get(rid, {"p1": (10, 80), "p2": (10, 80)})
-        p1_min, p1_max = bounds["p1"]
-        p2_min, p2_max = bounds["p2"]
-
-        cur_p1 = int(plan[0])
-        cur_p2 = int(plan[1])
+        cur_p1 = int(plan[green_index])
+        cur_p2 = int(plan[balance_index])
         cur_green_sum = cur_p1 + cur_p2
 
         if cur_green_sum != target_green_sum:
@@ -185,16 +325,11 @@ def adjust_cycle_to_corridor(
             new_green_sum = target_green_sum
 
         ratio = cur_p1 / cur_green_sum if cur_green_sum > 0 else 0.5
-        proposed_p1 = int(round(new_green_sum * ratio))
+        new_p1 = max(10, int(round(new_green_sum * ratio)))
+        new_p2 = max(10, new_green_sum - new_p1)
 
-        valid_p1_min = max(p1_min, new_green_sum - p2_max)
-        valid_p1_max = min(p1_max, new_green_sum - p2_min)
-
-        new_p1 = max(valid_p1_min, min(valid_p1_max, proposed_p1))
-        new_p2 = new_green_sum - new_p1
-
-        new_map[rid][0] = new_p1
-        new_map[rid][1] = new_p2
+        new_map[rid][green_index] = new_p1
+        new_map[rid][balance_index] = new_p2
 
     return new_map
 
@@ -206,11 +341,15 @@ def is_corridor_cycle_aligned(
 ) -> bool:
     """检查各路口实际下发完整的现场周期 (p1 + p2 + R_i) 是否均已达到走廊统一周期 C"""
     for rid in order:
-        if rid not in result_action_map or len(result_action_map[rid]) < 2:
+        green_index, balance_index = _stage_indices(rid)
+        if (
+            rid not in result_action_map
+            or len(result_action_map[rid]) <= max(green_index, balance_index)
+        ):
             return False
         r_i = red_durations_map.get(rid, DEFAULT_RED_DURATIONS.get(rid, 12))
         plan = result_action_map[rid]
-        total_cycle = plan[0] + plan[1] + r_i
+        total_cycle = plan[green_index] + plan[balance_index] + r_i
         if abs(total_cycle - corridor_cycle) > 1:
             return False
     return True
@@ -229,12 +368,13 @@ def adjust_cycle_one_step(
     ref_p2 = fix_rid[1]
 
     for rid, plan in result_action_map.items():
-        if not isinstance(plan, list) or len(plan) < 2:
+        green_index, balance_index = _stage_indices(rid)
+        if not isinstance(plan, list) or len(plan) <= max(green_index, balance_index):
             print(f"警告: 跳过异常数据 rid={rid}, plan={plan}")
             continue
 
-        cur_p1 = plan[0]
-        cur_p2 = plan[1]
+        cur_p1 = plan[green_index]
+        cur_p2 = plan[balance_index]
 
         if cur_p1 != ref_p1:
             delta_p1 = ref_p1 - cur_p1
@@ -256,8 +396,8 @@ def adjust_cycle_one_step(
             else:
                 cur_p2 -= step_p2
 
-        new_map[rid][0] = max(0, cur_p1)
-        new_map[rid][1] = max(0, cur_p2)
+        new_map[rid][green_index] = max(0, cur_p1)
+        new_map[rid][balance_index] = max(0, cur_p2)
 
     return new_map
 
@@ -266,39 +406,31 @@ def adjust_cycle_one_step(
 
 def get_two_stage_starts_from_coordinate_map(
     coordinate_map_set: Dict[str, Dict[str, int]],
-    rid: str,
-    result_action_map: Optional[Dict[str, List[int]]] = None,
+    rid: str
 ) -> List[int]:
     try:
-        if isinstance(coordinate_map_set, dict) and rid in coordinate_map_set:
-            data = coordinate_map_set[rid]
-            if isinstance(data, dict):
-                starts = []
-                s1 = data.get("s1")
-                s2 = data.get("s2")
+        if rid not in coordinate_map_set:
+            return []
 
-                if s1 is not None:
-                    try:
-                        starts.append(int(s1))
-                    except (ValueError, TypeError):
-                        pass
+        data = coordinate_map_set[rid]
+        starts = []
 
-                if s2 is not None:
-                    try:
-                        starts.append(int(s2))
-                    except (ValueError, TypeError):
-                        pass
+        s1 = data.get("s1")
+        s2 = data.get("s2")
 
-                if starts:
-                    return sorted(list(set(starts)))
+        if s1 is not None:
+            try:
+                starts.append(int(s1))
+            except (ValueError, TypeError):
+                pass
 
-        # 回退：从 result_action_map 提取相对阶段起点 [0, stage1_len]
-        if isinstance(result_action_map, dict) and rid in result_action_map:
-            plan = result_action_map[rid]
-            if isinstance(plan, list) and len(plan) >= 2:
-                return [0, int(plan[0])]
+        if s2 is not None:
+            try:
+                starts.append(int(s2))
+            except (ValueError, TypeError):
+                pass
 
-        return []
+        return sorted(list(set(starts)))
 
     except Exception as e:
         print(f"get_two_stage_starts_from_coordinate_map 出错: rid={rid}, error={e}")
@@ -328,14 +460,58 @@ def get_stage_one_starts_from_extend_map(
         if timestamp > 0 and stage:
             normalized.append((timestamp, stage))
 
+    target_stage = str(_stage_indices(rid)[0] + 1)
     normalized.sort()
     starts = []
     previous_stage = None
     for timestamp, stage in normalized:
-        if stage == "1" and previous_stage != "1":
+        if stage == target_stage and previous_stage != target_stage:
             starts.append(timestamp)
         previous_stage = stage
     return starts
+
+
+def get_stage_one_windows_from_extend_map(
+    extend_map: Optional[Dict[str, Dict[Union[str, int], List[dict]]]],
+    rid: str,
+) -> List[tuple[int, int]]:
+    """提取已结束的阶段 1 绿灯窗口，返回毫秒级 ``(start, end)``。"""
+    if not isinstance(extend_map, dict):
+        return []
+
+    records = []
+    for _, values in (extend_map.get(rid) or {}).items():
+        if isinstance(values, list):
+            records.extend(item for item in values if isinstance(item, dict))
+
+    normalized = []
+    for record in records:
+        try:
+            timestamp = int(record.get("time"))
+            stage = str(record.get("curStageNo", "")).strip()
+        except (TypeError, ValueError):
+            continue
+        if timestamp > 0 and stage:
+            normalized.append((timestamp, stage))
+
+    target_stage = str(_stage_indices(rid)[0] + 1)
+    normalized.sort()
+    windows = []
+    stage_one_start = None
+    previous_stage = None
+    for timestamp, stage in normalized:
+        if stage == target_stage and previous_stage != target_stage:
+            stage_one_start = timestamp
+        elif (
+            stage != target_stage
+            and previous_stage == target_stage
+            and stage_one_start is not None
+        ):
+            if timestamp > stage_one_start:
+                windows.append((stage_one_start, timestamp))
+            stage_one_start = None
+        previous_stage = stage
+    return windows
 
 
 def get_observed_cycle_seconds(starts: List[int]) -> Optional[int]:
@@ -346,30 +522,265 @@ def get_observed_cycle_seconds(starts: List[int]) -> Optional[int]:
     return cycle_seconds if cycle_seconds > 0 else None
 
 
-def compute_green_wave_target_offsets(
+def _median_int(values: List[float]) -> int:
+    return int(round(statistics.median(values))) if values else 0
+
+
+def _find_nearest_start(starts: List[int], target_ms: int) -> Optional[int]:
+    if not starts:
+        return None
+    nearest = min(starts, key=lambda value: abs(value - target_ms))
+    if abs(nearest - target_ms) > MAX_TIMING_MATCH_ERROR_SECONDS * 1000:
+        return None
+    return nearest
+
+
+def _green_remaining_seconds(
+    windows: List[tuple[int, int]], arrival_ms: int
+) -> Optional[float]:
+    for start_ms, end_ms in windows:
+        if start_ms <= arrival_ms < end_ms:
+            return (end_ms - arrival_ms) / 1000.0
+    return None
+
+
+def _normalize_timestamp_seconds(value) -> Optional[int]:
+    """兼容 online 中的秒、毫秒时间戳，统一返回秒级 Unix 时间戳。"""
+    try:
+        timestamp = int(float(value))
+    except (TypeError, ValueError):
+        return None
+    if timestamp <= 0:
+        return None
+    return timestamp // 1000 if timestamp >= 10_000_000_000 else timestamp
+
+
+def flatten_online_data_map(
+    online_data_map: Optional[Dict[str, Dict[Union[str, int], List[dict]]]],
+    target_rids: Optional[set[str]] = None,
+) -> List[dict]:
+    """展开 Server 侧 ``rid -> 时间 -> 数据列表`` 的 online 缓存结构。"""
+    if not isinstance(online_data_map, dict):
+        return []
+
+    rows = []
+    for rid, time_map in online_data_map.items():
+        if target_rids is not None and str(rid) not in target_rids:
+            continue
+        if not isinstance(time_map, dict):
+            continue
+        for bucket_time, values in time_map.items():
+            if not isinstance(values, list):
+                continue
+            for value in values:
+                if not isinstance(value, dict):
+                    continue
+                row = dict(value)
+                row.setdefault("rid", rid)
+                # 正常 online 报文有 time；缺失时才使用缓存桶时间兜底。
+                row.setdefault("time", bucket_time)
+                rows.append(row)
+    return rows
+
+
+def get_latest_online_timestamp(
+    online_data_map: Optional[Dict[str, Dict[Union[str, int], List[dict]]]],
+) -> Optional[int]:
+    """从所有 online 记录中取得最新测试时刻，而非程序机器当前时间。"""
+    latest = None
+    for row in flatten_online_data_map(online_data_map):
+        timestamp = _normalize_timestamp_seconds(row.get("time"))
+        if timestamp is not None and (latest is None or timestamp > latest):
+            latest = timestamp
+    return latest
+
+
+def _signed_cycle_difference(current: int, target: int, cycle: int) -> int:
+    """返回 current 相对 target 的最短有符号差值。"""
+    diff = (int(current) - int(target)) % cycle
+    return diff - cycle if diff > cycle / 2 else diff
+
+
+def calc_simulated_offset_map(
+    result_action_map: Dict[str, List[int]],
+    congestion_direction: str,
+    simulation_timestamp: Optional[int] = None,
+    order: Optional[List[str]] = None,
+) -> Dict[str, object]:
+    """仅依赖 online 时间和已下发方案推演绿灯窗口。
+
+    online 报文没有 ``curStageNo``，无法判断真实信号灯处于哪个阶段；本函数因此
+    只用于回放测试。它以虚拟周期起点和已下发的 P1/P2 方案推演车辆到达时是否仍
+    在阶段 1 绿灯内，绝不把 online 数据误当成 extend 反馈。
+    """
+    global simulation_offset_map, simulation_target_start_map
+
+    if order is None:
+        order = [rid for rid in ORDER if rid in result_action_map]
+
+    ref_rid, raw_target_offset_map = _period_settings(congestion_direction)
+    if not ref_rid or not raw_target_offset_map:
+        return {
+            "current_offset_map": {},
+            "target_offset_map": {},
+            "timing_error_map": {},
+            "cycle_seconds": DEFAULT_CORRIDOR_CYCLE,
+            "green_band_aligned": False,
+        }
+
+    if ref_rid not in result_action_map:
+        return {
+            "current_offset_map": {},
+            "target_offset_map": {},
+            "timing_error_map": {},
+            "cycle_seconds": DEFAULT_CORRIDOR_CYCLE,
+            "green_band_aligned": False,
+        }
+
+    target_offset_map = {
+        rid: str(int(raw_target_offset_map.get(rid, "0")))
+        for rid in order
+    }
+    target_offset_map[ref_rid] = "0"
+    current_offset_map = {}
+    timing_error_map = {ref_rid: 0}
+    target_start_map = {}
+    arrival_report = {}
+    all_passed = True
+
+    for rid in order:
+        green_index, balance_index = _stage_indices(rid)
+        if (
+            rid not in result_action_map
+            or len(result_action_map[rid]) <= max(green_index, balance_index)
+        ):
+            continue
+
+        current_offset = int(simulation_offset_map.get(rid, 0)) % DEFAULT_CORRIDOR_CYCLE
+        current_offset_map[rid] = str(current_offset)
+        if rid == ref_rid:
+            continue
+
+        travel_seconds = int(target_offset_map[rid])
+        arrival_phase = travel_seconds % DEFAULT_CORRIDOR_CYCLE
+        stage_one_seconds = max(0, int(result_action_map[rid][green_index]))
+        elapsed_green = (arrival_phase - current_offset) % DEFAULT_CORRIDOR_CYCLE
+        remaining_green = stage_one_seconds - elapsed_green
+        window_passed = (
+            elapsed_green < stage_one_seconds
+            and remaining_green >= GREEN_BAND_MIN_REMAIN_SECONDS
+        )
+
+        # 首次未命中绿灯窗口时，为该路口确定一个独立的虚拟起绿目标。
+        # 例如车辆第 65 秒到达、P1=44 秒时，目标起点为 55 秒：
+        # 到达时已经放行 10 秒，仍剩余 34 秒绿灯；P1/P2 本身保持不变。
+        desired_elapsed = min(
+            SIMULATION_TARGET_ELAPSED_GREEN_SECONDS,
+            max(0, stage_one_seconds - GREEN_BAND_MIN_REMAIN_SECONDS),
+        )
+        if not window_passed and rid not in simulation_target_start_map:
+            simulation_target_start_map[rid] = (
+                arrival_phase - desired_elapsed
+            ) % DEFAULT_CORRIDOR_CYCLE
+
+        active_target = simulation_target_start_map.get(rid)
+        target_aligned = active_target is None or abs(
+            _signed_cycle_difference(
+                current_offset,
+                active_target,
+                DEFAULT_CORRIDOR_CYCLE,
+            )
+        ) <= OFFSET_TOLERANCE
+        coordination_passed = window_passed and target_aligned
+
+        if active_target is not None:
+            target_start_map[rid] = str(active_target)
+            timing_error_map[rid] = _signed_cycle_difference(
+                current_offset,
+                active_target,
+                DEFAULT_CORRIDOR_CYCLE,
+            )
+            if coordination_passed:
+                simulation_target_start_map.pop(rid, None)
+        else:
+            timing_error_map[rid] = 0
+
+        all_passed = all_passed and coordination_passed
+        arrival_report[rid] = {
+            "source": "online_simulation",
+            "travel_seconds": travel_seconds,
+            "virtual_stage_one_offset_seconds": current_offset,
+            "target_stage_one_offset_seconds": active_target,
+            "stage_one_seconds": stage_one_seconds,
+            "elapsed_green_seconds": round(elapsed_green, 1) if window_passed else None,
+            "remaining_green_seconds": round(remaining_green, 1) if window_passed else None,
+            "passed": window_passed,
+            "target_aligned": target_aligned,
+        }
+
+    return {
+        "current_offset_map": current_offset_map,
+        "target_offset_map": target_offset_map,
+        "target_start_map": target_start_map,
+        "timing_error_map": timing_error_map,
+        "cycle_seconds": DEFAULT_CORRIDOR_CYCLE,
+        "green_band_aligned": all_passed,
+        "arrival_report": {
+            "source": "online_simulation",
+            "simulation_timestamp": simulation_timestamp,
+            "intersections": arrival_report,
+        },
+    }
+
+
+def adjust_simulated_offsets_one_round(
+    current_offset_map: Dict[str, Union[str, int]],
+    target_start_map: Dict[str, Union[str, int]],
+    cycle_seconds: int = DEFAULT_CORRIDOR_CYCLE,
+):
+    """每轮只移动虚拟阶段 1 起点，不修改或借用 P1/P2 阶段时长。"""
+    global simulation_offset_map
+    cycle = max(1, int(cycle_seconds))
+    for rid, target_start in target_start_map.items():
+        if rid not in current_offset_map:
+            continue
+        try:
+            current_offset = int(current_offset_map[rid]) % cycle
+            target_offset = int(target_start) % cycle
+            forward = (target_offset - current_offset) % cycle
+            backward = (current_offset - target_offset) % cycle
+            if forward <= backward:
+                delta = min(OFFSET_STEP, forward)
+            else:
+                delta = -min(OFFSET_STEP, backward)
+            next_offset = (current_offset + delta) % cycle
+            simulation_offset_map[rid] = next_offset
+            print(
+                f"[模拟相位调整] rid={rid}, cur={current_offset}, "
+                f"target_start={target_offset}, delta={delta}, next={next_offset}, "
+                "P1/P2保持不变"
+            )
+        except (TypeError, ValueError):
+            continue
+
+
+# 计算当前相位差
+def calc_current_offset_map(
     coordinate_map_set: Dict[str, Dict[str, int]],
     result_action_map: Dict[str, List[int]],
     congestion_direction: str = "R",
     order: List[str] = None,
     extend_map: Optional[Dict[str, Dict[Union[str, int], List[dict]]]] = None,
-) -> Dict[str, Dict[str, str]]:
-    def cyclic_distance(a: int, b: int, cycle: int) -> int:
-        diff = abs(a - b)
-        return min(diff, cycle - diff)
-
+) -> Dict[str, object]:
+    """按最近车辆到达时刻计算下游起绿误差和绿灯窗口通过情况。"""
     try:
         if order is None:
-            order = list(result_action_map.keys())
+            order = [rid for rid in ORDER if rid in result_action_map]
 
-        # 1. 根据方向选择参考路口和目标相位差表
-        if congestion_direction == "R":
-            ref_rid = RIGHT_OFFSET_RID
-            raw_target_offset_map = RIGHT_TARGET_OFFSET_MAP
-        elif congestion_direction == "L":
-            ref_rid = LEFT_OFFSET_RID
-            raw_target_offset_map = LEFT_TARGET_OFFSET_MAP
-        else:
-            print(f"警告: congestion_direction={congestion_direction} 无效，应为 'R' 或 'L'")
+        # 1. 根据当前配置时段选择参考路口和累计行程时间表。
+        ref_rid, raw_target_offset_map = _period_settings(congestion_direction)
+        if not ref_rid or not raw_target_offset_map:
+            print(f"警告: period_id={congestion_direction} 没有有效绿波配置")
             return {
                 "current_offset_map": {},
                 "target_offset_map": {}
@@ -389,112 +800,111 @@ def compute_green_wave_target_offsets(
                 "target_offset_map": {}
             }
 
-        # 2. 优先使用信控机阶段 1 实测起点计算完整周期（含 -1 红灯）。
+        # 2. 绿波闭环只使用完整 extend 反馈；不能将现场绝对时间与 DQN 相对坐标混算。
         observed_starts = {
             rid: get_stage_one_starts_from_extend_map(extend_map, rid)
             for rid in order
         }
-        has_complete_extend_feedback = all(len(observed_starts.get(rid, [])) >= 2 for rid in order)
-        observed_cycle = get_observed_cycle_seconds(observed_starts.get(ref_rid, [])) if has_complete_extend_feedback else None
-
-        # 若现场数据不足，回退到下发方案前两个阶段之和，保证兼容旧链路。
-        try:
-            cycle = observed_cycle or DEFAULT_CORRIDOR_CYCLE
-        except Exception as e:
-            print(f"警告: 参考路口 {ref_rid} 周期计算失败: {e}")
-            return {
-                "current_offset_map": {},
-                "target_offset_map": {}
-            }
-
-        if cycle <= 0:
-            print(f"警告: 参考路口 {ref_rid} 的周期无效 cycle={cycle}")
+        observed_windows = {
+            rid: get_stage_one_windows_from_extend_map(extend_map, rid)
+            for rid in order
+        }
+        if not all(observed_starts.get(rid) and observed_windows.get(rid) for rid in order):
+            print("警告: 绿波路口 extend 阶段反馈不完整，暂不进行相位差修正")
             return {
                 "current_offset_map": {},
                 "target_offset_map": {},
-                "cycle_seconds": 0,
+                "timing_error_map": {},
+                "cycle_seconds": DEFAULT_CORRIDOR_CYCLE,
+                "green_band_aligned": False,
             }
 
-        # 3. 参考路口与各路口相位起点：在 extend 反馈完整时优先使用 extend，否则使用 coordinate_map 或方案回退
-        starts_map = {}
-        if has_complete_extend_feedback:
-            starts_map = observed_starts
-        else:
-            for rid in order:
-                starts_map[rid] = get_two_stage_starts_from_coordinate_map(
-                    coordinate_map_set, rid, result_action_map
-                )
-
-        ref_starts = starts_map.get(ref_rid)
-        if not ref_starts:
-            print(f"警告: 参考路口 {ref_rid} 没有有效协调相位数据")
-            return {
-                "current_offset_map": {},
-                "target_offset_map": {}
-            }
-
-        # 4. 处理目标相位差：超出周期的取模，确保 ref_rid 为 0
-        target_offset_map = {}
-        for rid in order:
-            try:
-                raw_target = int(raw_target_offset_map.get(rid, "0"))
-                target_offset_map[rid] = str(raw_target % cycle)
-            except Exception:
-                target_offset_map[rid] = "0"
-
+        # 3. 98 秒等配置值是车辆累计行程时间，禁止按现场周期取模。
+        target_offset_map = {
+            rid: str(int(raw_target_offset_map.get(rid, "0")))
+            for rid in order
+        }
         target_offset_map[ref_rid] = "0"
 
-        # 5. 计算当前相位差
-        current_offset_map = {}
+        # 只选择车辆已经有时间到达最远端的最近若干参考周期。
+        latest_feedback_ms = max(
+            starts[-1] for starts in observed_starts.values() if starts
+        )
+        max_travel_seconds = max(int(value) for value in target_offset_map.values())
+        eligible_ref_starts = [
+            value for value in observed_starts[ref_rid]
+            if value + max_travel_seconds * 1000 <= latest_feedback_ms
+        ][-GREEN_BAND_OBSERVATION_CYCLES:]
+        if not eligible_ref_starts:
+            print("警告: 尚无已完成的整条绿波车辆到达样本")
+            return {
+                "current_offset_map": {},
+                "target_offset_map": target_offset_map,
+                "timing_error_map": {},
+                "cycle_seconds": DEFAULT_CORRIDOR_CYCLE,
+                "green_band_aligned": False,
+            }
+
+        timing_error_map = {ref_rid: 0}
+        current_offset_map = {ref_rid: "0"}
+        arrival_report = {}
+        all_samples_passed = True
 
         for rid in order:
-            try:
-                if rid == ref_rid:
-                    current_offset_map[rid] = "0"
-                    continue
+            if rid == ref_rid:
+                continue
+            travel_seconds = int(target_offset_map[rid])
+            errors = []
+            passed_samples = 0
+            remaining_values = []
+            for ref_start in eligible_ref_starts:
+                arrival_ms = ref_start + travel_seconds * 1000
+                nearest_start = _find_nearest_start(observed_starts[rid], arrival_ms)
+                if nearest_start is not None:
+                    errors.append((nearest_start - arrival_ms) / 1000.0)
 
-                node_starts = starts_map.get(rid) or []
+                remaining = _green_remaining_seconds(observed_windows[rid], arrival_ms)
+                if remaining is not None:
+                    remaining_values.append(remaining)
+                    if remaining >= GREEN_BAND_MIN_REMAIN_SECONDS:
+                        passed_samples += 1
 
-                gw_idx = GREEN_WAVE_STAGE_INDEX.get(rid, 0)
-                ref_gw_idx = GREEN_WAVE_STAGE_INDEX.get(ref_rid, 0)
+            if not errors:
+                print(f"警告: 路口 {rid} 没有可匹配的最近阶段 1 起点")
+                return {
+                    "current_offset_map": {},
+                    "target_offset_map": target_offset_map,
+                    "timing_error_map": {},
+                    "cycle_seconds": DEFAULT_CORRIDOR_CYCLE,
+                    "green_band_aligned": False,
+                }
 
-                try:
-                    target_rel = int(target_offset_map.get(rid, "0"))
-                except Exception:
-                    target_rel = 0
-
-                if len(node_starts) > gw_idx and len(ref_starts) > ref_gw_idx:
-                    tn = node_starts[gw_idx]
-                    tr = ref_starts[ref_gw_idx]
-                    best_offset = (int(tn) - int(tr)) % cycle
-                else:
-                    candidates = []
-                    for tn in node_starts:
-                        for tr in ref_starts:
-                            try:
-                                diff = (int(tn) - int(tr)) % cycle
-                                candidates.append(int(diff))
-                            except Exception:
-                                continue
-
-                    if not candidates:
-                        current_offset_map[rid] = "0"
-                        continue
-
-                    best_offset = min(
-                        candidates,
-                        key=lambda x: cyclic_distance(x, target_rel, cycle)
-                    )
-                current_offset_map[rid] = str(best_offset)
-
-            except Exception as e:
-                print(f"calc_current_offset_map 处理路口 {rid} 出错: {e}")
-                current_offset_map[rid] = "0"
+            timing_error = _median_int(errors)
+            timing_error_map[rid] = timing_error
+            current_offset_map[rid] = str(travel_seconds + timing_error)
+            sample_count = len(eligible_ref_starts)
+            rid_aligned = (
+                sample_count >= GREEN_BAND_OBSERVATION_CYCLES
+                and passed_samples == sample_count
+            )
+            all_samples_passed = all_samples_passed and rid_aligned
+            arrival_report[rid] = {
+                "travel_seconds": travel_seconds,
+                "timing_error_seconds": timing_error,
+                "sample_count": sample_count,
+                "passed_samples": passed_samples,
+                "min_remaining_green_seconds": (
+                    round(min(remaining_values), 1) if remaining_values else None
+                ),
+            }
 
         return {
             "current_offset_map": current_offset_map,
             "target_offset_map": target_offset_map,
-            "cycle_seconds": cycle,
+            "timing_error_map": timing_error_map,
+            "cycle_seconds": DEFAULT_CORRIDOR_CYCLE,
+            "green_band_aligned": all_samples_passed,
+            "arrival_report": arrival_report,
         }
 
     except Exception as e:
@@ -513,6 +923,7 @@ def adjust_offset_one_round(
     target_offset_map: Dict[str, Union[str, int]],
     congestion_direction: str = "R",
     cycle_seconds: Optional[int] = None,
+    timing_error_map: Optional[Dict[str, Union[str, int]]] = None,
 ) -> Dict[str, List[int]]:
     def calc_cyclic_diff(cur_offset: int, target_offset: int, cycle: int) -> int:
         forward = (target_offset - cur_offset) % cycle
@@ -525,26 +936,27 @@ def adjust_offset_one_round(
     try:
         order = list(result_action_map.keys())
 
-        if congestion_direction == "R":
-            ref_rid = RIGHT_OFFSET_RID
-        elif congestion_direction == "L":
-            ref_rid = LEFT_OFFSET_RID
-        else:
-            print(f"警告: congestion_direction={congestion_direction} 无效，应为 'R' 或 'L'")
+        ref_rid, _ = _period_settings(congestion_direction)
+        if not ref_rid:
+            print(f"警告: period_id={congestion_direction} 没有有效绿波配置")
             return copy.deepcopy(result_action_map)
 
         if ref_rid not in result_action_map:
             print(f"警告: result_action_map 中不存在参考路口 {ref_rid}")
             return copy.deepcopy(result_action_map)
 
-        if len(result_action_map[ref_rid]) < 2:
+        ref_green_index, ref_balance_index = _stage_indices(ref_rid)
+        if len(result_action_map[ref_rid]) <= max(ref_green_index, ref_balance_index):
             print(f"警告: 参考路口 {ref_rid} 的方案长度不足，至少需要前两位")
             return copy.deepcopy(result_action_map)
 
         try:
             cycle = int(cycle_seconds or 0)
             if cycle <= 0:
-                cycle = int(result_action_map[ref_rid][0]) + int(result_action_map[ref_rid][1])
+                cycle = (
+                    int(result_action_map[ref_rid][ref_green_index])
+                    + int(result_action_map[ref_rid][ref_balance_index])
+                )
         except Exception as e:
             print(f"警告: 参考路口 {ref_rid} 周期计算失败: {e}")
             return copy.deepcopy(result_action_map)
@@ -560,7 +972,11 @@ def adjust_offset_one_round(
                 if rid == ref_rid:
                     continue
 
-                if rid not in next_plan or len(next_plan[rid]) < 2:
+                green_index, balance_index = _stage_indices(rid)
+                if (
+                    rid not in next_plan
+                    or len(next_plan[rid]) <= max(green_index, balance_index)
+                ):
                     continue
 
                 if rid not in current_offset_map or rid not in target_offset_map:
@@ -569,11 +985,15 @@ def adjust_offset_one_round(
                 try:
                     cur_offset = int(current_offset_map[rid])
                     target_offset = int(target_offset_map[rid])
+                    if timing_error_map and rid in timing_error_map:
+                        # 正值表示下游起绿偏晚，需要缩短 P2 让下一轮 P1 提前。
+                        timing_error = int(timing_error_map[rid])
+                        diff = -timing_error
+                    else:
+                        diff = calc_cyclic_diff(cur_offset, target_offset, cycle)
                 except Exception as e:
                     print(f"警告: 路口 {rid} 相位差解析失败: {e}")
                     continue
-
-                diff = calc_cyclic_diff(cur_offset, target_offset, cycle)
 
                 if diff > 0:
                     delta = min(int(OFFSET_STEP), diff)
@@ -582,30 +1002,15 @@ def adjust_offset_one_round(
                 else:
                     delta = 0
 
-                old_p1 = int(next_plan[rid][0])
-                old_p2 = int(next_plan[rid][1])
+                old_p1 = int(next_plan[rid][green_index])
+                old_p2 = int(next_plan[rid][balance_index])
+                green_sum = old_p1 + old_p2
 
-                r_i = DEFAULT_RED_DURATIONS.get(rid, 12)
-                target_green_sum = max(20, cycle - r_i)
+                new_p2 = max(10, old_p2 + delta)
+                new_p1 = max(10, green_sum - new_p2)
 
-                bounds = PHASE_CHECK_BOUNDS.get(rid, {"p1": (10, 80), "p2": (10, 80)})
-                p1_min, p1_max = bounds["p1"]
-                p2_min, p2_max = bounds["p2"]
-
-                valid_p1_min = max(p1_min, target_green_sum - p2_max)
-                valid_p1_max = min(p1_max, target_green_sum - p2_min)
-
-                gw_idx = GREEN_WAVE_STAGE_INDEX.get(rid, 0)
-                if gw_idx == 0:
-                    proposed_p1 = old_p1 - delta
-                else:
-                    proposed_p1 = old_p1 + delta
-
-                new_p1 = max(valid_p1_min, min(valid_p1_max, proposed_p1))
-                new_p2 = target_green_sum - new_p1
-
-                next_plan[rid][0] = new_p1
-                next_plan[rid][1] = new_p2
+                next_plan[rid][green_index] = new_p1
+                next_plan[rid][balance_index] = new_p2
 
                 print(
                     f"[offset调整] rid={rid}, cur={cur_offset}, target={target_offset}, "
@@ -647,12 +1052,15 @@ def offsets_aligned(
     return True
 
 
-def apply_green_wave_coordination(
+def _apply_green_wave_coordination_active(
     time_str: str,
     cur_action_map: Dict[str, List[int]],
     result_action_map: Dict[str, List[int]],
     coordinate_map_set: Dict[str, Dict[str, int]],
     extend_map: Optional[Dict[str, Dict[Union[str, int], List[dict]]]] = None,
+    simulation_mode: bool = False,
+    simulation_timestamp: Optional[int] = None,
+    report_out: Optional[Dict[str, object]] = None,
 ) -> Dict[str, List[int]]:
     """
     绿波走廊协同控制独立主入口函数：
@@ -661,20 +1069,36 @@ def apply_green_wave_coordination(
     global start, cycle_green, offset_green, cycle_done, offset_done
     global cnt, fix_plan, direction, green_plan_map, last_green_wave_send_time
 
-    if not time_str or not isinstance(time_str, str):
-        time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    active_period = _period_for_time(time_str)
 
-    judge1 = is_in_morning_peak_str(time_str)
-    judge2 = is_in_evening_peak_str(time_str)
+    report = {
+        "status": "success",
+        "corridor_id": _ACTIVE_CORRIDOR_ID,
+        "mode": "online_simulation" if simulation_mode else "extend_feedback",
+        "test_time": time_str,
+        "peak": active_period["period_id"] if active_period else "none",
+        "cycle_aligned": False,
+        "green_band_aligned": False,
+        "final_aligned": False,
+        "target_offset_map": {},
+        "target_start_map": {},
+        "current_offset_map": {},
+        "arrival_report": {},
+        "message": "",
+    }
 
-    if judge1:
+    def publish_report():
+        report["final_aligned"] = bool(
+            report.get("cycle_aligned") and report.get("green_band_aligned")
+        )
+        if isinstance(report_out, dict):
+            report_out.clear()
+            report_out.update(copy.deepcopy(report))
+
+    if active_period:
         alarm_green = True
-        alarm_direction = "R"
-        print("当前处于早高峰")
-    elif judge2:
-        alarm_green = True
-        alarm_direction = "L"
-        print("当前处于晚高峰")
+        alarm_direction = str(active_period["period_id"])
+        print(f"当前处于绿波时段: {alarm_direction}")
     else:
         alarm_green = False
         alarm_direction = ""
@@ -684,10 +1108,17 @@ def apply_green_wave_coordination(
     if not alarm_green:
         if start:
             print("绿波时段结束，重置绿波状态。")
-            reset_green_wave_state()
+            _reset_active_state_values()
+        report["message"] = "当前不在绿波启用时段"
+        publish_report()
         return result_action_map
 
-    current_time_sec = time.time()
+    # online 回放按报文时间推进冷却周期；实车保持机器当前时间。
+    current_time_sec = (
+        int(simulation_timestamp)
+        if simulation_mode and simulation_timestamp is not None
+        else time.time()
+    )
     if not start:
         start = True
         cycle_green = True
@@ -697,7 +1128,7 @@ def apply_green_wave_coordination(
         last_green_wave_send_time = 0
         green_plan_map = {item: cur_action_map[item][:] for item in ORDER if item in cur_action_map}
 
-    if start and REF_RID in green_plan_map:
+    if start and ORDER and all(item in green_plan_map for item in ORDER):
         working_plan = {
             item: green_plan_map.get(item, cur_action_map[item])[:]
             for item in ORDER
@@ -706,17 +1137,28 @@ def apply_green_wave_coordination(
 
         # 检查下发保护冷却时间，防止重发频率高于走廊统一周期 C
         cooldown_passed = (last_green_wave_send_time == 0) or (
-            current_time_sec - last_green_wave_send_time >= (DEFAULT_CORRIDOR_CYCLE - 5)
+            current_time_sec - last_green_wave_send_time >= COOLDOWN_SECONDS
         )
 
         if not cooldown_passed:
-            print(f"绿波冷却中（距离上次调整不足 {DEFAULT_CORRIDOR_CYCLE - 5} 秒），保持当前已下发周期方案。")
+            print(f"绿波冷却中（距离上次调整不足 {COOLDOWN_SECONDS} 秒），保持当前已下发周期方案。")
+            report["cycle_aligned"] = bool(cycle_done)
+            report["green_band_aligned"] = bool(offset_done)
+            report["message"] = "绿波冷却中，保持当前已下发方案"
             for item in ORDER:
                 if item in result_action_map and item in working_plan:
                     result_action_map[item] = working_plan[item][:]
         else:
-            # 1. 从 extend 反馈统计各路口红灯总时长 R_i
-            red_durations = get_red_durations_from_extend(extend_map, ORDER)
+            # online 不包含阶段号，回放测试只能使用配置的红灯时长推演周期；
+            # 实车仍优先从 extend 反馈统计 R_i。
+            if simulation_mode:
+                red_durations = {
+                    rid: DEFAULT_RED_DURATIONS.get(rid, 12)
+                    for rid in ORDER
+                }
+                print("绿波模拟模式：使用 online 时间和当前方案推演绿灯窗口。")
+            else:
+                red_durations = get_red_durations_from_extend(extend_map, ORDER)
 
             # ----------------------------------- 周期调整部分 ---------------------------
             if cycle_green:
@@ -740,6 +1182,12 @@ def apply_green_wave_coordination(
                     ORDER
                 )
                 print(f"走廊统一周期 C={DEFAULT_CORRIDOR_CYCLE} 秒对齐状态: cycle_done = {cycle_done}")
+                report["cycle_aligned"] = bool(cycle_done)
+                report["message"] = (
+                    "走廊周期已对齐，下一轮开始检查绿灯窗口"
+                    if cycle_done
+                    else "正在调整走廊统一周期"
+                )
                 if cycle_done:
                     cycle_green = False
                     offset_green = True
@@ -747,134 +1195,125 @@ def apply_green_wave_coordination(
 
             # ------------------------------------ 相位差调整部分 -----------------------------------------------
             elif offset_green:
-                res = compute_green_wave_target_offsets(
-                    coordinate_map_set=coordinate_map_set,
-                    result_action_map=working_plan,
-                    congestion_direction=direction,
-                    extend_map=extend_map,
-                )
+                if simulation_mode:
+                    res = calc_simulated_offset_map(
+                        result_action_map=working_plan,
+                        congestion_direction=direction,
+                        simulation_timestamp=simulation_timestamp,
+                    )
+                else:
+                    res = calc_current_offset_map(
+                        coordinate_map_set=coordinate_map_set,
+                        result_action_map=working_plan,
+                        congestion_direction=direction,
+                        extend_map=extend_map,
+                    )
                 current_offset_map = res.get("current_offset_map", {})
                 target_offset_map = res.get("target_offset_map", {})
+                target_start_map = res.get("target_start_map", {})
+                timing_error_map = res.get("timing_error_map", {})
                 cycle_seconds = int(res.get("cycle_seconds", 0) or DEFAULT_CORRIDOR_CYCLE)
+                green_band_aligned = bool(res.get("green_band_aligned", False))
 
-                print("目标相位差：", target_offset_map)
-                print("当前相位差：", current_offset_map)
+                report["cycle_aligned"] = is_corridor_cycle_aligned(
+                    working_plan,
+                    DEFAULT_CORRIDOR_CYCLE,
+                    red_durations,
+                    ORDER,
+                )
+                report["green_band_aligned"] = green_band_aligned
+                report["target_offset_map"] = copy.deepcopy(target_offset_map)
+                report["target_start_map"] = copy.deepcopy(target_start_map)
+                report["current_offset_map"] = copy.deepcopy(current_offset_map)
+                report["arrival_report"] = copy.deepcopy(
+                    res.get("arrival_report", {})
+                )
+
+                print("目标累计行程时间：", target_offset_map)
+                if simulation_mode and target_start_map:
+                    print("模拟目标阶段 1 起绿位置：", target_start_map)
+                offset_source = "模拟阶段 1 起绿相位：" if simulation_mode else "实测阶段 1 起绿时间："
+                print(offset_source, current_offset_map)
+                print("车辆到达绿灯窗口报告：", res.get("arrival_report", {}))
 
                 if not current_offset_map or not target_offset_map or cycle_seconds <= 0:
-                    print("绿波相位差等待完整 extend 阶段反馈。")
+                    if simulation_mode:
+                        print("绿波模拟数据不完整，保持当前已下发周期方案。")
+                        report["message"] = "绿波模拟数据不完整"
+                    else:
+                        print("绿波相位差等待完整 extend 阶段反馈。")
+                        report["message"] = "等待完整 extend 阶段反馈"
                     for item in ORDER:
                         if item in result_action_map and item in working_plan:
                             result_action_map[item] = working_plan[item][:]
-                elif offsets_aligned(
-                    current_offset_map, target_offset_map, cycle_seconds
-                ):
-                    print("绿波相位差已达到目标。保持绿波协同运行。")
+                elif green_band_aligned:
+                    print("最近车辆到达样本均处于绿灯且余量达标，保持绿波协同运行。")
+                    offset_done = True
+                    report["message"] = "车辆到达绿灯窗口已达标"
                     for item in ORDER:
                         if item in result_action_map and item in working_plan:
                             result_action_map[item] = working_plan[item][:]
                 else:
-                    next_plan = adjust_offset_one_round(
-                        result_action_map=working_plan,
-                        current_offset_map=current_offset_map,
-                        target_offset_map=target_offset_map,
-                        congestion_direction=direction,
-                        cycle_seconds=cycle_seconds,
-                    )
+                    offset_done = False
+                    if simulation_mode:
+                        report["message"] = "车辆到达绿灯窗口未达标，正在独立调整模拟起绿位置"
+                        adjust_simulated_offsets_one_round(
+                            current_offset_map=current_offset_map,
+                            target_start_map=target_start_map,
+                            cycle_seconds=cycle_seconds,
+                        )
+                        # online 回放只移动虚拟相位，周期对齐后的阶段时长保持不变。
+                        next_plan = copy.deepcopy(working_plan)
+                    else:
+                        report["message"] = "车辆到达绿灯窗口未达标，已生成下一轮方案"
+                        next_plan = adjust_offset_one_round(
+                            result_action_map=working_plan,
+                            current_offset_map=current_offset_map,
+                            target_offset_map=target_offset_map,
+                            congestion_direction=direction,
+                            cycle_seconds=cycle_seconds,
+                            timing_error_map=timing_error_map,
+                        )
                     green_plan_map = round_next_plan(next_plan)
                     for item in ORDER:
                         if item in result_action_map and item in green_plan_map:
                             result_action_map[item] = green_plan_map[item][:]
                     last_green_wave_send_time = current_time_sec
 
+    publish_report()
     return result_action_map
 
 
-# 判断是否位于早高峰
-def is_in_morning_peak_str(time_str):
-    if not time_str or not isinstance(time_str, str):
-        return False
+def apply_green_wave_coordination(
+    time_str: str,
+    cur_action_map: Dict[str, List[int]],
+    result_action_map: Dict[str, List[int]],
+    coordinate_map_set: Dict[str, Dict[str, int]],
+    extend_map: Optional[Dict[str, Dict[Union[str, int], List[dict]]]] = None,
+    simulation_mode: bool = False,
+    simulation_timestamp: Optional[int] = None,
+    report_out: Optional[Dict[str, object]] = None,
+    corridor_config: Optional[Dict[str, object]] = None,
+) -> Dict[str, List[int]]:
+    """按走廊配置加载独立状态并执行一轮协调。"""
+    if not isinstance(corridor_config, dict):
+        raise ValueError("必须通过 green_wave_corridors.json 提供 corridor_config")
+    corridor = copy.deepcopy(corridor_config)
+    _activate_corridor_config(corridor)
+    corridor_id = _ACTIVE_CORRIDOR_ID
     try:
-        dt = datetime.strptime(time_str.strip(), "%Y-%m-%d %H:%M:%S")
-
-        start = dt.replace(hour=7, minute=30, second=0)
-        end = dt.replace(hour=9, minute=0, second=0)
-
-        return start <= dt <= end
-
-    except Exception as e:
-        print(f"[警告] is_in_morning_peak_str 执行失败: {e}")
-        return False
-
-
-# 判断是否位于晚高峰
-def is_in_evening_peak_str(time_str):
-    """
-    判断字符串时间是否在晚高峰之间
-    格式: 'YYYY-MM-DD HH:MM:SS'
-    """
-    if not time_str or not isinstance(time_str, str):
-        return False
-    try:
-        dt = datetime.strptime(time_str.strip(), "%Y-%m-%d %H:%M:%S")
-
-        start = dt.replace(hour=17, minute=0, second=0)
-        end = dt.replace(hour=22, minute=0, second=0)
-
-        return start <= dt <= end
-
-    except Exception as e:
-        print(f"[警告] is_in_evening_peak_str 执行失败: {e}")
-        return False
-
-
-# 把输入安全的转成整数
-def safe_int(x):
-    if x is None:
-        return None
-    if isinstance(x, (int, float)):
-        return int(x)
-    try:
-        return int(str(x).strip())
-    except Exception:
-        return None
-
-
-# 统一一下方向
-def normalize_dir(d):
-    if d is None:
-        return None
-    d = str(d).strip().upper()
-    if not d:
-        return None
-    return DIR_ALIAS.get(d)
-
-
-# 统一处理“一个路口”或“多个路口”的情况
-def iter_junction_ids(v):
-    if v is None:
-        return
-    if isinstance(v, list):
-        for x in v:
-            s = str(x).strip()
-            if s:
-                yield s
-    else:
-        s = str(v).strip()
-        if s:
-            yield s
-
-
-# 选择最近最大拥塞系数
-def better_max(cur_level, cur_time, new_level, new_time):
-    if cur_level is None:
-        return new_level, new_time
-    if new_level > cur_level:
-        return new_level, new_time
-    if new_level == cur_level:
-        if cur_time is None or (new_time is not None and new_time > cur_time):
-            return new_level, new_time
-    return cur_level, cur_time
-
+        return _apply_green_wave_coordination_active(
+            time_str=time_str,
+            cur_action_map=cur_action_map,
+            result_action_map=result_action_map,
+            coordinate_map_set=coordinate_map_set,
+            extend_map=extend_map,
+            simulation_mode=simulation_mode,
+            simulation_timestamp=simulation_timestamp,
+            report_out=report_out,
+        )
+    finally:
+        _GREEN_WAVE_STATE_MAP[corridor_id] = _capture_active_state()
 
 
 
@@ -890,7 +1329,6 @@ DIR_ALIAS = {
 }
 VALID_CANON_DIRS = {"L", "R", "U", "D"}
 
-
 # 判断当前时间
 def get_latest_normal_time(online_data):
     latest_time = None
@@ -904,9 +1342,7 @@ def get_latest_normal_time(online_data):
                 continue
 
             try:
-                timestamp = float(item["time"])
-                if timestamp > 1e11:  # 毫秒时间戳转换为秒
-                    timestamp = timestamp / 1000.0
+                timestamp = int(item["time"])
             except (ValueError, TypeError):
                 # time 字段异常，直接跳过
                 continue
@@ -926,6 +1362,84 @@ def get_latest_normal_time(online_data):
         print(f"[警告] get_latest_normal_time 执行失败: {e}")
         return None
 
+# 判断是否位于早高峰
+def is_in_morning_peak_str(time_str):
+
+    try:
+        dt = datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
+
+        start = dt.replace(hour=7, minute=30, second=0)
+        end = dt.replace(hour=9, minute=0, second=0)
+
+        return start <= dt <= end
+
+    except Exception as e:
+        print(f"[警告] is_in_morning_peak_str 执行失败: {e}")
+        return False
+
+
+# 判断是否位于晚高峰
+def is_in_evening_peak_str(time_str):
+    """
+    判断字符串时间是否在晚高峰之间
+    格式: 'YYYY-MM-DD HH:MM:SS'
+    """
+    try:
+        dt = datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
+
+        start = dt.replace(hour=17, minute=00, second=0)
+        end = dt.replace(hour=19, minute=0, second=0)
+
+        return start <= dt <= end
+
+    except Exception as e:
+        print(f"[警告] is_in_evening_peak_str 执行失败: {e}")
+        return False
+
+# 把输入安全的转成整数
+def safe_int(x):
+    if x is None:
+        return None
+    if isinstance(x, (int, float)):
+        return int(x)
+    try:
+        return int(str(x).strip())
+    except Exception:
+        return None
+
+# 统一一下方向
+def normalize_dir(d):
+    if d is None:
+        return None
+    d = str(d).strip().upper()
+    if not d:
+        return None
+    return DIR_ALIAS.get(d)
+
+# 统一处理“一个路口”或“多个路口”的情况
+def iter_junction_ids(v):
+    if v is None:
+        return
+    if isinstance(v, list):
+        for x in v:
+            s = str(x).strip()
+            if s:
+                yield s
+    else:
+        s = str(v).strip()
+        if s:
+            yield s
+
+# 选择最近最大拥塞系数
+def better_max(cur_level, cur_time, new_level, new_time):
+    if cur_level is None:
+        return new_level, new_time
+    if new_level > cur_level:
+        return new_level, new_time
+    if new_level == cur_level:
+        if cur_time is None or (new_time is not None and new_time > cur_time):
+            return new_level, new_time
+    return cur_level, cur_time
 
 #计算拥塞等级
 def calc_ci_level(data):

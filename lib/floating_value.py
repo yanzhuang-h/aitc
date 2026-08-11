@@ -68,11 +68,6 @@ def _read_floating_value_uncached(path=FLOATING_VALUE_PATH):
     return data
 
 
-def get_floating_value_records(path=FLOATING_VALUE_PATH):
-    """读取浮动值配置，并返回与内部缓存隔离的副本。"""
-    return copy.deepcopy(_load_floating_value(path))
-
-
 def _save_floating_value(data, path=FLOATING_VALUE_PATH):
     global _cache_mtime, _cache_data
 

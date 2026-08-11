@@ -1,0 +1,124 @@
+{
+  "version": 1,
+  "corridors": {
+    "lvbo_01": {
+      "corridor_id": "lvbo_01",
+      "name": "现有四路口绿波走廊",
+      "enabled": true,
+      "cycle_seconds": 90,
+      "offset_step_seconds": 3,
+      "minimum_remaining_green_seconds": 10,
+      "simulation_target_elapsed_green_seconds": 10,
+      "cooldown_seconds": 85,
+      "intersections": [
+        {
+          "cross_id": "2705050",
+          "green_stage_index": 0,
+          "balance_stage_index": 1,
+          "default_red_seconds": 15
+        },
+        {
+          "cross_id": "1300370",
+          "green_stage_index": 0,
+          "balance_stage_index": 1,
+          "default_red_seconds": 14
+        },
+        {
+          "cross_id": "1300373",
+          "green_stage_index": 0,
+          "balance_stage_index": 1,
+          "default_red_seconds": 0
+        },
+        {
+          "cross_id": "1300248",
+          "green_stage_index": 0,
+          "balance_stage_index": 1,
+          "default_red_seconds": 16
+        }
+      ],
+      "periods": [
+        {
+          "period_id": "morning",
+          "start_time": "07:30:00",
+          "end_time": "09:00:00",
+          "reference_cross_id": "1300248",
+          "intersection_order": [
+            "1300248",
+            "1300373",
+            "1300370",
+            "2705050"
+          ],
+          "travel_seconds": {
+            "1300248": 0,
+            "1300373": 33,
+            "1300370": 72,
+            "2705050": 98
+          }
+        },
+        {
+          "period_id": "evening",
+          "start_time": "17:00:00",
+          "end_time": "19:00:00",
+          "reference_cross_id": "2705050",
+          "intersection_order": [
+            "2705050",
+            "1300370",
+            "1300373",
+            "1300248"
+          ],
+          "travel_seconds": {
+            "2705050": 0,
+            "1300370": 26,
+            "1300373": 65,
+            "1300248": 98
+          }
+        }
+      ],
+      "road_junction": {
+        "13FKU0C60A013FK30C60A00": {
+          "R": "1300373"
+        },
+        "13FK30C60A013FJ00C60B00": {
+          "L": "1300373",
+          "R": "1300370"
+        },
+        "13FMF0C60A013FL00C60A00": {
+          "R": "1300248"
+        },
+        "13FL00C60A013FKU0C60A00": {
+          "L": "1300248"
+        },
+        "13FJ00C60B013FIT0C5V800": {
+          "L": "1300370",
+          "R": "2705050"
+        }
+      },
+      "topology": {
+        "1300248": {
+          "L": "",
+          "R": "1300373",
+          "D": "1300247",
+          "U": ""
+        },
+        "1300370": {
+          "L": "1300373",
+          "R": "2705050",
+          "D": "1300369",
+          "U": "1300243"
+        },
+        "2705050": {
+          "L": "1300370",
+          "R": "",
+          "D": "",
+          "U": ""
+        },
+        "1300373": {
+          "L": "1300248",
+          "R": "1300370",
+          "D": "1300246",
+          "U": "1300371"
+        }
+      }
+    }
+  }
+}

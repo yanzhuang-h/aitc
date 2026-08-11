@@ -45,4 +45,9 @@ server.log.*
 infra/model/**/Qwen[0-9]*/
 *.safetensors
 
+# 真实回放数据（运维提供，体积大，不入库）
+test/flow_data/
+test/extend_data/
+test/online_data/
+
 ./todo-done

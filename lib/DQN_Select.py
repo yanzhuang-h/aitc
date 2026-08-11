@@ -6,6 +6,7 @@ from lib.cha import  *
 import time
 from  lib.cha1 import *
 from lib.cha1 import chuli_shuju
+from lib.data_ANS.flow_allocator_shadow import select_pilot_schedule
 
 Cross_Video = {
     '1300069': {
@@ -627,6 +628,12 @@ def DQN_select_1300068(traffic_vector, queue_vector, traffic_vector_duration2,cu
     print([sch[0], sch[1], sch[2], sch[3], 1300068])
     # if (traffic_vector_duration2[0]+traffic_vector_duration2[1]+traffic_vector_duration2[2]+traffic_vector_duration2[3])==0:
     sch=chuli_shuju("1300068",flow_map_single_intersection,extend_map_single_intersection)
+    sch = select_pilot_schedule(
+        "1300068",
+        sch,
+        flow_map_single_intersection,
+        extend_map_single_intersection,
+    )
     print("kjhxkjcshadkjsahdksad", sch)
 
     return sch,coordinate_set,model_map,EXP_map
@@ -916,6 +923,12 @@ def DQN_select_1300069(traffic_vector, queue_vector, traffic_vector_duration2,cu
     # sch = reverse_time_from_three_cycle("1300069", flow_map_single_intersection, extend_map_single_intersection)
     # print("kjhxkjcshadkjsahdksad 1300069", sch)
     sch=chuli_shuju("1300069",flow_map_single_intersection,extend_map_single_intersection)
+    sch = select_pilot_schedule(
+        "1300069",
+        sch,
+        flow_map_single_intersection,
+        extend_map_single_intersection,
+    )
     # if sch == None:
     #     sch = [0] * 10
     return sch,coordinate_set,model_map,EXP_map
@@ -1283,6 +1296,12 @@ def DQN_select_1700125(traffic_vector, queue_vector, traffic_vector_duration2,cu
     print("1700125-----------------------------------------------")
 
     sch=chuli_shuju("1700125", flow_map_single_intersection,extend_map_single_intersection)
+    sch = select_pilot_schedule(
+        "1700125",
+        sch,
+        flow_map_single_intersection,
+        extend_map_single_intersection,
+    )
     # print("1700125____________________________________",sch,"1700125____________________________________")
     return sch,coordinate_set,model_map,EXP_map
 
@@ -1707,15 +1726,14 @@ def DQN_select_1300070(traffic_vector, queue_vector, traffic_vector_duration2, c
     print(flow_map_single_intersection)
     print("1300070-----------------------------------------------")
     sch = chuli_shuju("1300070", flow_map_single_intersection, extend_map_single_intersection)
+    sch = select_pilot_schedule(
+        "1300070",
+        sch,
+        flow_map_single_intersection,
+        extend_map_single_intersection,
+    )
     print("1300070____________________________________", sch, "1300070____________________________________")
 
-    if 1:
-        try:
-            from lib.rl_score import generate_rl_report
-            # 将 cross_id 改为手写的 "1300070" 即可
-            generate_rl_report(road_id="1300070", base_schedule=sch)
-        except Exception as e:
-            print(f"强化学习方案报告生成失败，路口: 1300070, 错误原因: {e}")
+
 
     return sch, coordinate_set, model_map, EXP_map
-

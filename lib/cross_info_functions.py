@@ -82,18 +82,18 @@ def _normalize_jtll(value):
     return normalized
 
 
-def _normalize_zhouqi(value):
+def _normalize_Cycle(value):
     if not isinstance(value, list) or not value:
-        raise ValueError("cross_info.zhouqi must be a non-empty list")
+        raise ValueError("cross_info.Cycle must be a non-empty list")
 
     normalized = []
     for index, cycle in enumerate(value):
         if not isinstance(cycle, list) or not cycle:
-            raise ValueError(f"cross_info.zhouqi[{index}] must be a non-empty list")
+            raise ValueError(f"cross_info.Cycle[{index}] must be a non-empty list")
         try:
             normalized.append([int(item) for item in cycle])
         except (TypeError, ValueError):
-            raise ValueError(f"cross_info.zhouqi[{index}] must contain integers")
+            raise ValueError(f"cross_info.Cycle[{index}] must contain integers")
     return normalized
 
 
@@ -102,7 +102,7 @@ def _normalize_cross_info(payload):
     if not isinstance(cross_info, dict):
         raise ValueError("cross_info must be a JSON object")
 
-    required = ("phase", "LaneNo", "jtll_ddbh", "zhouqi")
+    required = ("phase", "LaneNo", "jtll_ddbh", "Cycle")
     missing = [field for field in required if field not in cross_info]
     if missing:
         raise ValueError("cross_info missing fields: " + ", ".join(missing))
@@ -111,7 +111,7 @@ def _normalize_cross_info(payload):
         "phase": _normalize_phase(cross_info["phase"]),
         "LaneNo": _normalize_lane_no(cross_info["LaneNo"]),
         "jtll_ddbh": _normalize_jtll(cross_info["jtll_ddbh"]),
-        "zhouqi": _normalize_zhouqi(cross_info["zhouqi"]),
+        "Cycle": _normalize_Cycle(cross_info["Cycle"]),
     }
 
 

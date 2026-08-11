@@ -37,25 +37,10 @@ for data in datas:
         lines2 = f.readlines()
 
     shipin_roid={
-        "2703062",
-        "1300106",
-        "1300047",
         "1300069",
-        "1300042",
-        "1300870",
-        "1300101",
-        # "1700086",
-        # # "1700276",
-        # "1700275",
-        "1300229",
-        "2712127",
-        "2703062",
-        "1300106",
-        "1300092",
-        "1300101",
-        "1300042",
-        "1300044",
-
+        "1300068",
+        "1300067",
+        "1700125",
     }
 
 
@@ -345,7 +330,7 @@ for data in datas:
             if phase in lines3[road_id]['phase']:
                 zhuangtai_set.add(lines3[road_id]['phase'][phase])
                 # print(lines3[road_id]['phase'][phase],ts-kaishi_zhen)
-        zhouqi=0
+        Cycle=0
         zongtime=0
         end=0
         kaishi_xiangwei="-1"
@@ -406,8 +391,8 @@ for data in datas:
 
             if (phase=="-1" or kaishi_xiangwei==phase ) and dangxia_set and zhuangtai_set:
                 if len(dangxia_set)==len(zhuangtai_set):
-                    zhouqi+=1
-                    if zhouqi==1:#选择周期用的方法
+                    Cycle+=1
+                    if Cycle==1:#选择周期用的方法
                         zongtime=i-kaishi_zhen
                         end=i
                         break

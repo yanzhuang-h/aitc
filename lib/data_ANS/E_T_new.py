@@ -1,13 +1,63 @@
 import json
 import time
 import os
+import tempfile
+from collections import Counter
 from datetime import datetime, timedelta
+
+try:
+    from lib.data_ANS.raw_data_cleaning import (
+        DEFAULT_MAX_STAGE_GAP_SECONDS,
+        clean_training_inputs,
+    )
+    from lib.data_ANS.experience_candidate_audit import ExperienceCandidateAudit
+    from lib.data_ANS.lane_policy import (
+        capacity_experience_direction,
+        classify_lane_type,
+        is_dedicated_left,
+    )
+    from lib.data_ANS.cycle_quality import (
+        CYCLE_OBSERVATION_WINDOW_SECONDS,
+        LONG_CYCLE_THRESHOLD_SECONDS,
+        MAX_ADJACENT_STAGE_CHANGE_SECONDS,
+        MIN_CONSECUTIVE_CYCLES,
+        WINDOW_SECONDS,
+        centered_observation_bounds,
+        cycle_observation_expansion_decision,
+        group_consecutive_same_pattern_cycles,
+        split_cycle_group_on_stage_change,
+    )
+except ModuleNotFoundError:
+    from raw_data_cleaning import (
+        DEFAULT_MAX_STAGE_GAP_SECONDS,
+        clean_training_inputs,
+    )
+    from experience_candidate_audit import ExperienceCandidateAudit
+    from lane_policy import (
+        capacity_experience_direction,
+        classify_lane_type,
+        is_dedicated_left,
+    )
+    from cycle_quality import (
+        CYCLE_OBSERVATION_WINDOW_SECONDS,
+        LONG_CYCLE_THRESHOLD_SECONDS,
+        MAX_ADJACENT_STAGE_CHANGE_SECONDS,
+        MIN_CONSECUTIVE_CYCLES,
+        WINDOW_SECONDS,
+        centered_observation_bounds,
+        cycle_observation_expansion_decision,
+        group_consecutive_same_pattern_cycles,
+        split_cycle_group_on_stage_change,
+    )
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LIB_DIR = os.path.abspath(os.path.join(BASE_DIR, os.pardir))
 PROJECT_ROOT = os.path.abspath(os.path.join(LIB_DIR, os.pardir))
-JIYAN_PATH = os.path.join(LIB_DIR, "lin_shi_111.json")
+JIYAN_PATH = os.environ.get(
+    "AITC_EXPERIENCE_OUTPUT",
+    os.path.join(LIB_DIR, "lin_shi_11123.json"),
+)
 INFO_PATH = os.path.join(LIB_DIR, "cross_info.json")
 
 
@@ -19,10 +69,16 @@ with open(INFO_PATH, "r", encoding="utf-8") as f:
 # 配置区
 # ============================================================
 datas = [
-# '2026-04-23',
-# '2026-04-22',
-# '2026-04-21',
-# '2026-04-20',
+'2026-07-01',
+'2026-06-29',
+'2026-06-28',
+'2026-06-27',
+'2026-06-17',
+'2026-06-18',
+'2026-06-19',
+'2026-06-20',
+'2026-06-21',
+'2026-06-22',
 # '2026-04-08',
 # '2026-04-07',
 # '2026-03-19',
@@ -33,58 +89,49 @@ datas = [
 # '2026-03-13',
 # '2026-03-12',
 # '2026-03-11',
-#
-# '2026-03-04',
+# (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+]
+configured_dates = os.environ.get("AITC_TRAIN_DATES", "").strip()
+if configured_dates:
+    datas = [value.strip() for value in configured_dates.split(",") if value.strip()]
 
-
-         #
-         # '2026-02-03','2026-02-04',
-    (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')]
-# datas = [
-#     "2026-04-23",
-#     # "2026-04-22",
-#     # "2026-04-21",
-# ]
 
 shipin_roid = {
-    "1300362",
+    "1300069",
     "1300068",
-     "1300069",
-    "1300870",
-    "1300044",
-    "1300047",
-    "1700275",
-    "1700086",
-    "1700087",
-    "1700276",
-    "1300239",
-    "1300229",
-    "2703062",
-    "1300106",
-    "1300042",
-    "1300101",
-    "1300092",
-    "2712127",
-    "1700079",
+    "1300067",
     "1700125",
-    "1700126",
-    "1700124",
-    "1300166",
-    "1300153",
-    "1300306",
-    "1300409",
-    "1700067",
-    "1700085",
-    "1300147",
-    "1700262",
-    "1700293",
-    "1300087",
-    "2702736",
 }
+configured_road_ids = os.environ.get("AITC_TRAIN_ROAD_IDS", "").strip()
+if configured_road_ids:
+    shipin_roid = {
+        value.strip()
+        for value in configured_road_ids.split(",")
+        if value.strip()
+    }
 
-# 【异常检测阈值】
-# 任意阶段执行时间 <= 15s，则认为当前抽取的三周期异常，不计入经验表。
-ABNORMAL_STAGE_DURATION_THRESHOLD = 15
+BASE_FLOW_DIRECTIONS = ("U", "D", "L", "R")
+PHASE_DIRECTION_MAP = {
+    "UD": ("U", "D"),
+    "LR": ("L", "R"),
+    "UDL": ("UTL", "DTL"),
+    "LRL": ("LTL", "RTL"),
+    "U": ("U", "UTL"),
+    "D": ("D", "DTL"),
+    "L": ("L", "LTL"),
+    "R": ("R", "RTL"),
+    "LTD": ("LTL", "D"),
+}
+TRAIN_VERBOSE = os.environ.get("AITC_TRAIN_VERBOSE", "0").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+FILTER_UNAVAILABLE_DIRECTIONS = os.environ.get(
+    "AITC_TRAIN_FILTER_UNAVAILABLE_DIRECTIONS",
+    "1",
+).strip().lower() not in {"0", "false", "no", "off"}
 
 
 # ============================================================
@@ -116,6 +163,34 @@ def fmt_time(ts):
     return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(int(ts)))
 
 
+def debug_print(*args, **kwargs):
+    if TRAIN_VERBOSE:
+        print(*args, **kwargs)
+
+
+def write_json_atomic(file_path, data):
+    """Atomically replace a JSON file after the complete payload is written."""
+    directory = os.path.dirname(os.path.abspath(file_path))
+    os.makedirs(directory, exist_ok=True)
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            dir=directory,
+            delete=False,
+        ) as file:
+            temp_path = file.name
+            json.dump(data, file, ensure_ascii=False, indent=2)
+            file.write("\n")
+            file.flush()
+            os.fsync(file.fileno())
+        os.replace(temp_path, file_path)
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            os.remove(temp_path)
+
+
 def load_result(file_path):
     """
     【函数作用】
@@ -142,8 +217,7 @@ def save_json(data, road_id):
 
     data_old[road_id] = data
 
-    with open(JIYAN_PATH, "w", encoding="utf-8") as f:
-        json.dump(data_old, f, ensure_ascii=False, indent=2)
+    write_json_atomic(JIYAN_PATH, sort_by_time(data_old))
 
 
 def load_json(road_id):
@@ -180,7 +254,7 @@ def sort_by_time(data):
             sorted_times = sorted(time_dict.keys(), key=int)
 
             for time_key in sorted_times:
-                sorted_data[cross_id][direction][time_key] = time_dict[time_key]
+                sorted_data[cross_id][direction][str(time_key)] = time_dict[time_key]
 
     return sorted_data
 
@@ -194,10 +268,15 @@ def sort_zhong():
     result_data = load_result(save_path)
     sorted_result = sort_by_time(result_data)
 
-    with open(save_path, "w", encoding="utf-8") as f:
-        json.dump(sorted_result, f, indent=2, ensure_ascii=False)
+    write_json_atomic(save_path, sorted_result)
 
     print("排序完成已保存")
+
+
+def save_experience_table(data):
+    sorted_result = sort_by_time(data)
+    write_json_atomic(JIYAN_PATH, sorted_result)
+    return sorted_result
 
 
 def merge_zhongbiao(old_data: dict, new_data: dict, road_id) -> dict:
@@ -232,10 +311,10 @@ def merge_zhongbiao(old_data: dict, new_data: dict, road_id) -> dict:
 def get_cycle_patterns_from_cross_info(road_id):
     """
     【函数作用】
-    从 cross_info.json 中读取指定路口的 zhouqi 周期配置。
+    从 cross_info.json 中读取指定路口的 Cycle 周期配置。
 
     【cross_info.json 格式示例】
-    "zhouqi": [
+    "Cycle": [
         [1, 2, 3, 4],
         [1, 2, 3, 4, 5],
         [501, 506, 508, 509, 502]
@@ -257,15 +336,15 @@ def get_cycle_patterns_from_cross_info(road_id):
         print(f"cross_info.json 中不存在路口: road_id={road_id}")
         return []
 
-    zhouqi = lines3[road_id].get("zhouqi", [])
+    Cycle = lines3[road_id].get("Cycle", [])
 
-    if not zhouqi:
-        print(f"cross_info.json 中该路口未配置 zhouqi: road_id={road_id}")
+    if not Cycle:
+        print(f"cross_info.json 中该路口未配置 Cycle: road_id={road_id}")
         return []
 
     patterns = []
 
-    for pattern in zhouqi:
+    for pattern in Cycle:
         if not isinstance(pattern, list):
             continue
 
@@ -375,7 +454,7 @@ def compress_phase_intervals(phase_dict):
             last_ts = ts
             continue
 
-        if stage == cur_stage:
+        if stage == cur_stage and ts == last_ts + 1:
             last_ts = ts
             continue
 
@@ -398,14 +477,19 @@ def compress_phase_intervals(phase_dict):
             "duration": last_ts - cur_start + 1
         })
 
+    last_index = len(intervals) - 1
+    for index, interval in enumerate(intervals):
+        interval["layer_index"] = index
+        interval["data_boundary_partial"] = index in (0, last_index)
+
     return intervals
 
 
-def find_three_complete_cycles_from_intervals(intervals, patterns, start_time, end_time):
+def find_complete_cycles_from_intervals(intervals, patterns, start_time, end_time):
     """
     【函数作用】
-    从阶段区间中，按 cross_info.json 中配置的多个 zhouqi 模板，
-    抽取 3 个完整周期。
+    从阶段区间中，按 cross_info.json 中配置的多个 Cycle 模板，
+    抽取窗口内的全部完整周期，训练时至少需要 3 个有效周期。
 
     【参数】
     patterns:
@@ -433,13 +517,13 @@ def find_three_complete_cycles_from_intervals(intervals, patterns, start_time, e
 
     useful = []
 
-    for item in intervals:
-        if item["end"] < start_time:
+    for fallback_index, item in enumerate(intervals):
+        if item["start"] < start_time or item["end"] > end_time:
             continue
-        if item["start"] > end_time:
-            continue
-
-        useful.append(item)
+        normalized = dict(item)
+        normalized.setdefault("layer_index", fallback_index)
+        normalized.setdefault("data_boundary_partial", False)
+        useful.append(normalized)
 
     cycles = []
     i = 0
@@ -457,17 +541,20 @@ def find_three_complete_cycles_from_intervals(intervals, patterns, start_time, e
             stages = [str(x["stage"]) for x in window]
 
             if stages == pattern:
+                if any(x["data_boundary_partial"] for x in window):
+                    continue
                 cycles.append({
-                    "pattern": pattern,
-                    "items": window
+                    "pattern": list(pattern),
+                    "start": window[0]["start"],
+                    "end": window[-1]["end"],
+                    "start_layer_index": window[0]["layer_index"],
+                    "end_layer_index": window[-1]["layer_index"],
+                    "items": window,
                 })
 
                 i += n
                 matched = True
                 break
-
-        if len(cycles) == 3:
-            break
 
         if not matched:
             i += 1
@@ -475,48 +562,113 @@ def find_three_complete_cycles_from_intervals(intervals, patterns, start_time, e
     return cycles
 
 
-def check_cycles_has_abnormal_stage(cycles, threshold=15):
-    """
-    【函数作用】
-    检查抽取到的 3 个完整周期里，是否存在异常阶段。
+def select_consistent_cycle_group(cycles, target_start=None, target_end=None):
+    """Select one stable same-template run for a 10-minute training window."""
+    pattern_groups = group_consecutive_same_pattern_cycles(cycles)
+    structural_groups = [
+        group
+        for group in pattern_groups
+        if len(group) >= MIN_CONSECUTIVE_CYCLES
+    ]
+    consistent_groups = []
+    change_breaks = []
+    for group in structural_groups:
+        segments, group_breaks = split_cycle_group_on_stage_change(
+            group,
+            max_change_seconds=MAX_ADJACENT_STAGE_CHANGE_SECONDS,
+        )
+        change_breaks.extend(group_breaks)
+        consistent_groups.extend(
+            segment
+            for segment in segments
+            if len(segment) >= MIN_CONSECUTIVE_CYCLES
+        )
 
-    【异常规则】
-    任意一个阶段的执行时间 <= threshold 秒，
-    则认为这组三周期异常。
+    selected_group = None
+    if consistent_groups:
+        if target_start is None or target_end is None:
+            selected_group = min(
+                consistent_groups,
+                key=lambda group: (-len(group), int(group[0]["start"])),
+            )
+        else:
+            target_twice_midpoint = int(target_start) + int(target_end)
 
-    【返回】
-    has_abnormal:
-        True  表示存在异常阶段
-        False 表示没有异常阶段
+            def group_key(group):
+                distances = []
+                for index in range(
+                    len(group) - MIN_CONSECUTIVE_CYCLES + 1
+                ):
+                    subset = group[index:index + MIN_CONSECUTIVE_CYCLES]
+                    subset_twice_midpoint = int(subset[0]["start"]) + int(
+                        subset[-1]["end"]
+                    )
+                    distances.append(abs(
+                        subset_twice_midpoint - target_twice_midpoint
+                    ))
+                return min(distances), -len(group), int(group[0]["start"])
 
-    abnormal_list:
-        异常阶段列表，方便打印排查。
-    """
-    abnormal_list = []
+            selected_group = min(consistent_groups, key=group_key)
 
-    for cycle_idx, cycle in enumerate(cycles, start=1):
-        pattern = cycle.get("pattern", [])
+    selected_count = len(selected_group or [])
+    audit = {
+        "complete_cycle_count": len(cycles),
+        "complete_pattern_counts": dict(Counter(
+            "-".join(cycle["pattern"])
+            for cycle in cycles
+        )),
+        "consecutive_pattern_group_sizes": [
+            len(group) for group in pattern_groups
+        ],
+        "structural_group_count": len(structural_groups),
+        "consistent_group_count": len(consistent_groups),
+        "stage_change_limit_seconds": MAX_ADJACENT_STAGE_CHANGE_SECONDS,
+        "stage_change_break_count": len(change_breaks),
+        "stage_change_breaks": change_breaks,
+        "selected_cycle_count": selected_count,
+        "rejected_cycle_count": len(cycles) - selected_count,
+        "selected_pattern": (
+            list(selected_group[0]["pattern"])
+            if selected_group
+            else None
+        ),
+        "selected_group_start": (
+            int(selected_group[0]["start"])
+            if selected_group
+            else None
+        ),
+        "selected_group_end": (
+            int(selected_group[-1]["end"])
+            if selected_group
+            else None
+        ),
+    }
+    return selected_group or [], audit
 
-        for item in cycle.get("items", []):
-            duration = int(item["duration"])
 
-            if duration <= threshold:
-                abnormal_list.append({
-                    "cycle_idx": cycle_idx,
-                    "pattern": pattern,
-                    "stage": str(item["stage"]),
-                    "start": item["start"],
-                    "end": item["end"],
-                    "duration": duration
-                })
+def select_nearest_three_cycles(cycles, window_start, window_end):
+    if len(cycles) <= MIN_CONSECUTIVE_CYCLES:
+        return list(cycles)
 
-    return len(abnormal_list) > 0, abnormal_list
+    target_twice_midpoint = int(window_start) + int(window_end)
+    candidates = []
+    for index in range(len(cycles) - MIN_CONSECUTIVE_CYCLES + 1):
+        subset = cycles[index:index + MIN_CONSECUTIVE_CYCLES]
+        subset_twice_midpoint = int(subset[0]["start"]) + int(
+            subset[-1]["end"]
+        )
+        candidates.append((
+            abs(subset_twice_midpoint - target_twice_midpoint),
+            int(subset[0]["start"]),
+            subset,
+        ))
+    return list(min(candidates, key=lambda item: (item[0], item[1]))[2])
 
 
 def calc_direction_time_from_cycles(cycles, road_id, lines3):
     """
     【函数作用】
-    根据 3 个完整周期的阶段区间，统计各方向累计放行时间。
+    根据窗口内全部完整周期的阶段区间，统计各方向累计放行时间。
 
     【cycles 结构】
     [
@@ -539,18 +691,6 @@ def calc_direction_time_from_cycles(cycles, road_id, lines3):
     }
     """
 
-    yingshe_1 = {
-        "UD": ["U", "D"],
-        "LR": ["L", "R"],
-        "UDL": ["UTL", "DTL"],
-        "LRL": ["LTL", "RTL"],
-        "U": ["U", "UTL"],
-        "D": ["D", "DTL"],
-        "L": ["L", "LTL"],
-        "R": ["R", "RTL"],
-        "LTD": ["LTL", "D"],
-    }
-
     result = {
         "U": 0,
         "D": 0,
@@ -569,20 +709,121 @@ def calc_direction_time_from_cycles(cycles, road_id, lines3):
 
             phase_name = lines3[road_id]["phase"].get(stage)
 
-            if phase_name not in yingshe_1:
+            if phase_name not in PHASE_DIRECTION_MAP:
                 continue
 
-            for direction in yingshe_1[phase_name]:
+            for direction in PHASE_DIRECTION_MAP[phase_name]:
                 result[direction] += duration
 
     return result
+
+
+def supported_dedicated_left_directions(road_id, cross_info):
+    """Return TL directions backed by a 1A lane and an active cycle phase."""
+    cross_config = cross_info.get(str(road_id), {})
+    lane_maps = cross_config.get("LaneNo", {})
+    active_stages = {
+        str(stage)
+        for pattern in cross_config.get("Cycle", [])
+        if isinstance(pattern, list)
+        for stage in pattern
+    }
+    released_directions = set()
+    phase_config = cross_config.get("phase", {})
+    for stage in active_stages:
+        phase_name = phase_config.get(stage, "")
+        released_directions.update(
+            PHASE_DIRECTION_MAP.get(str(phase_name).strip().upper(), ())
+        )
+
+    supported = set()
+    for direction in BASE_FLOW_DIRECTIONS:
+        lane_types = lane_maps.get(direction, {}).values()
+        has_dedicated_left_lane = any(
+            is_dedicated_left(lane_type)
+            for lane_type in lane_types
+        )
+        left_direction = direction + "TL"
+        if has_dedicated_left_lane and left_direction in released_directions:
+            supported.add(left_direction)
+    return supported
 
 
 # ============================================================
 # 核心加工函数
 # ============================================================
 
-def jiagong(flow, phase_intervals, road_id, diyici):
+def split_flow_by_movement(flow, road_id, cross_info):
+    """Split each vehicle into either a base or dedicated-left flow vector."""
+    flow_vectors = {
+        direction: [0] * 10
+        for direction in (
+            "U", "D", "L", "R", "UTL", "DTL", "LTL", "RTL"
+        )
+    }
+    stats = Counter(input_records=len(flow))
+    cross_config = cross_info.get(str(road_id), {})
+    detector_map = cross_config.get("jtll_ddbh", {})
+    lane_maps = cross_config.get("LaneNo", {})
+
+    for record in flow:
+        detector_id = str(record.get("jtll_ddbh", ""))
+        direction = detector_map.get(detector_id)
+        if direction not in BASE_FLOW_DIRECTIONS:
+            stats["skipped_missing_direction"] += 1
+            continue
+
+        try:
+            lane = int(record["lan"])
+        except (KeyError, TypeError, ValueError):
+            stats["skipped_invalid_lane"] += 1
+            continue
+
+        if not 0 <= lane < 10:
+            stats["skipped_invalid_lane"] += 1
+            continue
+
+        lane_type = str(
+            lane_maps.get(direction, {}).get(str(lane), "")
+        ).strip().upper()
+        if not lane_type:
+            stats["skipped_unconfigured_lane"] += 1
+            continue
+
+        target_direction = capacity_experience_direction(direction, lane_type)
+        if target_direction is None:
+            policy = classify_lane_type(lane_type)
+            stats["excluded_non_capacity_records"] += 1
+            stats[
+                f"excluded_lane_type_{policy['lane_type'] or 'empty'}"
+            ] += 1
+            if policy["control"] == "uncontrolled":
+                stats["excluded_uncontrolled_records"] += 1
+            else:
+                stats["excluded_unverified_records"] += 1
+            continue
+
+        if target_direction.endswith("TL"):
+            stats["left_turn_records"] += 1
+        else:
+            stats["base_direction_records"] += 1
+
+        flow_vectors[target_direction][lane] += 1
+
+    stats["accepted_records"] = (
+        stats["base_direction_records"] + stats["left_turn_records"]
+    )
+    return flow_vectors, dict(stats)
+
+def jiagong(
+    flow,
+    phase_intervals,
+    road_id,
+    diyici,
+    window_start=None,
+    window_end=None,
+    excluded_directions=None,
+):
     """
     【函数作用】
     处理一段 flow1 数据，生成经验表。
@@ -591,80 +832,131 @@ def jiagong(flow, phase_intervals, road_id, diyici):
     1. flow 是约 10min 的流量数据。
        车流统计整个 flow，用于表示 10min 通行能力。
 
-    2. 相位时间从这个 flow 时间段中抽取 3 个完整周期。
-       周期模板从 cross_info.json 的 zhouqi 字段读取。
+    2. 相位时间只使用固定 10 分钟窗口内同模板连续且稳定的一组周期，
+       周期模板从 cross_info.json 的 Cycle 字段读取，至少需要 3 个周期。
 
     3. 三周期时间来自阶段区间 duration，
-       不再用逐秒 zhouqi 判断。
+       不再用逐秒 Cycle 判断。
 
-    4. 异常检测：
-       如果抽取到的 3 个周期里，任意阶段持续时间 <= 15s，
-       则认为这组三周期异常，不计入经验表。
+    4. 周期质量门禁：
+       不同模板不能混合；相邻周期同一阶段变化超过 8 秒时断组，
+       断组后不足 3 个周期则不计入经验表。
     """
 
     if not flow:
-        return
+        return {"status": "empty_flow"}
+
+    excluded_directions = {
+        str(direction).upper()
+        for direction in (excluded_directions or [])
+        if str(direction).upper() in BASE_FLOW_DIRECTIONS
+    }
 
     patterns = get_cycle_patterns_from_cross_info(road_id)
 
     if not patterns:
-        print(f"未配置周期阶段顺序 zhouqi: road_id={road_id}")
-        return
+        print(f"未配置周期阶段顺序 Cycle: road_id={road_id}")
+        return {"status": "missing_cycle_config"}
 
-    kaishi_time = get_time_sec(flow[0]["time"])
-    jieshu_time = get_time_sec(flow[-1]["time"])
+    kaishi_time = (
+        int(window_start)
+        if window_start is not None
+        else get_time_sec(flow[0]["time"])
+    )
+    jieshu_time = (
+        int(window_end)
+        if window_end is not None
+        else get_time_sec(flow[-1]["time"])
+    )
 
     # ============================================================
-    # 1. 按 cross_info.json 中的 zhouqi 周期模板抽取 3 个完整周期
+    # 1. 按 cross_info.json 中的 Cycle 周期模板抽取窗口内全部完整周期
     # ============================================================
 
-    cycles = find_three_complete_cycles_from_intervals(
+    cycles = find_complete_cycles_from_intervals(
         intervals=phase_intervals,
         patterns=patterns,
         start_time=kaishi_time,
         end_time=jieshu_time
     )
 
-    if len(cycles) < 3:
-        print(
+    initial_complete_cycle_count = len(cycles)
+    observation_start = kaishi_time
+    observation_end = jieshu_time
+    observation_expansion_attempted = False
+    expansion_decision = cycle_observation_expansion_decision(cycles)
+
+    # Flow remains fixed to 10 minutes. Phase observation grows to 15
+    # minutes only when the initial complete cycles have a median over 200s.
+    if expansion_decision["should_expand"]:
+        observation_start, observation_end = centered_observation_bounds(
+            kaishi_time,
+            jieshu_time,
+        )
+        observation_expansion_attempted = True
+        cycles = find_complete_cycles_from_intervals(
+            intervals=phase_intervals,
+            patterns=patterns,
+            start_time=observation_start,
+            end_time=observation_end,
+        )
+
+    cycle_observation = {
+        "flow_window_start": kaishi_time,
+        "flow_window_end": jieshu_time,
+        "flow_window_seconds": jieshu_time - kaishi_time + 1,
+        "initial_complete_cycle_count": initial_complete_cycle_count,
+        "cycle_observation_start": observation_start,
+        "cycle_observation_end": observation_end,
+        "cycle_observation_seconds": observation_end - observation_start + 1,
+        "expansion_attempted": observation_expansion_attempted,
+        "expanded": observation_expansion_attempted,
+        "expansion_decision": expansion_decision,
+    }
+
+    if len(cycles) < MIN_CONSECUTIVE_CYCLES:
+        debug_print(
             f"未找到3个完整周期: road_id={road_id}, "
             f"diyici={diyici}, cycles={len(cycles)}, "
             f"time={fmt_time(kaishi_time)}~{fmt_time(jieshu_time)}"
         )
-        print(f"已配置周期模板: {patterns}")
-        return
+        debug_print(f"已配置周期模板: {patterns}")
+        return {
+            "status": "fewer_than_three_cycles",
+            "cycles": len(cycles),
+            "complete_cycles_found": len(cycles),
+            "rejected_cycles": 0,
+            "cycle_observation": cycle_observation,
+        }
 
-    # ============================================================
-    # 1.1 三周期异常检测
-    #
-    # 只要这 3 个周期中存在任意一个阶段 duration <= 15s，
-    # 就认为这组三周期异常，不计入经验表。
-    # ============================================================
-
-    has_abnormal, abnormal_list = check_cycles_has_abnormal_stage(
-        cycles=cycles,
-        threshold=ABNORMAL_STAGE_DURATION_THRESHOLD
+    selected_cycles, cycle_gate = select_consistent_cycle_group(
+        cycles,
+        target_start=kaishi_time,
+        target_end=jieshu_time,
     )
+    cycle_gate = dict(cycle_gate)
+    cycle_gate.update(cycle_observation)
+    if not selected_cycles:
+        return {
+            "status": "no_consistent_same_pattern_cycle_group",
+            "cycles": len(cycles),
+            "complete_cycles_found": len(cycles),
+            "rejected_cycles": len(cycles),
+            "cycle_gate": cycle_gate,
+            "cycle_observation": cycle_observation,
+        }
+    selected_cycles = select_nearest_three_cycles(
+        selected_cycles,
+        kaishi_time,
+        jieshu_time,
+    )
+    cycle_gate["selected_cycle_count"] = len(selected_cycles)
+    cycle_gate["rejected_cycle_count"] = len(cycles) - len(selected_cycles)
+    cycle_gate["selected_group_start"] = int(selected_cycles[0]["start"])
+    cycle_gate["selected_group_end"] = int(selected_cycles[-1]["end"])
+    cycles = selected_cycles
 
-    if has_abnormal:
-        print("=" * 100)
-        print(
-            f"三周期存在异常阶段，不计入经验表: road_id={road_id}, "
-            f"diyici={diyici}, "
-            f"flow时间={fmt_time(kaishi_time)}~{fmt_time(jieshu_time)}"
-        )
-
-        for item in abnormal_list:
-            print(
-                f"    异常周期={item['cycle_idx']}  "
-                f"模板={item['pattern']}  "
-                f"阶段={item['stage']}  "
-                f"阶段时间={fmt_time(item['start'])}~{fmt_time(item['end'])}  "
-                f"持续={item['duration']}s  "
-                f"阈值<={ABNORMAL_STAGE_DURATION_THRESHOLD}s"
-            )
-
-        return
+    rejected_cycle_count = int(cycle_gate["rejected_cycle_count"])
 
     # ============================================================
     # 2. 根据 3 个周期的阶段 duration 计算方向累计时间
@@ -685,22 +977,22 @@ def jiagong(flow, phase_intervals, road_id, diyici):
     LTL = direction_time["LTL"]
     RTL = direction_time["RTL"]
 
-    print("=" * 100)
-    print(f"road_id={road_id}, diyici={diyici}")
-    print(f"flow时间: {fmt_time(kaishi_time)} ~ {fmt_time(jieshu_time)}")
+    debug_print("=" * 100)
+    debug_print(f"road_id={road_id}, diyici={diyici}")
+    debug_print(f"flow时间: {fmt_time(kaishi_time)} ~ {fmt_time(jieshu_time)}")
 
-    print("抽取的3个周期:")
+    debug_print("抽取的完整周期:")
     for idx, cycle in enumerate(cycles, start=1):
-        print(f"周期{idx} 模板={cycle['pattern']}:")
+        debug_print(f"周期{idx} 模板={cycle['pattern']}:")
 
         for x in cycle["items"]:
-            print(
+            debug_print(
                 f"    阶段{x['stage']} "
                 f"{fmt_time(x['start'])}~{fmt_time(x['end'])} "
                 f"{x['duration']}s"
             )
 
-    print(
+    debug_print(
         "三周期累计时间:",
         {
             "U": U,
@@ -718,76 +1010,43 @@ def jiagong(flow, phase_intervals, road_id, diyici):
     # 3. 统计整个 flow1 的 10min 通行能力
     # ============================================================
 
-    liuliang = {
-        "L": [0] * 10,
-        "R": [0] * 10,
-        "U": [0] * 10,
-        "D": [0] * 10,
-        "UTL": [0] * 10,
-        "DTL": [0] * 10,
-        "LTL": [0] * 10,
-        "RTL": [0] * 10,
-    }
-
-    phase_duration = {
-        "L": L,
-        "R": R,
-        "U": U,
-        "D": D,
-        "UTL": UTL,
-        "DTL": DTL,
-        "LTL": LTL,
-        "RTL": RTL,
-    }
-
-    for x in flow:
-        if x["jtll_ddbh"] not in lines3[road_id]["jtll_ddbh"]:
-            print("缺失方向符号", x["jtll_ddbh"], road_id)
-            continue
-
-        direction = lines3[road_id]["jtll_ddbh"][x["jtll_ddbh"]]
-        lane = int(x["lan"])
-
-        if 0 <= lane < 10:
-            liuliang[direction][lane] += 1
-
-        # 如果某个左转方向有放行时间，则用对应主方向流量补左转流量
-        for d in "UDLR":
-            xin = d + "TL"
-
-            if phase_duration[xin] > 0:
-                for lan in range(10):
-                    liuliang[xin][lan] = liuliang[d][lan]
+    liuliang, flow_split_stats = split_flow_by_movement(
+        flow=flow,
+        road_id=road_id,
+        cross_info=lines3,
+    )
+    debug_print("直行/左转流量拆分:", flow_split_stats)
 
     # ============================================================
     # 4. 生成经验表
     # ============================================================
 
+    cycle_count = len(cycles)
     if road_id != "1700275":
         zhongbiao = {
             "U": {
-                U // 3: liuliang["U"]
+                int(round(U / cycle_count)): liuliang["U"]
             },
             "D": {
-                D // 3: liuliang["D"]
+                int(round(D / cycle_count)): liuliang["D"]
             },
             "L": {
-                L // 3: liuliang["L"]
+                int(round(L / cycle_count)): liuliang["L"]
             },
             "R": {
-                R // 3: liuliang["R"]
+                int(round(R / cycle_count)): liuliang["R"]
             },
             "RTL": {
-                RTL // 3: liuliang["RTL"]
+                int(round(RTL / cycle_count)): liuliang["RTL"]
             },
             "LTL": {
-                LTL // 3: liuliang["LTL"]
+                int(round(LTL / cycle_count)): liuliang["LTL"]
             },
             "UTL": {
-                UTL // 3: liuliang["UTL"]
+                int(round(UTL / cycle_count)): liuliang["UTL"]
             },
             "DTL": {
-                DTL // 3: liuliang["DTL"]
+                int(round(DTL / cycle_count)): liuliang["DTL"]
             },
         }
     else:
@@ -818,6 +1077,21 @@ def jiagong(flow, phase_intervals, road_id, diyici):
             },
         }
 
+    for direction in excluded_directions:
+        zhongbiao.pop(direction, None)
+        zhongbiao.pop(direction + "TL", None)
+
+    supported_left_directions = supported_dedicated_left_directions(
+        road_id,
+        lines3,
+    )
+    excluded_left_directions = sorted(
+        {direction + "TL" for direction in BASE_FLOW_DIRECTIONS}
+        - supported_left_directions
+    )
+    for direction in excluded_left_directions:
+        zhongbiao.pop(direction, None)
+
     # ============================================================
     # 5. 过滤异常小时间
     # ============================================================
@@ -827,191 +1101,333 @@ def jiagong(flow, phase_intervals, road_id, diyici):
             if int(time1) <= 10 and sum(shuzu) != 0:
                 zhongbiao[d][time1] = [0] * 10
 
-    print("zhongbiao:")
-    print(zhongbiao)
+    debug_print("zhongbiao:")
+    debug_print(zhongbiao)
 
     # ============================================================
-    # 6. 保存经验表
+    # 6. 返回当前窗口经验；主流程负责内存合并和分日原子保存
     # ============================================================
-
-    lao = load_json(road_id)
-    data = merge_zhongbiao(lao, zhongbiao, road_id)
-    save_json(data, road_id)
+    return {
+        "status": "accepted",
+        "cycles": len(cycles),
+        "complete_cycles_found": int(cycle_gate["complete_cycle_count"]),
+        "rejected_cycles": rejected_cycle_count,
+        "cycle_gate": cycle_gate,
+        "cycle_observation": cycle_observation,
+        "cycle_metadata": {
+            "valid_cycle_count": len(cycles),
+            "rejected_cycle_count": rejected_cycle_count,
+            "cycle_gate": cycle_gate,
+            "cycle_observation": cycle_observation,
+            "pattern_counts": dict(
+                Counter(
+                    "-".join(cycle["pattern"])
+                    for cycle in cycles
+                )
+            ),
+            "cycle_durations": [
+                sum(int(item["duration"]) for item in cycle["items"])
+                for cycle in cycles
+            ],
+        },
+        "flow_records": len(flow),
+        "flow_split": flow_split_stats,
+        "excluded_directions": sorted(excluded_directions),
+        "excluded_left_turn_directions": excluded_left_directions,
+        "experience": zhongbiao,
+    }
 
 
 # ============================================================
 # 主流程
 # ============================================================
 
-for data_day in datas:
+def update_training_stats(stats, result):
+    status = result.get("status", "unknown")
+    stats["windows_seen"] += 1
+    stats[status] += 1
+    stats["cycles_seen"] += int(
+        result.get("complete_cycles_found", result.get("cycles", 0))
+    )
+    stats["cycles_rejected"] += int(result.get("rejected_cycles", 0))
+    stats["flow_records_used"] += int(result.get("flow_records", 0))
+    cycle_observation = result.get("cycle_observation", {})
+    expansion_attempted = bool(cycle_observation.get("expansion_attempted"))
+    stats["expanded_cycle_observation_attempts"] += int(expansion_attempted)
+    expansion_reason = cycle_observation.get("expansion_decision", {}).get(
+        "reason"
+    )
+    if expansion_reason:
+        stats[f"cycle_observation_decision_{expansion_reason}"] += 1
+    cycle_gate = result.get("cycle_gate", {})
+    stats["cycle_pattern_groups_seen"] += int(
+        len(cycle_gate.get("consecutive_pattern_group_sizes", []))
+    )
+    stats["cycle_structural_groups_seen"] += int(
+        cycle_gate.get("structural_group_count", 0)
+    )
+    stats["cycle_consistent_groups_seen"] += int(
+        cycle_gate.get("consistent_group_count", 0)
+    )
+    stats["cycle_stage_change_breaks"] += int(
+        cycle_gate.get("stage_change_break_count", 0)
+    )
 
-    flow_path = os.path.join(PROJECT_ROOT, "logs_data", "flow", f"{data_day}_flow.txt")
-    extend_path = os.path.join(PROJECT_ROOT, "logs_data", "extend", f"{data_day}_extend.txt")
+    if status != "accepted":
+        stats["expanded_cycle_observation_rejected"] += int(
+            expansion_attempted
+        )
+        return
 
-    with open(flow_path, "r", encoding="utf-8") as f:
-        lines1 = f.readlines()
+    stats["expanded_cycle_observation_accepted"] += int(expansion_attempted)
+    stats["cycles_used"] += int(result.get("cycles", 0))
+    flow_split = result.get("flow_split", {})
+    stats["base_direction_flow_records"] += int(
+        flow_split.get("base_direction_records", 0)
+    )
+    stats["left_turn_flow_records"] += int(
+        flow_split.get("left_turn_records", 0)
+    )
+    stats["classified_flow_records"] += int(
+        flow_split.get("accepted_records", 0)
+    )
+    for direction in result.get("excluded_directions", []):
+        stats[f"excluded_direction_{direction}_accepted_windows"] += 1
+    for direction in result.get("excluded_left_turn_directions", []):
+        stats[f"excluded_direction_{direction}_accepted_windows"] += 1
 
-    with open(extend_path, "r", encoding="utf-8") as f:
-        lines2 = f.readlines()
 
-    # ============================================================
-    # 读取阶段数据 Extend_data
-    # ============================================================
+def training_stats_report(stats):
+    result = dict(stats)
+    windows_seen = int(result.get("windows_seen", 0))
+    accepted = int(result.get("accepted", 0))
+    result["acceptance_rate"] = (
+        round(accepted / windows_seen, 6) if windows_seen else 0.0
+    )
+    return result
 
-    extend = {}
-    s1 = set()
 
-    for line in lines2:
-        try:
-            data_json = json.loads(line)
+def run_training():
+    started_at = time.perf_counter()
+    os.makedirs(os.path.dirname(os.path.abspath(JIYAN_PATH)), exist_ok=True)
 
-            cross_id = str(data_json["CrossId"])
-            s1.add(cross_id)
+    reset_output = os.environ.get("AITC_RESET_OUTPUT") == "1"
+    if reset_output or not os.path.exists(JIYAN_PATH):
+        experience_data = {}
+    else:
+        experience_data = load_result(JIYAN_PATH)
+        if not isinstance(experience_data, dict):
+            raise ValueError(f"经验表顶层必须是对象: {JIYAN_PATH}")
 
-            if cross_id not in extend:
-                extend[cross_id] = []
+    road_ids = sorted(shipin_roid)
+    if not road_ids:
+        raise ValueError("至少需要配置一个训练路口")
+    unknown_road_ids = sorted(set(road_ids) - set(lines3))
+    if unknown_road_ids:
+        raise ValueError(f"cross_info.json 中不存在训练路口: {unknown_road_ids}")
 
-            ts = get_time_sec(data_json["time"])
-            cur_stage_no = str(data_json["curStageNo"])
+    training_stats = {road_id: Counter() for road_id in road_ids}
+    daily_training_stats = {}
+    candidate_audit = ExperienceCandidateAudit(
+        low_support_threshold=os.environ.get(
+            "AITC_AUDIT_LOW_SUPPORT_THRESHOLD",
+            "3",
+        ),
+        dominant_max_ratio=os.environ.get(
+            "AITC_AUDIT_DOMINANT_MAX_RATIO",
+            "1.5",
+        ),
+        dominant_max_min_gap=os.environ.get(
+            "AITC_AUDIT_DOMINANT_MAX_MIN_GAP",
+            "5",
+        ),
+        min_date_support=os.environ.get(
+            "AITC_AUDIT_MIN_DATE_SUPPORT",
+            "2",
+        ),
+        iqr_outlier_multiplier=os.environ.get(
+            "AITC_AUDIT_IQR_OUTLIER_MULTIPLIER",
+            "1.5",
+        ),
+    )
+    candidate_audit_path = (
+        os.path.splitext(JIYAN_PATH)[0] + "_candidate_audit.json"
+    )
+    candidate_samples_path = (
+        os.path.splitext(JIYAN_PATH)[0] + "_candidate_samples.json"
+    )
 
-            extend[cross_id].append({
-                ts: cur_stage_no
-            })
+    def save_candidate_outputs():
+        report = candidate_audit.build_report()
+        report["dates"] = list(daily_training_stats)
+        report["road_ids"] = road_ids
+        write_json_atomic(candidate_audit_path, report)
+        samples = candidate_audit.build_samples()
+        samples["dates"] = list(daily_training_stats)
+        samples["road_ids"] = road_ids
+        write_json_atomic(candidate_samples_path, samples)
+        return report
 
-        except Exception:
-            continue
+    quality_report_dir = os.environ.get(
+        "AITC_QUALITY_REPORT_DIR",
+        os.path.join(PROJECT_ROOT, "logs_data", "quality_reports"),
+    )
 
-    print(s1)
+    for data_day in datas:
+        flow_path = os.path.join(
+            PROJECT_ROOT,
+            "logs_data",
+            "flow",
+            f"{data_day}_flow.txt",
+        )
+        extend_path = os.path.join(
+            PROJECT_ROOT,
+            "logs_data",
+            "extend",
+            f"{data_day}_extend.txt",
+        )
+        quality_report_path = os.path.join(
+            quality_report_dir,
+            f"{data_day}_quality_report.json",
+        )
+        flow, extend, quality_report = clean_training_inputs(
+            flow_path=flow_path,
+            extend_path=extend_path,
+            cross_info=lines3,
+            target_cross_ids=shipin_roid,
+            max_stage_gap_seconds=DEFAULT_MAX_STAGE_GAP_SECONDS,
+            report_path=quality_report_path,
+        )
+        print(f"数据清洗完成，质量报告: {quality_report_path}")
+        debug_print(f"清洗汇总: {quality_report['totals']}")
 
-    # ============================================================
-    # 读取流量数据 Flow_data
-    # ============================================================
+        day_stats = {road_id: Counter() for road_id in road_ids}
+        daily_training_stats[data_day] = day_stats
 
-    flow = {}
-
-    for line in lines1:
-        try:
-            data_json = json.loads(line)
-
-            cord_id = ""
-
-            for cross_id in lines3:
-                if data_json["jtll_ddbh"] in lines3[cross_id]["jtll_ddbh"]:
-                    cord_id = cross_id
-                    break
-
-            if cord_id == "":
-                continue
-
-            if cord_id not in flow:
-                flow[cord_id] = []
-
-            xuyao = {
-                "CrossId": cord_id,
-                "time": data_json["ts"],
-                "jtll_ddbh": data_json["jtll_ddbh"],
-                "lan": int(data_json["ycsb_cdbh"]),
-                "ycsb_xsfx": data_json.get("ycsb_xsfx", "")
-            }
-
-            flow[cord_id].append(xuyao)
-
-        except Exception:
-            continue
-
-    # 每个路口车辆按时间排序
-    for road_id in flow:
-        flow[road_id].sort(key=lambda x: get_time_sec(x["time"]))
-
-    s2 = set()
-
-    for x in shipin_roid:
-        s2.add(x)
-
-    print(s2)
-
-    diyici = 0
-
-    for road_id in s2:
-        flow1 = []
-        t = 0
-        last = 0
-
-        road_extend = extend.get(road_id, [])
-        road_flow = flow.get(road_id, [])
-
-        if not road_extend:
-            print(f"路口缺少阶段数据: road_id={road_id}")
-            continue
-
-        if not road_flow:
-            print(f"路口缺少流量数据: road_id={road_id}")
-            continue
-
-        # ========================================================
-        # 构造 raw 阶段表
-        # ========================================================
-
-        dict_id_raw = {}
-
-        for x in road_extend:
-            for key, zhi in x.items():
-                dict_id_raw[int(key)] = str(zhi)
-
-        # ========================================================
-        # -1 和缺失秒归并到上一个有效阶段
-        # ========================================================
-
-        dict_id_filled = build_continuous_phase_dict(dict_id_raw)
-
-        # ========================================================
-        # 压缩成阶段执行区间
-        # ========================================================
-
-        phase_intervals = compress_phase_intervals(dict_id_filled)
-
-        # ========================================================
-        # 按 flow 的时间间隔切段
-        #
-        # 超过 600 秒认为进入新的一段。
-        # 每段 flow1 表示约 10min 的通行能力统计范围。
-        # ========================================================
-
-        for tiao in road_flow:
-            tiao_time = get_time_sec(tiao["time"])
-
-            if t == 0:
-                t = 1
-                last = tiao_time
-
-            if last + 600 <= tiao_time:
-                diyici += 1
-
-                if flow1:
-                    jiagong(
-                        flow=flow1,
-                        phase_intervals=phase_intervals,
-                        road_id=road_id,
-                        diyici=diyici
-                    )
-
-                flow1 = []
-                last = tiao_time
-
-            flow1.append(tiao)
-
-        # ========================================================
-        # 处理最后一段 flow1
-        # ========================================================
-
-        if flow1:
-            diyici += 1
-
-            jiagong(
-                flow=flow1,
-                phase_intervals=phase_intervals,
-                road_id=road_id,
-                diyici=diyici
+        for road_id in road_ids:
+            road_extend = extend.get(road_id, {})
+            road_flow = flow.get(road_id, [])
+            flow_coverage = quality_report.get("crosses", {}).get(
+                road_id,
+                {},
+            ).get("flow_coverage", {})
+            excluded_directions = (
+                flow_coverage.get("unavailable_directions", [])
+                if FILTER_UNAVAILABLE_DIRECTIONS
+                else []
             )
 
-        sort_zhong()
+            if not road_extend:
+                print(f"路口缺少阶段数据: road_id={road_id}")
+                training_stats[road_id]["missing_stage_data"] += 1
+                day_stats[road_id]["missing_stage_data"] += 1
+                continue
+
+            if not road_flow:
+                print(f"路口缺少流量数据: road_id={road_id}")
+                training_stats[road_id]["missing_flow_data"] += 1
+                day_stats[road_id]["missing_flow_data"] += 1
+                continue
+
+            # 清洗器沿用上一阶段补齐不超过3秒的采集缺口。
+            # 阶段可以直接切换；更长的无记录区间保留为未知分层。
+            phase_intervals = compress_phase_intervals(road_extend)
+
+            windows = {}
+            for row in road_flow:
+                row_time = get_time_sec(row["time"])
+                window_start = (row_time // WINDOW_SECONDS) * WINDOW_SECONDS
+                windows.setdefault(window_start, []).append(row)
+
+            for window_index, window_start in enumerate(sorted(windows), start=1):
+                result = jiagong(
+                    flow=windows[window_start],
+                    phase_intervals=phase_intervals,
+                    road_id=road_id,
+                    diyici=window_index,
+                    window_start=window_start,
+                    window_end=window_start + WINDOW_SECONDS - 1,
+                    excluded_directions=excluded_directions,
+                )
+                update_training_stats(training_stats[road_id], result)
+                update_training_stats(day_stats[road_id], result)
+
+                if result.get("status") != "accepted":
+                    continue
+
+                candidate_audit.add_experience(
+                    road_id,
+                    result["experience"],
+                    data_day=data_day,
+                    window_start=window_start,
+                    metadata=result.get("cycle_metadata", {}),
+                )
+                previous = experience_data.get(road_id, {})
+                experience_data[road_id] = merge_zhongbiao(
+                    previous,
+                    result["experience"],
+                    road_id,
+                )
+
+        # 每个训练日结束后保存一次，避免逐窗口重写整张经验表。
+        experience_data = save_experience_table(experience_data)
+        save_candidate_outputs()
+        day_summary = {
+            road_id: training_stats_report(stats)
+            for road_id, stats in sorted(day_stats.items())
+        }
+        print(f"日期训练完成: {data_day}, 统计={day_summary}")
+
+    candidate_audit_report = save_candidate_outputs()
+    training_report_path = os.path.splitext(JIYAN_PATH)[0] + "_training_report.json"
+    training_report = {
+        "dates": datas,
+        "road_ids": road_ids,
+        "output": os.path.abspath(JIYAN_PATH),
+        "candidate_audit_output": os.path.abspath(candidate_audit_path),
+        "candidate_samples_output": os.path.abspath(candidate_samples_path),
+        "candidate_audit_summary": {
+            road_id: road_report.get("summary", {})
+            for road_id, road_report in candidate_audit_report.get(
+                "roads",
+                {},
+            ).items()
+        },
+        "window_seconds": WINDOW_SECONDS,
+        "cycle_observation_window_seconds": (
+            CYCLE_OBSERVATION_WINDOW_SECONDS
+        ),
+        "adaptive_cycle_observation_enabled": True,
+        "long_cycle_threshold_seconds": LONG_CYCLE_THRESHOLD_SECONDS,
+        "long_cycle_duration_statistic": "median_of_initial_complete_cycles",
+        "minimum_valid_cycles": MIN_CONSECUTIVE_CYCLES,
+        "same_template_cycles_required": True,
+        "max_adjacent_stage_change_seconds": (
+            MAX_ADJACENT_STAGE_CHANGE_SECONDS
+        ),
+        "legacy_fixed_minimum_stage_duration_enabled": False,
+        "data_boundary_partial_layers_rejected": True,
+        "verbose_logging": TRAIN_VERBOSE,
+        "filter_unavailable_directions": FILTER_UNAVAILABLE_DIRECTIONS,
+        "elapsed_seconds": round(time.perf_counter() - started_at, 3),
+        "roads": {
+            road_id: training_stats_report(stats)
+            for road_id, stats in sorted(training_stats.items())
+        },
+        "days": {
+            data_day: {
+                road_id: training_stats_report(stats)
+                for road_id, stats in sorted(day_stats.items())
+            }
+            for data_day, day_stats in daily_training_stats.items()
+        },
+    }
+    write_json_atomic(training_report_path, training_report)
+    print(f"训练统计报告: {training_report_path}")
+    print(f"候选样本审计报告: {candidate_audit_path}")
+    print(f"候选样本明细: {candidate_samples_path}")
+    return experience_data, training_report
+
+
+if __name__ == "__main__":
+    run_training()

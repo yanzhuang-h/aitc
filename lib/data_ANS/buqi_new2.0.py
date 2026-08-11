@@ -1,22 +1,51 @@
+"""Bootstrap-table gap filling.
+
+The operational contract is preserve-only: E_T source points are never changed
+and only missing green-time points inside the trusted range are interpolated.
+Experience-pool P80 selection and daily 0.8/0.2 blending do not belong here.
+"""
+
 import json
 import os
 import copy
 import math
 
+try:
+    from lib.data_ANS.lane_policy import capacity_lane_indexes
+except ModuleNotFoundError:  # Supports direct execution from this directory.
+    from lane_policy import capacity_lane_indexes
+
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LIB_DIR = os.path.abspath(os.path.join(BASE_DIR, os.pardir))
+
+
+def _read_bool_env(name, default=False):
+    value = os.environ.get(name)
+    if value is None:
+        return bool(default)
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 # ============================================================
 # 输入输出文件
 # ============================================================
 
 # 输入经验表
-biao = "lin_shi_111"
-INPUT_PATH = os.path.join(LIB_DIR, biao + ".json")
+biao = "lin_shi_11123"
+INPUT_PATH = os.environ.get(
+    "AITC_BUQI_INPUT",
+    os.path.join(LIB_DIR, biao + ".json"),
+)
 
 # 输出补全后的经验表
-OUTPUT_PATH = os.path.join(LIB_DIR, biao + "beiyong3.json")
+OUTPUT_PATH = os.environ.get(
+    "AITC_BUQI_OUTPUT",
+    os.path.join(LIB_DIR, biao + "_zhong.json"),
+)
+COMPLETION_REPORT_PATH = os.environ.get(
+    "AITC_BUQI_REPORT",
+    os.path.splitext(OUTPUT_PATH)[0] + "_completion_report.json",
+)
 
 # 路口配置
 INFO_PATH = os.path.join(LIB_DIR, "cross_info.json")
@@ -27,43 +56,26 @@ INFO_PATH = os.path.join(LIB_DIR, "cross_info.json")
 # ============================================================
 
 ROAD_ID_SET = {
-    "1300362",
-    "1300068",
     "1300069",
-    "1300870",
-    "1300044",
-    "1300047",
-    "1700275",
-    "1700086",
-    "1700087",
-    "1700276",
-    "1300239",
-    "1300229",
-    "2703062",
-    "1300106",
-    "1300042",
-    "1300101",
-    "1300092",
-    "2712127",
-    "1700079",
+    "1300068",
+    "1300067",
     "1700125",
-    "1700126",
-    "1700124",
-    "1300166",
-    "1300153",
-    "1300306",
-    "1300409",
-    "1700067",
-    "1700085",
-    "1300147",
-    "1700262",
-    "1700293",
-    "1300087",
-    "2702736",
 }
 
 # 如果想处理全部路口，改成：
 # ROAD_ID_SET = None
+
+
+def configured_road_ids():
+    """Return a comma-separated road selection when supplied by the caller."""
+    configured = os.environ.get("AITC_BUQI_ROADS", "").strip()
+    if configured:
+        return {
+            item.strip()
+            for item in configured.split(",")
+            if item.strip()
+        }
+    return ROAD_ID_SET
 
 
 # ============================================================
@@ -79,7 +91,8 @@ LEFT_TURN_DIRS = ["UTL", "DTL", "LTL", "RTL"]
 # ============================================================
 
 # 有效区间保护
-MAX_VALID_TIME = 120
+MIN_VALID_TIME = 1
+MAX_VALID_TIME = 150
 MAX_CONSECUTIVE_ZERO = 5#连续0数目
 
 # 边界低值判断
@@ -110,6 +123,30 @@ MOVE_MAX_TO_LAST_TIME = False
 # 所有方向最后统一按时间四区间压缩
 TIME_SECTION_RATIOS = [0.90, 0.90, 0.95, 0.95]
 
+# The robust selector owns candidate cleanup.  By default buqi preserves every
+# selected point and only interpolates missing green-time values.  Set this
+# only for controlled comparisons with the historical heuristic behavior.
+USE_LEGACY_HEURISTICS = _read_bool_env(
+    "AITC_BUQI_USE_LEGACY_HEURISTICS",
+    default=False,
+)
+
+# Optional release mode: fit capacity as a non-decreasing function of green
+# time before filling internal gaps. The historical preserving mode remains
+# the default for backwards-compatible comparisons.
+USE_MONOTONE_MODE = _read_bool_env(
+    "AITC_BUQI_MONOTONE_MODE",
+    default=False,
+)
+ALLOW_EXPERIMENTAL_SOURCE_REWRITE = _read_bool_env(
+    "AITC_BUQI_EXPERIMENTAL_SOURCE_REWRITE",
+    default=False,
+)
+OUTPUT_SELECTED_ONLY = _read_bool_env(
+    "AITC_BUQI_SELECTED_ONLY",
+    default=False,
+)
+
 
 # ============================================================
 # JSON 工具
@@ -126,6 +163,182 @@ def load_json(path):
 def save_json(path, data):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def build_completion_report(source_table, completed_table, cross_info=None):
+    """Describe exactly what completion added, changed, or removed."""
+    summary = {
+        "source_points": 0,
+        "completed_points": 0,
+        "added_points": 0,
+        "changed_source_points": 0,
+        "changed_source_capacity_points": 0,
+        "removed_source_points": 0,
+    }
+    roads = {}
+
+    for road_id, source_road in source_table.items():
+        if not isinstance(source_road, dict):
+            continue
+        completed_road = completed_table.get(road_id, {})
+        direction_reports = {}
+
+        for direction, source_direction in source_road.items():
+            if not isinstance(source_direction, dict):
+                continue
+            completed_direction = completed_road.get(direction, {})
+            if not isinstance(completed_direction, dict):
+                completed_direction = {}
+
+            source_times = {
+                str(int(time)): normalize_flow_list(flow)
+                for time, flow in source_direction.items()
+            }
+            completed_times = {
+                str(int(time)): normalize_flow_list(flow)
+                for time, flow in completed_direction.items()
+            }
+            lane_indexes = None
+            if isinstance(cross_info, dict):
+                lane_indexes = sorted(
+                    capacity_lane_indexes(
+                        cross_info.get(str(road_id), {}),
+                        direction,
+                    )
+                )
+
+            def _capacity_total(flow):
+                values = normalize_flow_list(flow)
+                if lane_indexes is None:
+                    return sum(values)
+                return sum(values[index] for index in lane_indexes)
+
+            source_keys = set(source_times)
+            completed_keys = set(completed_times)
+            changed_keys = sorted(
+                (
+                    time
+                    for time in source_keys & completed_keys
+                    if source_times[time] != completed_times[time]
+                ),
+                key=int,
+            )
+            changed_capacity_keys = sorted(
+                (
+                    time
+                    for time in source_keys & completed_keys
+                    if _capacity_total(source_times[time])
+                    != _capacity_total(completed_times[time])
+                ),
+                key=int,
+            )
+            added_keys = sorted(completed_keys - source_keys, key=int)
+            removed_keys = sorted(source_keys - completed_keys, key=int)
+            direction_report = {
+                "source_points": len(source_keys),
+                "completed_points": len(completed_keys),
+                "added_time_points": added_keys,
+                "changed_source_time_points": changed_keys,
+                "changed_source_capacity_time_points": changed_capacity_keys,
+                "removed_source_time_points": removed_keys,
+            }
+
+            def _total_drop_stats(direction_data):
+                points = sorted(
+                    (
+                        int(time),
+                        _capacity_total(flow),
+                    )
+                    for time, flow in direction_data.items()
+                )
+                drops = [
+                    previous - current
+                    for (_, previous), (_, current)
+                    in zip(points, points[1:])
+                    if current < previous
+                ]
+                increases = [
+                    {
+                        "from_time": previous_time,
+                        "to_time": current_time,
+                        "increase": current - previous,
+                    }
+                    for (previous_time, previous), (current_time, current)
+                    in zip(points, points[1:])
+                    if current > previous
+                ]
+                largest_increase = max(
+                    increases,
+                    key=lambda item: item["increase"],
+                    default={
+                        "from_time": None,
+                        "to_time": None,
+                        "increase": 0,
+                    },
+                )
+                return {
+                    "drop_steps": len(drops),
+                    "max_drop": max(drops) if drops else 0,
+                    "max_increase": largest_increase,
+                }
+
+            source_stats = _total_drop_stats(source_times)
+            completed_stats = _total_drop_stats(completed_times)
+            direction_report.update({
+                "source_total_capacity_drop_steps": source_stats["drop_steps"],
+                "source_max_total_capacity_drop": source_stats["max_drop"],
+                "completed_total_capacity_drop_steps": completed_stats["drop_steps"],
+                "completed_max_total_capacity_drop": completed_stats["max_drop"],
+                "completed_total_capacity_monotone": (
+                    completed_stats["drop_steps"] == 0
+                ),
+                "completed_max_single_step_capacity_increase": (
+                    completed_stats["max_increase"]
+                ),
+            })
+
+            adjustments = [
+                _capacity_total(completed_times[time])
+                - _capacity_total(source_times[time])
+                for time in source_keys & completed_keys
+            ]
+            direction_report.update({
+                "increased_source_time_points": sum(
+                    1 for adjustment in adjustments if adjustment > 0
+                ),
+                "decreased_source_time_points": sum(
+                    1 for adjustment in adjustments if adjustment < 0
+                ),
+                "max_abs_source_total_capacity_adjustment": max(
+                    (abs(adjustment) for adjustment in adjustments),
+                    default=0,
+                ),
+            })
+            direction_reports[direction] = direction_report
+            summary["source_points"] += len(source_keys)
+            summary["completed_points"] += len(completed_keys)
+            summary["added_points"] += len(added_keys)
+            summary["changed_source_points"] += len(changed_keys)
+            summary["changed_source_capacity_points"] += len(
+                changed_capacity_keys
+            )
+            summary["removed_source_points"] += len(removed_keys)
+
+        roads[str(road_id)] = {"directions": direction_reports}
+
+    return {
+        "completion_mode": (
+            "monotone_isotonic_interpolation"
+            if USE_MONOTONE_MODE
+            else (
+                "legacy_heuristics"
+                if USE_LEGACY_HEURISTICS
+                else "preserve_trusted_points_interpolation"
+            )
+        ),
+        "summary": summary,
+        "roads": roads,
+    }
 
 
 # ============================================================
@@ -205,7 +418,7 @@ def get_valid_time_range_from_series(
         except Exception:
             continue
 
-        if t > max_time:
+        if t < MIN_VALID_TIME or t > max_time:
             continue
 
         try:
@@ -225,17 +438,29 @@ def get_valid_time_range_from_series(
             "valid_end_time": None,
             "zero_start_time": None,
             "zero_trigger_time": None,
-            "missing_time_as_zero": True,
+            "missing_time_as_zero": False,
+            "missing_time_count": 0,
+            "max_observed_gap_seconds": 0,
+            "observed_points": 0,
         }
 
     min_time = min(raw_map.keys())
     max_existing_time = max(raw_map.keys())
 
-    items = []
+    ordered_items = sorted(raw_map.items())
+    missing_time_count = 0
+    max_observed_gap_seconds = 0
+    previous_time = None
 
-    for t in range(min_time, max_existing_time + 1):
-        v = raw_map.get(t, 0)
-        items.append((t, v))
+    for t, _ in ordered_items:
+        if previous_time is not None and t > previous_time + 1:
+            gap_seconds = t - previous_time - 1
+            missing_time_count += gap_seconds
+            max_observed_gap_seconds = max(
+                max_observed_gap_seconds,
+                gap_seconds,
+            )
+        previous_time = t
 
     valid_start_time = min_time
     valid_end_time = max_existing_time
@@ -243,12 +468,19 @@ def get_valid_time_range_from_series(
     zero_count = 0
     zero_start_time = None
 
-    for t, v in items:
+    previous_time = None
+    for t, v in ordered_items:
         # 40 之前不判断连续 0
         if t <= ZERO_CHECK_START_TIME:
             zero_count = 0
             zero_start_time = None
+            previous_time = t
             continue
+
+        # Missing time points are unknown; they must not form a zero run.
+        if previous_time is None or t != previous_time + 1:
+            zero_count = 0
+            zero_start_time = None
 
         if int(v) == 0:
             if zero_count == 0:
@@ -270,8 +502,13 @@ def get_valid_time_range_from_series(
                 "valid_end_time": valid_end_time,
                 "zero_start_time": zero_start_time,
                 "zero_trigger_time": t,
-                "missing_time_as_zero": True,
+                "missing_time_as_zero": False,
+                "missing_time_count": missing_time_count,
+                "max_observed_gap_seconds": max_observed_gap_seconds,
+                "observed_points": len(ordered_items),
             }
+
+        previous_time = t
 
     return valid_start_time, valid_end_time, {
         "reason": "normal",
@@ -282,7 +519,10 @@ def get_valid_time_range_from_series(
         "valid_end_time": valid_end_time,
         "zero_start_time": None,
         "zero_trigger_time": None,
-        "missing_time_as_zero": True,
+        "missing_time_as_zero": False,
+        "missing_time_count": missing_time_count,
+        "max_observed_gap_seconds": max_observed_gap_seconds,
+        "observed_points": len(ordered_items),
     }
 
 def filter_dir_data_by_valid_range(dir_data, valid_start_time, valid_end_time):
@@ -307,32 +547,64 @@ def filter_dir_data_by_valid_range(dir_data, valid_start_time, valid_end_time):
 
 
 # ============================================================
-# 找 1C 车道
+# 找全部 1A 左转车道
 # ============================================================
 
-def find_left_turn_lane_index(cross_info, road_id, left_turn_dir):
+def find_left_turn_lane_indexes(cross_info, road_id, left_turn_dir):
     road_id = str(road_id)
 
     if road_id not in cross_info:
-        return None
+        return []
 
     if "LaneNo" not in cross_info[road_id]:
-        return None
+        return []
 
-    base_dir = get_base_direction(left_turn_dir)
-    lane_info = cross_info[road_id]["LaneNo"].get(base_dir, {})
+    return sorted(
+        capacity_lane_indexes(
+            cross_info[road_id],
+            left_turn_dir,
+        )
+    )
 
-    for lane_no, lane_type in lane_info.items():
-        if str(lane_type).upper() == "1C":
-            try:
-                lane_idx = int(lane_no)
-            except Exception:
-                continue
 
-            if 0 <= lane_idx <= 9:
-                return lane_idx
+def set_lane_group_total(flow_list, lane_indexes, target_value):
+    arr = normalize_flow_list(flow_list)
+    if not lane_indexes:
+        return arr
 
-    return None
+    target = max(0, int(round(target_value)))
+    current_values = [max(0, arr[lane]) for lane in lane_indexes]
+    current_total = sum(current_values)
+
+    if current_total > 0:
+        raw_values = [target * value / current_total for value in current_values]
+        allocated = [int(value) for value in raw_values]
+        order = sorted(
+            range(len(lane_indexes)),
+            key=lambda index: raw_values[index] - allocated[index],
+            reverse=True,
+        )
+        for index in order[:target - sum(allocated)]:
+            allocated[index] += 1
+    else:
+        quotient, remainder = divmod(target, len(lane_indexes))
+        allocated = [
+            quotient + (1 if index < remainder else 0)
+            for index in range(len(lane_indexes))
+        ]
+
+    for lane, value in zip(lane_indexes, allocated):
+        arr[lane] = value
+    return arr
+
+
+def keep_only_lane_group(flow_list, lane_indexes):
+    arr = normalize_flow_list(flow_list)
+    allowed = set(lane_indexes)
+    return [
+        value if index in allowed else 0
+        for index, value in enumerate(arr)
+    ]
 
 
 # ============================================================
@@ -683,25 +955,33 @@ def apply_time_section_ratios(fill_map, section_ratios=TIME_SECTION_RATIOS):
     if not fill_map:
         return fill_map
 
-    times = sorted(int(t) for t in fill_map.keys())
+    normalized_fill_map = {
+        int(t): value
+        for t, value in fill_map.items()
+    }
+    times = sorted(normalized_fill_map)
     n = len(times)
 
     if n == 0:
         return fill_map
 
     section_count = len(section_ratios)
+    first_time = times[0]
+    time_span = max(1, times[-1] - first_time + 1)
 
     result = {}
 
-    for idx, t in enumerate(times):
-        section_idx = int(idx * section_count / n)
+    for t in times:
+        section_idx = int(
+            (t - first_time) * section_count / time_span
+        )
 
         if section_idx >= section_count:
             section_idx = section_count - 1
 
         ratio = section_ratios[section_idx]
 
-        result[t] = int(round(float(fill_map[t]) * ratio))
+        result[t] = int(round(float(normalized_fill_map[t]) * ratio))
 
     return result
 
@@ -832,6 +1112,169 @@ def build_monotone_fill_values(
     return final_result
 
 
+def build_preserving_fill_values(all_times, trusted_times, trusted_vals):
+    """Fill gaps linearly while leaving every trusted time/value unchanged."""
+    trusted_map = {
+        int(time): int(round(value))
+        for time, value in zip(trusted_times, trusted_vals)
+    }
+    ordered_times = sorted(trusted_map)
+    if not ordered_times:
+        return {}, 0
+
+    monotonic_conflicts = 0
+    previous_value = None
+    for time in ordered_times:
+        current_value = trusted_map[time]
+        if previous_value is not None and current_value < previous_value:
+            monotonic_conflicts += 1
+        previous_value = current_value
+
+    result = {}
+    for time in sorted(int(item) for item in all_times):
+        if time in trusted_map:
+            result[time] = trusted_map[time]
+            continue
+
+        previous_times = [item for item in ordered_times if item < time]
+        next_times = [item for item in ordered_times if item > time]
+        previous_time = previous_times[-1] if previous_times else None
+        next_time = next_times[0] if next_times else None
+
+        if previous_time is None:
+            result[time] = trusted_map[next_time]
+        elif next_time is None:
+            result[time] = trusted_map[previous_time]
+        else:
+            previous_value = trusted_map[previous_time]
+            next_value = trusted_map[next_time]
+            ratio = (time - previous_time) / (next_time - previous_time)
+            result[time] = int(
+                round(previous_value + (next_value - previous_value) * ratio)
+            )
+
+    return result, monotonic_conflicts
+
+
+def build_isotonic_fill_values(
+    all_times,
+    trusted_times,
+    trusted_vals,
+    max_allowed_value,
+):
+    """Fit a non-decreasing capacity curve, then interpolate missing times.
+
+    Pool-adjacent-violators regression is used instead of a cumulative maximum.
+    A cumulative maximum lets one bad high point inflate every later time;
+    isotonic pooling spreads that conflict across the offending block.
+    """
+    if not all_times or not trusted_times or not trusted_vals:
+        return {}, {}
+
+    max_allowed_value = max(0.0, float(max_allowed_value))
+    pairs = sorted(
+        (
+            int(time),
+            min(max_allowed_value, max(0.0, float(value))),
+        )
+        for time, value in zip(trusted_times, trusted_vals)
+    )
+    if not pairs:
+        return {}, {}
+
+    # Pool adjacent blocks until their fitted means are non-decreasing.
+    blocks = []
+    for time, value in pairs:
+        blocks.append({"times": [time], "sum": value, "weight": 1.0})
+        while len(blocks) >= 2:
+            previous = blocks[-2]
+            current = blocks[-1]
+            previous_mean = previous["sum"] / previous["weight"]
+            current_mean = current["sum"] / current["weight"]
+            if previous_mean <= current_mean:
+                break
+            merged = {
+                "times": previous["times"] + current["times"],
+                "sum": previous["sum"] + current["sum"],
+                "weight": previous["weight"] + current["weight"],
+            }
+            blocks[-2:] = [merged]
+
+    fitted_trusted = {}
+    for block in blocks:
+        fitted_value = min(
+            max_allowed_value,
+            max(0.0, block["sum"] / block["weight"]),
+        )
+        for time in block["times"]:
+            fitted_trusted[time] = fitted_value
+
+    ordered_trusted = sorted(fitted_trusted)
+    fitted_values = [fitted_trusted[time] for time in ordered_trusted]
+    original_values = {
+        int(time): float(value)
+        for time, value in pairs
+    }
+    adjusted = [
+        abs(fitted_trusted[time] - original_values[time])
+        for time in ordered_trusted
+    ]
+    conflict_count = sum(
+        1
+        for previous, current in zip(
+            (value for _, value in pairs),
+            (value for _, value in pairs[1:]),
+        )
+        if current < previous
+    )
+
+    result = {}
+    all_times = sorted(int(time) for time in all_times)
+    for time in all_times:
+        if time in fitted_trusted:
+            result[time] = fitted_trusted[time]
+            continue
+
+        previous_times = [item for item in ordered_trusted if item < time]
+        next_times = [item for item in ordered_trusted if item > time]
+        previous_time = previous_times[-1] if previous_times else None
+        next_time = next_times[0] if next_times else None
+
+        if previous_time is None:
+            result[time] = fitted_trusted[next_time]
+        elif next_time is None:
+            result[time] = fitted_trusted[previous_time]
+        else:
+            ratio = (time - previous_time) / (next_time - previous_time)
+            result[time] = (
+                fitted_trusted[previous_time]
+                + (
+                    fitted_trusted[next_time]
+                    - fitted_trusted[previous_time]
+                ) * ratio
+            )
+
+    final_result = {}
+    previous_value = 0
+    for time in all_times:
+        value = int(round(result[time]))
+        value = max(previous_value, value)
+        value = min(int(round(max_allowed_value)), value)
+        final_result[time] = value
+        previous_value = value
+
+    return final_result, {
+        "mode": "monotone_isotonic_interpolation",
+        "monotonic_conflict_count": conflict_count,
+        "adjusted_trusted_point_count": sum(
+            1 for value in adjusted if value >= 0.5
+        ),
+        "max_trusted_adjustment": round(max(adjusted), 3),
+        "trusted_point_count": len(ordered_trusted),
+        "filled_point_count": len(all_times) - len(ordered_trusted),
+    }
+
+
 # ============================================================
 # 公共：单序列补全
 # ============================================================
@@ -864,6 +1307,48 @@ def build_clean_fill_map_from_series(times, vals):
     max_allowed_value = original_max_value
 
     full_times = list(range(min(times), max(times) + 1))
+
+    if USE_MONOTONE_MODE:
+        fill_map, monotone_info = build_isotonic_fill_values(
+            all_times=full_times,
+            trusted_times=times,
+            trusted_vals=vals,
+            max_allowed_value=max_allowed_value,
+        )
+        return fill_map, {
+            "mode": monotone_info.get(
+                "mode",
+                "monotone_isotonic_interpolation",
+            ),
+            "original_max": original_max_value,
+            "section_ratios": None,
+            "removed_left": 0,
+            "removed_right": 0,
+            "tail_cut": 0,
+            "changed_peaks": [],
+            "moved_max_to_last": False,
+            **monotone_info,
+        }
+
+    if not USE_LEGACY_HEURISTICS:
+        fill_map, monotonic_conflicts = build_preserving_fill_values(
+            all_times=full_times,
+            trusted_times=times,
+            trusted_vals=vals,
+        )
+        return fill_map, {
+            "mode": "preserve_trusted_points_interpolation",
+            "original_max": original_max_value,
+            "section_ratios": None,
+            "removed_left": 0,
+            "removed_right": 0,
+            "tail_cut": 0,
+            "changed_peaks": [],
+            "moved_max_to_last": False,
+            "trusted_point_count": len(times),
+            "filled_point_count": len(full_times) - len(set(times)),
+            "monotonic_conflict_count": monotonic_conflicts,
+        }
 
     times1, vals1, removed_left, removed_right = trim_sparse_boundary_points(
         times=times,
@@ -945,6 +1430,7 @@ def build_clean_fill_map_from_series(times, vals):
     )
 
     debug_info = {
+        "mode": "legacy_heuristics",
         "original_max": original_max_value,
         "section_ratios": TIME_SECTION_RATIOS,
         "removed_left": removed_left,
@@ -1031,7 +1517,12 @@ def choose_anchor_array_by_target(dir_data, target_time, target_sum):
 # U / D / L / R 补全
 # ============================================================
 
-def complete_one_base_direction(road_data, direction):
+def complete_one_base_direction(
+    road_data,
+    direction,
+    cross_info=None,
+    road_id=None,
+):
     """
     U / D / L / R：
 
@@ -1049,9 +1540,39 @@ def complete_one_base_direction(road_data, direction):
     if not original_dir_data:
         return road_data
 
+    if isinstance(cross_info, dict) and road_id is not None:
+        lane_indexes = sorted(
+            capacity_lane_indexes(
+                cross_info.get(str(road_id), {}),
+                direction,
+            )
+        )
+    else:
+        lane_indexes = list(range(10))
+
+    if not lane_indexes:
+        print(
+            f"主方向没有受控容量车道，清除: "
+            f"road_id={road_id}, dir={direction}"
+        )
+        road_data.pop(direction, None)
+        return road_data
+
+    def get_base_lane_value(flow_list):
+        arr = normalize_flow_list(flow_list)
+        return sum(arr[lane] for lane in lane_indexes)
+
+    if not any(
+        get_base_lane_value(flow_list) > 0
+        for flow_list in original_dir_data.values()
+    ):
+        print(f"主方向没有正流量样本，清除: dir={direction}")
+        road_data.pop(direction, None)
+        return road_data
+
     valid_start_time, valid_end_time, valid_range_info = get_valid_time_range_from_series(
         dir_data=original_dir_data,
-        value_func=sum_flow,
+        value_func=get_base_lane_value,
         max_time=MAX_VALID_TIME,
         max_consecutive_zero=MAX_CONSECUTIVE_ZERO
     )
@@ -1081,7 +1602,7 @@ def complete_one_base_direction(road_data, direction):
 
     times = [int(t) for t, _ in items]
     vals = [
-        sum_flow(flow_list)
+        get_base_lane_value(flow_list)
         for _, flow_list in items
     ]
 
@@ -1113,10 +1634,12 @@ def complete_one_base_direction(road_data, direction):
             target_sum=target_sum
         )
 
-        new_arr = scale_array_to_target_sum(
+        new_arr = set_lane_group_total(
             flow_list=anchor_arr,
-            target_sum=target_sum
+            lane_indexes=lane_indexes,
+            target_value=target_sum,
         )
+        new_arr = keep_only_lane_group(new_arr, lane_indexes)
 
         new_dir_data[str(t)] = new_arr
 
@@ -1124,6 +1647,7 @@ def complete_one_base_direction(road_data, direction):
 
     print(
         f"主方向补全完成: dir={direction}, "
+        f"lane_indexes={lane_indexes}, "
         f"valid_range={valid_range_info}, "
         f"original_max={debug_info.get('original_max')}, "
         f"section_ratios={debug_info.get('section_ratios')}, "
@@ -1175,8 +1699,8 @@ def complete_one_left_turn_direction(road_data, cross_info, road_id, left_turn_d
     """
     UTL / DTL / LTL / RTL：
 
-    1. 找 1C 车道；
-    2. 根据 1C 车道判断有效区间；
+    1. 找全部 1A 左转车道；
+    2. 根据全部 1A 左转车道的总流量判断有效区间；
        注意：缺失的中间 time 会默认按 0 参与连续 0 判断。
     3. 只取有效区间内的数据；
     4. 只在有效区间内补全；
@@ -1190,23 +1714,31 @@ def complete_one_left_turn_direction(road_data, cross_info, road_id, left_turn_d
     if not original_dir_data:
         return road_data
 
-    lane_idx = find_left_turn_lane_index(
+    lane_indexes = find_left_turn_lane_indexes(
         cross_info=cross_info,
         road_id=road_id,
         left_turn_dir=left_turn_dir
     )
 
-    if lane_idx is None:
-        print(f"未找到1C车道，跳过: road_id={road_id}, dir={left_turn_dir}")
+    if not lane_indexes:
+        print(f"未找到1A左转车道，跳过: road_id={road_id}, dir={left_turn_dir}")
+        road_data.pop(left_turn_dir, None)
         return road_data
 
     def get_left_lane_value(flow_list):
         arr = normalize_flow_list(flow_list)
+        return sum(arr[lane] for lane in lane_indexes)
 
-        if lane_idx < 0 or lane_idx >= len(arr):
-            return 0
-
-        return arr[lane_idx]
+    if not any(
+        get_left_lane_value(flow_list) > 0
+        for flow_list in original_dir_data.values()
+    ):
+        print(
+            f"左转没有正流量样本，清除: road_id={road_id}, "
+            f"dir={left_turn_dir}"
+        )
+        road_data.pop(left_turn_dir, None)
+        return road_data
 
     valid_start_time, valid_end_time, valid_range_info = get_valid_time_range_from_series(
         dir_data=original_dir_data,
@@ -1218,7 +1750,7 @@ def complete_one_left_turn_direction(road_data, cross_info, road_id, left_turn_d
     if valid_start_time is None or valid_end_time is None:
         print(
             f"左转无有效区间，清空: road_id={road_id}, "
-            f"dir={left_turn_dir}, lane_idx={lane_idx}, info={valid_range_info}"
+            f"dir={left_turn_dir}, lane_indexes={lane_indexes}, info={valid_range_info}"
         )
         road_data[left_turn_dir] = {}
         return road_data
@@ -1226,7 +1758,7 @@ def complete_one_left_turn_direction(road_data, cross_info, road_id, left_turn_d
     if valid_end_time < valid_start_time:
         print(
             f"左转有效区间为空，清空: road_id={road_id}, "
-            f"dir={left_turn_dir}, lane_idx={lane_idx}, info={valid_range_info}"
+            f"dir={left_turn_dir}, lane_indexes={lane_indexes}, info={valid_range_info}"
         )
         road_data[left_turn_dir] = {}
         return road_data
@@ -1240,7 +1772,7 @@ def complete_one_left_turn_direction(road_data, cross_info, road_id, left_turn_d
     if not valid_dir_data:
         print(
             f"左转有效区间内无数据，清空: road_id={road_id}, "
-            f"dir={left_turn_dir}, lane_idx={lane_idx}, info={valid_range_info}"
+            f"dir={left_turn_dir}, lane_indexes={lane_indexes}, info={valid_range_info}"
         )
         road_data[left_turn_dir] = {}
         return road_data
@@ -1255,7 +1787,7 @@ def complete_one_left_turn_direction(road_data, cross_info, road_id, left_turn_d
         arr = normalize_flow_list(flow_list)
 
         times.append(t)
-        vals.append(arr[lane_idx])
+        vals.append(sum(arr[lane] for lane in lane_indexes))
 
     fill_map, debug_info = build_clean_fill_map_from_series(
         times=times,
@@ -1265,7 +1797,7 @@ def complete_one_left_turn_direction(road_data, cross_info, road_id, left_turn_d
     if not fill_map:
         print(
             f"左转补全为空，仅保存有效区间原始数据: road_id={road_id}, "
-            f"dir={left_turn_dir}, lane_idx={lane_idx}, "
+            f"dir={left_turn_dir}, lane_indexes={lane_indexes}, "
             f"valid_range={valid_range_info}"
         )
         road_data[left_turn_dir] = valid_dir_data
@@ -1290,14 +1822,15 @@ def complete_one_left_turn_direction(road_data, cross_info, road_id, left_turn_d
                 target_time=t
             )
 
-        arr[lane_idx] = int(round(target_val))
+        arr = set_lane_group_total(arr, lane_indexes, target_val)
+        arr = keep_only_lane_group(arr, lane_indexes)
         new_dir_data[t_key] = arr
 
     road_data[left_turn_dir] = new_dir_data
 
     print(
         f"左转补全完成: road_id={road_id}, dir={left_turn_dir}, "
-        f"lane_idx={lane_idx}, "
+        f"lane_indexes={lane_indexes}, "
         f"valid_range={valid_range_info}, "
         f"original_max={debug_info.get('original_max')}, "
         f"section_ratios={debug_info.get('section_ratios')}, "
@@ -1340,7 +1873,9 @@ def complete_one_road(data, cross_info, road_id):
     for direction in BASE_DIRS:
         road_data = complete_one_base_direction(
             road_data=road_data,
-            direction=direction
+            direction=direction,
+            cross_info=cross_info,
+            road_id=road_id,
         )
 
     for direction in LEFT_TURN_DIRS:
@@ -1361,6 +1896,14 @@ def complete_one_road(data, cross_info, road_id):
 # ============================================================
 
 def main():
+    if (
+        USE_MONOTONE_MODE or USE_LEGACY_HEURISTICS
+    ) and not ALLOW_EXPERIMENTAL_SOURCE_REWRITE:
+        raise ValueError(
+            "buqi bootstrap mode must preserve E_T source points; "
+            "source rewriting is experimental and requires "
+            "AITC_BUQI_EXPERIMENTAL_SOURCE_REWRITE=1"
+        )
     data = load_json(INPUT_PATH)
     cross_info = load_json(INFO_PATH)
 
@@ -1372,12 +1915,21 @@ def main():
         print(f"cross_info.json 为空或不存在: {INFO_PATH}")
         return
 
-    result = copy.deepcopy(data)
+    road_selection = configured_road_ids()
+    source_data = data
+    if OUTPUT_SELECTED_ONLY and road_selection is not None:
+        source_data = {
+            str(road_id): data[str(road_id)]
+            for road_id in road_selection
+            if str(road_id) in data
+        }
 
-    if ROAD_ID_SET is None:
+    result = copy.deepcopy(source_data)
+
+    if road_selection is None:
         road_ids = list(result.keys())
     else:
-        road_ids = [str(x) for x in ROAD_ID_SET]
+        road_ids = [str(x) for x in road_selection]
 
     for road_id in road_ids:
         print("=" * 100)
@@ -1392,11 +1944,20 @@ def main():
     result = sort_by_time(result)
 
     save_json(OUTPUT_PATH, result)
+    completion_report = build_completion_report(
+        source_data,
+        result,
+        cross_info=cross_info,
+    )
+    completion_report["input_path"] = os.path.abspath(INPUT_PATH)
+    completion_report["output_path"] = os.path.abspath(OUTPUT_PATH)
+    save_json(COMPLETION_REPORT_PATH, completion_report)
 
     print("=" * 100)
     print("经验表补齐完成")
     print(f"输入文件: {INPUT_PATH}")
     print(f"输出文件: {OUTPUT_PATH}")
+    print(f"补全报告: {COMPLETION_REPORT_PATH}")
 
 
 if __name__ == "__main__":

@@ -1,6 +1,12 @@
 import json
 import os
 from pathlib import Path
+
+try:
+    from lib.data_ANS.lane_policy import configured_movement_lane_policy
+except ModuleNotFoundError:  # Supports direct execution from the lib directory.
+    from data_ANS.lane_policy import configured_movement_lane_policy
+
 BASE_DIR = Path(__file__).resolve().parent  # lib 目录
 info = BASE_DIR / "cross_info.json"
 
@@ -8,7 +14,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 JIYAN_PATH = os.path.join(BASE_DIR, "wwx.json")
 with open(info, 'r',encoding='utf-8') as f:
     lines3=json.load(f)
-print(lines3)
+
 def jiangyan_biao_get(road_id):
     with open(JIYAN_PATH, "r", encoding="utf-8") as f:
         data= json.load(f)
@@ -20,6 +26,21 @@ def quihe(L_set,L):
     for lan in L_set:
         sum+=L[lan]
     return sum
+
+
+def movement_lane_sets(road_id, direction):
+    cross_config = lines3.get(str(road_id), {})
+    base_lanes = configured_movement_lane_policy(
+        cross_config,
+        direction,
+    )["eligible"]
+    left_turn_lanes = configured_movement_lane_policy(
+        cross_config,
+        direction + "TL",
+    )["eligible"]
+    return base_lanes, left_turn_lanes
+
+
 def   chuli_shuju(road_id, flow_map_single_intersection, extend_map_single_intersection):
 
     liu={
@@ -106,10 +127,7 @@ def   chuli_shuju(road_id, flow_map_single_intersection, extend_map_single_inter
         if d in  ['UTL','DTL','LTL','RTL'] and str[d]!=0:
             dd = d[0]
             t = 0
-            L_lan = set()
-            for lan, fuhao in lines3[road_id]['LaneNo'][dd].items():
-                if fuhao == "1C":
-                    L_lan.add(int(lan))
+            _, L_lan = movement_lane_sets(road_id, dd)
 
 
             for time, key in jingyan_biao[d].items():
@@ -128,9 +146,10 @@ def   chuli_shuju(road_id, flow_map_single_intersection, extend_map_single_inter
         else:
 
             t = 0
+            base_lanes, _ = movement_lane_sets(road_id, d)
             for time, key in jingyan_biao[d].items():
 
-                if int(sum(key) * 0.8) >= sum(liu[d]):
+                if int(quihe(base_lanes, key) * 0.8) >= quihe(base_lanes, liu[d]):
                     sch[d] = int(time)
                     t = 1
                     break
@@ -238,10 +257,7 @@ def   chuli_shuju3(road_id, flow_map_single_intersection):
         if d in  ['UTL','DTL','LTL','RTL']:
             dd = d[0]
             t = 0
-            L_lan = set()
-            for lan, fuhao in lines3[road_id]['LaneNo'][dd].items():
-                if fuhao == "1C":
-                    L_lan.add(int(lan))
+            _, L_lan = movement_lane_sets(road_id, dd)
 
 
             for time, key in jingyan_biao[d].items():
@@ -258,9 +274,10 @@ def   chuli_shuju3(road_id, flow_map_single_intersection):
             print(d,sch[d], "inytysdkjsahduweysjduweyuwnsjdgsfbdmsl")
         else:
             t = 0
+            base_lanes, _ = movement_lane_sets(road_id, d)
             for time, key in jingyan_biao[d].items():
 
-                if int(sum(key) * 0.8) >= sum(liu[d]):
+                if int(quihe(base_lanes, key) * 0.8) >= quihe(base_lanes, liu[d]):
                     sch[d] = int(time)
                     t = 1
                     break
