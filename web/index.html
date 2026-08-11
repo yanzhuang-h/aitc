@@ -199,6 +199,7 @@
     <div class="tabs">
       <button class="tab-btn active" id="tabSimple" data-tab="simple">路口方案</button>
       <button class="tab-btn" id="tabProcess" data-tab="process">放行控制流程</button>
+      <button class="tab-btn" id="tabApi" data-tab="api">接口测试</button>
     </div>
 
     <div class="grid" id="viewSimple">
@@ -257,6 +258,39 @@
         </div>
       </div>
     </div>
+
+    <!-- 接口测试 -->
+    <div class="grid" id="viewApi" style="display:none">
+      <div class="panel">
+        <div class="field">
+          <label for="apiSelect">选择接口</label>
+          <select id="apiSelect" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:#fff;"></select>
+        </div>
+        <div class="field" id="apiParamCross">
+          <label for="apiCrossId">路口编号 cross_id</label>
+          <input id="apiCrossId" value="1300068" placeholder="例如 1300068">
+        </div>
+        <div class="field" id="apiParamCorridor" style="display:none">
+          <label for="apiCorridorId">走廊编号 corridor_id</label>
+          <input id="apiCorridorId" value="lvbo_01" placeholder="例如 lvbo_01">
+        </div>
+        <div class="field" id="apiParamText" style="display:none">
+          <label for="apiRequestText">需求描述 request_text</label>
+          <textarea id="apiRequestText" placeholder="自然语言需求">请给出当前这个路口的放行方案。</textarea>
+        </div>
+        <div class="field">
+          <button id="apiBtn">调用接口</button>
+        </div>
+        <div class="hint" id="apiHint">选择接口后，填写所需参数并点击“调用接口”。</div>
+      </div>
+      <div class="panel">
+        <div class="meta" id="apiMeta">
+          <span class="badge">待测试</span>
+          <span>请求未发出</span>
+        </div>
+        <pre class="json" id="apiResult" style="min-height:260px">选择接口并点击“调用接口”，此处展示 JSON 返回。</pre>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -265,14 +299,18 @@
     // 标签切换
     const tabSimple = $('tabSimple');
     const tabProcess = $('tabProcess');
+    const tabApi = $('tabApi');
     function switchTab(name) {
       tabSimple.classList.toggle('active', name === 'simple');
       tabProcess.classList.toggle('active', name === 'process');
+      tabApi.classList.toggle('active', name === 'api');
       $('viewSimple').style.display = name === 'simple' ? '' : 'none';
       $('viewProcess').style.display = name === 'process' ? '' : 'none';
+      $('viewApi').style.display = name === 'api' ? '' : 'none';
     }
     tabSimple.addEventListener('click', () => switchTab('simple'));
     tabProcess.addEventListener('click', () => switchTab('process'));
+    tabApi.addEventListener('click', () => switchTab('api'));
 
     // 通用状态栏
     function renderMeta(container, status, message) {
@@ -415,6 +453,91 @@
         pcBtn.disabled = false;
       }
     });
+
+    // ---------- 接口测试 ----------
+    const API_DEFS = [
+      { name: '健康检查', method: 'GET', path: '/health', params: [] },
+      { name: '查询道路信息', method: 'GET', path: '/road_info/{cross_id}', params: ['cross'] },
+      { name: '查询路口信息', method: 'GET', path: '/cross_info/{cross_id}', params: ['cross'] },
+      { name: '绿波-运行状态', method: 'GET', path: '/api/green-wave/status', params: [] },
+      { name: '绿波-走廊列表', method: 'GET', path: '/api/green-wave/config', params: [] },
+      { name: '绿波-单条走廊', method: 'GET', path: '/api/green-wave/config/{corridor_id}', params: ['corridor'] },
+      { name: '绿波-最新方案', method: 'GET', path: '/api/green-wave/plan', params: [] },
+      { name: '单路口方案(直连DQN)', method: 'POST', path: '/api/signal-timing', params: ['cross'], bodyKeys: ['cross_id'] },
+      { name: 'Qwen编排方案', method: 'POST', path: '/api/agent/signal-timing', params: ['cross', 'text'], bodyKeys: ['cross_id', 'request_text'] },
+      { name: '分步放行控制', method: 'POST', path: '/api/agent/control-process', params: ['cross', 'text'], bodyKeys: ['cross_id', 'request_text'] },
+    ];
+
+    const apiSelect = $('apiSelect');
+    const apiCrossId = $('apiCrossId');
+    const apiCorridorId = $('apiCorridorId');
+    const apiRequestText = $('apiRequestText');
+    const apiParamCross = $('apiParamCross');
+    const apiParamCorridor = $('apiParamCorridor');
+    const apiParamText = $('apiParamText');
+    const apiBtn = $('apiBtn');
+    const apiMeta = $('apiMeta');
+    const apiResult = $('apiResult');
+    const apiHint = $('apiHint');
+
+    API_DEFS.forEach((def, idx) => {
+      const opt = document.createElement('option');
+      opt.value = String(idx);
+      opt.textContent = def.name + '  [' + def.method + ' ' + def.path + ']';
+      apiSelect.appendChild(opt);
+    });
+
+    function renderApiParams() {
+      const def = API_DEFS[Number(apiSelect.value)];
+      apiParamCross.style.display = def.params.includes('cross') ? '' : 'none';
+      apiParamCorridor.style.display = def.params.includes('corridor') ? '' : 'none';
+      apiParamText.style.display = def.params.includes('text') ? '' : 'none';
+      apiHint.textContent = '方法: ' + def.method + '   路径: ' + def.path;
+    }
+    apiSelect.addEventListener('change', renderApiParams);
+
+    apiBtn.addEventListener('click', async () => {
+      const def = API_DEFS[Number(apiSelect.value)];
+      const path = def.path
+        .replace('{cross_id}', apiCrossId.value.trim() || '1300068')
+        .replace('{corridor_id}', apiCorridorId.value.trim() || 'lvbo_01');
+      const body = {};
+      if (def.bodyKeys) {
+        for (const key of def.bodyKeys) {
+          const value = key === 'cross_id' ? apiCrossId.value.trim() : apiRequestText.value.trim();
+          if (!value) {
+            renderMeta(apiMeta, 'error', '缺少参数 ' + key);
+            return;
+          }
+          body[key] = value;
+        }
+      }
+      const hasBody = Object.keys(body).length > 0;
+
+      apiBtn.disabled = true;
+      renderMeta(apiMeta, 'ok', '正在调用 ' + def.method + ' ' + path);
+      apiResult.textContent = '请求中...';
+      try {
+        const response = await fetch(path, {
+          method: def.method,
+          headers: hasBody ? { 'Content-Type': 'application/json' } : undefined,
+          body: hasBody ? JSON.stringify(body) : undefined
+        });
+        const text = await response.text();
+        let pretty;
+        try { pretty = JSON.stringify(JSON.parse(text), null, 2); }
+        catch (e) { pretty = text; }
+        apiResult.textContent = 'HTTP ' + response.status + '\n' + pretty;
+        renderMeta(apiMeta, response.ok ? 'ok' : 'error', 'HTTP ' + response.status);
+      } catch (error) {
+        renderMeta(apiMeta, 'error', '网络请求失败');
+        apiResult.textContent = String(error);
+      } finally {
+        apiBtn.disabled = false;
+      }
+    });
+
+    renderApiParams();
   </script>
 </body>
 </html>
