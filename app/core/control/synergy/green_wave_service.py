@@ -12,6 +12,15 @@ from typing import Any
 
 from lib import green_wave_functions, lvbotest
 
+from .green_wave_api_adapter import (
+    adapt_enabled_result,
+    adapt_get_result,
+    adapt_list_result,
+    adapt_save_result,
+    doc1_to_corridor,
+    is_doc1_payload,
+)
+
 
 class GreenWaveDataService:
     """绿波数据查询：运行状态、走廊配置、最新下发方案。"""
@@ -66,11 +75,12 @@ class GreenWaveDataService:
         try:
             result = green_wave_functions.list_green_wave_corridors({})
             if full or result.get("status") != "success":
-                return result
+                return adapt_list_result(result)
             result = dict(result)
             result["items"] = [
                 {
                     "corridor_id": item.get("corridor_id"),
+                    "segment_id": item.get("corridor_id"),
                     "name": item.get("name"),
                     "enabled": item.get("enabled"),
                 }
@@ -83,26 +93,46 @@ class GreenWaveDataService:
     def get_corridor(self, corridor_id: str) -> dict[str, Any]:
         """查询指定走廊完整配置。"""
         try:
-            return green_wave_functions.get_green_wave_corridor_config(
+            result = green_wave_functions.get_green_wave_corridor_config(
                 {"corridor_id": corridor_id}
             )
+            return adapt_get_result(result)
         except Exception as error:
             return self._error(f"查询绿波走廊失败: {error}")
 
-    def validate_corridor(self, corridor: dict[str, Any]) -> dict[str, Any]:
-        """只校验走廊配置，不保存。"""
+    def _resolve_corridor(self, body: Mapping[str, Any]) -> dict[str, Any]:
+        """兼容文档1（segment_id/green_wave_info）与文档2（corridor）请求。"""
+        if is_doc1_payload(body):
+            return doc1_to_corridor(body)
+        corridor = body.get("corridor")
+        if not isinstance(corridor, dict):
+            raise ValueError(
+                "请求体需包含 corridor，或使用文档1 的 segment_id/green_wave_info 结构"
+            )
+        return corridor
+
+    def validate_corridor(self, body: Mapping[str, Any]) -> dict[str, Any]:
+        """只校验走廊配置，不保存。支持文档1/文档2 请求，返回文档1 格式。"""
         try:
-            return green_wave_functions.save_green_wave_corridor_config(
+            corridor = self._resolve_corridor(body)
+            result = green_wave_functions.save_green_wave_corridor_config(
                 {"dry_run": True, "corridor": corridor}
+            )
+            return adapt_save_result(
+                result, fallback_segment_id=corridor.get("corridor_id", "")
             )
         except Exception as error:
             return self._error(f"校验绿波走廊失败: {error}")
 
-    def update_corridor(self, corridor: dict[str, Any]) -> dict[str, Any]:
-        """新增或更新走廊配置并保存。"""
+    def update_corridor(self, body: Mapping[str, Any]) -> dict[str, Any]:
+        """新增或更新走廊配置并保存。支持文档1/文档2 请求，返回文档1 格式。"""
         try:
-            return green_wave_functions.save_green_wave_corridor_config(
+            corridor = self._resolve_corridor(body)
+            result = green_wave_functions.save_green_wave_corridor_config(
                 {"dry_run": False, "corridor": corridor}
+            )
+            return adapt_save_result(
+                result, fallback_segment_id=corridor.get("corridor_id", "")
             )
         except Exception as error:
             return self._error(f"保存绿波走廊失败: {error}")
@@ -114,9 +144,10 @@ class GreenWaveDataService:
     def set_corridor_enabled(self, corridor_id: str, enabled: bool) -> dict[str, Any]:
         """启用或停用一条走廊。"""
         try:
-            return green_wave_functions.set_green_wave_corridor_enabled(
+            result = green_wave_functions.set_green_wave_corridor_enabled(
                 {"corridor_id": corridor_id, "enabled": enabled}
             )
+            return adapt_enabled_result(result)
         except Exception as error:
             return self._error(f"更新绿波走廊状态失败: {error}")
 

@@ -432,18 +432,18 @@ class HttpRuntimeServer:
         return self.green_wave_service.get_corridor(segment_id)
 
     def _green_wave_validate(self, body: Any) -> dict[str, Any]:
-        if not isinstance(body, dict) or "corridor" not in body:
-            raise ValueError("Request body must contain corridor")
+        if not isinstance(body, dict):
+            raise ValueError("Request body must be an object")
         if self.green_wave_service is None:
             raise RuntimeError("green wave service is not configured")
-        return self.green_wave_service.validate_corridor(body["corridor"])
+        return self.green_wave_service.validate_corridor(body)
 
     def _green_wave_update(self, body: Any) -> dict[str, Any]:
-        if not isinstance(body, dict) or "corridor" not in body:
-            raise ValueError("Request body must contain corridor")
+        if not isinstance(body, dict):
+            raise ValueError("Request body must be an object")
         if self.green_wave_service is None:
             raise RuntimeError("green wave service is not configured")
-        return self.green_wave_service.update_corridor(body["corridor"])
+        return self.green_wave_service.update_corridor(body)
 
     def _green_wave_delete(self, body: Any) -> dict[str, Any]:
         if not isinstance(body, dict) or "corridor_id" not in body:
