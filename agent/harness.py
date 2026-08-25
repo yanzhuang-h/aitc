@@ -18,6 +18,8 @@
 
 from __future__ import annotations
 
+import time
+from collections import deque
 from typing import Any, Mapping
 
 from app.core.models import ToolResponse
@@ -30,7 +32,11 @@ class AgentHarness:
 
     ``handle(intent, payload)`` 是协议层唯一入口，返回与既有 HTTP 响应
     完全一致的结构（向后兼容，不改变链路行为）。
+    每次调用都会记录一条可观测日志（意图、路由方式、耗时、状态）。
     """
+
+    #: 调用日志环形缓冲上限
+    CALL_LOG_MAX = 200
 
     def __init__(
         self,
@@ -59,6 +65,7 @@ class AgentHarness:
         )
         self.green_wave_service = green_wave_service
         self.logger = logger
+        self._call_log: deque[dict[str, Any]] = deque(maxlen=self.CALL_LOG_MAX)
         self._register_intents()
 
     def _register_intents(self) -> None:
@@ -140,15 +147,57 @@ class AgentHarness:
         )
 
     def handle(self, intent: str, payload: Mapping[str, Any]) -> dict[str, Any]:
-        """按意图路由：显式意图 -> 自主判断 -> 兜底。返回既有协议结构。"""
-        spec = self.intent_registry.get(intent)
-        if spec is not None:
-            return spec.handler(payload)
-        return self._handle_unregistered(intent, payload)
+        """按意图路由：显式意图 -> 自主判断 -> 兜底。返回既有协议结构。
+
+        每次调用都会记录可观测日志（意图、路由方式、耗时、状态）。
+        """
+        start = time.monotonic()
+        try:
+            spec = self.intent_registry.get(intent)
+            if spec is not None:
+                result = spec.handler(payload)
+                routed_by = "registry"
+            else:
+                result = self._handle_unregistered(intent, payload)
+                routed_by = result.get("routed_by") if isinstance(result, dict) else None
+                routed_by = routed_by if routed_by in ("autonomous", "fallback") else "fallback"
+            self._record_call(intent, routed_by, result, start)
+            return result
+        except Exception as error:
+            self._record_call(intent, "registry", None, start, error=str(error))
+            raise
 
     def intent_list(self) -> list[dict[str, str]]:
         """返回已注册意图清单，供调试与前端展示。"""
         return self.intent_registry.describe()
+
+    def recent_calls(self, limit: int = 20) -> list[dict[str, Any]]:
+        """返回最近调用可观测记录（意图、路由方式、耗时、状态）。"""
+        limit = max(1, min(int(limit or 20), self.CALL_LOG_MAX))
+        return list(self._call_log)[-limit:]
+
+    def _record_call(
+        self,
+        intent: str,
+        routed_by: str,
+        result: dict[str, Any] | None,
+        start: float,
+        *,
+        error: str | None = None,
+    ) -> None:
+        """记录一次调用：路由方式 + 耗时 + 结果状态。"""
+        duration_ms = round((time.monotonic() - start) * 1000, 2)
+        status = "error" if error else (result or {}).get("status", "unknown")
+        self._call_log.append(
+            {
+                "ts": round(time.time(), 3),
+                "intent": intent,
+                "routed_by": routed_by,
+                "status": status,
+                "duration_ms": duration_ms,
+                "error": error,
+            }
+        )
 
     # ---- 意图处理器 ------------------------------------------------------
 

@@ -376,6 +376,66 @@ class SymbolicDataAgentTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             bare.handle("green_wave.status", {})
 
+    # ---- 可观测性（调用记录）----
+
+    def test_harness_records_registry_call(self) -> None:
+        harness = AgentHarness(
+            qwen_tool_router_agent=QwenToolRouterAgent(
+                _RouterLLMClient(
+                    '{"tool_name":"query_latest_results","arguments":{}}'
+                ),
+                self.data_tools,
+            ),
+        )
+        harness.handle("agent.tools", {"request_text": "最新结果"})
+        calls = harness.recent_calls()
+        self.assertEqual(len(calls), 1)
+        record = calls[0]
+        self.assertEqual(record["intent"], "agent.tools")
+        self.assertEqual(record["routed_by"], "registry")
+        self.assertEqual(record["status"], "success")
+        self.assertGreaterEqual(record["duration_ms"], 0)
+
+    def test_harness_records_autonomous_routing(self) -> None:
+        harness = AgentHarness(
+            qwen_tool_router_agent=QwenToolRouterAgent(
+                _RouterLLMClient(
+                    '{"tool_name":"query_latest_results","arguments":{}}'
+                ),
+                self.data_tools,
+            ),
+        )
+        harness.handle("随便说点什么", {"request_text": "最新结果"})
+        record = harness.recent_calls()[-1]
+        self.assertEqual(record["routed_by"], "autonomous")
+        self.assertEqual(record["status"], "success")
+
+    def test_harness_records_fallback(self) -> None:
+        harness = AgentHarness(
+            qwen_tool_router_agent=QwenToolRouterAgent(_RouterLLMClient("{}"), self.data_tools),
+        )
+        harness.handle("no_such", {"cross_id": "x"})
+        record = harness.recent_calls()[-1]
+        self.assertEqual(record["routed_by"], "fallback")
+        self.assertEqual(record["status"], "error")
+
+    def test_harness_records_exception(self) -> None:
+        harness = AgentHarness(
+            qwen_tool_router_agent=QwenToolRouterAgent(_RouterLLMClient("{}"), self.data_tools),
+        )
+        with self.assertRaises(ValueError):
+            harness.handle("agent.tools", {"cross_id": "x"})  # 缺 request_text
+        record = harness.recent_calls()[-1]
+        self.assertEqual(record["status"], "error")
+        self.assertIn("request_text", record["error"])
+
+    def test_harness_recent_calls_limit(self) -> None:
+        harness = AgentHarness()
+        for _ in range(5):
+            harness.handle("no_such", {})
+        self.assertEqual(len(harness.recent_calls(limit=2)), 2)
+        self.assertEqual(len(harness.recent_calls()), 5)
+
 
 if __name__ == "__main__":
     unittest.main()

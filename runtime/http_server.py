@@ -6,8 +6,8 @@ import json
 from pathlib import Path
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import Any
-from urllib.parse import urlparse
+from typing import Any, Mapping
+from urllib.parse import parse_qs, urlparse
 
 from infra.data.classifier import DataKind
 
@@ -215,6 +215,12 @@ class HttpRuntimeServer:
                     return
                 if path == "/health":
                     self._send_json(200, runtime_server._health_payload())
+                    return
+                if path == "/api/agent/calls":
+                    self._send_json(
+                        200,
+                        runtime_server._agent_call_log(parse_qs(urlparse(self.path).query)),
+                    )
                     return
                 if path == "/api/green-wave/status":
                     self._send_json(200, runtime_server._green_wave_status())
@@ -456,6 +462,16 @@ class HttpRuntimeServer:
 
     def _generate_qwen_query(self, body: dict[str, Any]) -> dict[str, Any]:
         return self.agent_harness.handle("autonomous", body)
+
+    def _agent_call_log(self, query: Mapping[str, Any] | None = None) -> dict[str, Any]:
+        """返回 Agent Harness 最近调用记录（可观测性）。"""
+        query = query or {}
+        try:
+            limit = int((query.get("limit") or ["20"])[0])
+        except (TypeError, ValueError):
+            limit = 20
+        calls = self.agent_harness.recent_calls(limit=limit)
+        return {"status": "success", "count": len(calls), "calls": calls}
 
     def _green_wave_status(self) -> dict[str, Any]:
         return self.agent_harness.handle("green_wave.status", {})

@@ -255,6 +255,23 @@ class HttpRuntimeServerTest(unittest.TestCase):
         self.assertEqual(payload["status"], "success")
         self.assertEqual(payload["enabled"], False)
 
+    def test_get_agent_calls_returns_log(self):
+        # 先制造一次调用，再查询可观测记录
+        self._request(
+            "POST",
+            "/api/agent/query",
+            json.dumps({"cross_id": "1300068", "request_text": "查询最新决策结果"}),
+        )
+        status, payload = self._request("GET", "/api/agent/calls")
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["status"], "success")
+        self.assertGreaterEqual(payload["count"], 1)
+        last = payload["calls"][-1]
+        self.assertEqual(last["intent"], "autonomous")
+        self.assertEqual(last["routed_by"], "registry")
+        self.assertEqual(last["status"], "success")
+
 
 if __name__ == "__main__":
     unittest.main()
