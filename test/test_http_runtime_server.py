@@ -59,10 +59,25 @@ class _ControlProcessAgent:
         }
 
 
+class _QwenToolRouterAgent:
+    def __init__(self):
+        self.calls = []
+
+    def run(self, request):
+        self.calls.append(request)
+        return {
+            "status": "ok",
+            "summary": "ok",
+            "data": {"tool_name": "query_latest_results", "request_text": request["request_text"]},
+            "meta": {"tool_name": "query_latest_results"},
+        }
+
+
 class HttpRuntimeServerTest(unittest.TestCase):
     def setUp(self):
         self.ingestor = _Ingestor()
         self.control_process_agent = _ControlProcessAgent()
+        self.qwen_tool_router_agent = _QwenToolRouterAgent()
         self.server = HttpRuntimeServer(
             host="127.0.0.1",
             port=0,
@@ -72,6 +87,7 @@ class HttpRuntimeServerTest(unittest.TestCase):
             signal_timing_tool=_SignalTimingTool(),
             qwen_agent=_QwenAgent(),
             control_process_agent=self.control_process_agent,
+            qwen_tool_router_agent=self.qwen_tool_router_agent,
         )
         self.server.start()
 
@@ -140,6 +156,25 @@ class HttpRuntimeServerTest(unittest.TestCase):
         self.assertEqual(payload["cross_id"], "1300068")
         self.assertEqual(payload["result"]["data"]["steps"][0]["title"], "任务与输入摘要")
         self.assertEqual(self.control_process_agent.calls[0]["cross_id"], "1300068")
+
+    def test_post_agent_tools_returns_routed_tool(self):
+        status, payload = self._request(
+            "POST",
+            "/api/agent/tools",
+            json.dumps({"cross_id": "1300068", "request_text": "查询最新决策结果"}),
+        )
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["status"], "success")
+        self.assertEqual(payload["cross_id"], "1300068")
+        self.assertEqual(payload["result"]["meta"]["tool_name"], "query_latest_results")
+        self.assertEqual(self.qwen_tool_router_agent.calls[0]["cross_id"], "1300068")
+
+    def test_get_agent_tools_returns_405(self):
+        status, payload = self._request("GET", "/api/agent/tools")
+
+        self.assertEqual(status, 405)
+        self.assertIn("multi-tool", payload["error"])
 
 
 if __name__ == "__main__":

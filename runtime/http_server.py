@@ -45,6 +45,7 @@ class HttpRuntimeServer:
         signal_timing_tool: Any | None = None,
         qwen_agent: Any | None = None,
         control_process_agent: Any | None = None,
+        qwen_tool_router_agent: Any | None = None,
         green_wave_service: Any | None = None,
         logger: Any | None = None,
     ) -> None:
@@ -63,6 +64,7 @@ class HttpRuntimeServer:
                 signal_timing_tool=signal_timing_tool,
                 qwen_agent=qwen_agent,
                 control_process_agent=control_process_agent,
+                qwen_tool_router_agent=qwen_tool_router_agent,
                 logger=logger,
             )
         self.agent_harness = agent_harness
@@ -147,6 +149,9 @@ class HttpRuntimeServer:
                     return
                 if path == "/api/agent/control-process":
                     self._handle_control_process(body)
+                    return
+                if path == "/api/agent/tools":
+                    self._handle_qwen_tools(body)
                     return
                 if path == "/green_wave/validate":
                     self._handle_green_wave_post("validate", body)
@@ -240,6 +245,9 @@ class HttpRuntimeServer:
                 if path == "/api/agent/control-process":
                     self._send_json(405, {"error": "Use POST for control process requests"})
                     return
+                if path == "/api/agent/tools":
+                    self._send_json(405, {"error": "Use POST for multi-tool routing requests"})
+                    return
                 if path.startswith(("/road_info", "/cross_info")) and self._try_handle_config("GET", None):
                     return
                 self._send_json(200, runtime_server._health_payload())
@@ -285,6 +293,21 @@ class HttpRuntimeServer:
                     return
                 except Exception:
                     runtime_server._error("Error generating control process", exc_info=True)
+                    self._send_json(500, {"error": "internal server error"})
+                    return
+                self._send_json(200, payload)
+
+            def _handle_qwen_tools(self, body: Any) -> None:
+                if not isinstance(body, dict):
+                    self._send_json(400, {"error": "Request body must be an object"})
+                    return
+                try:
+                    payload = runtime_server._generate_qwen_tools(body)
+                except ValueError as error:
+                    self._send_json(400, {"error": str(error)})
+                    return
+                except Exception:
+                    runtime_server._error("Error generating multi-tool routing", exc_info=True)
                     self._send_json(500, {"error": "internal server error"})
                     return
                 self._send_json(200, payload)
@@ -405,6 +428,9 @@ class HttpRuntimeServer:
 
     def _generate_control_process(self, body: dict[str, Any]) -> dict[str, Any]:
         return self.agent_harness.handle("control_process", body)
+
+    def _generate_qwen_tools(self, body: dict[str, Any]) -> dict[str, Any]:
+        return self.agent_harness.handle("agent.tools", body)
 
     def _green_wave_status(self) -> dict[str, Any]:
         if self.green_wave_service is None:

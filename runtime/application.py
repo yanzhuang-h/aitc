@@ -40,7 +40,7 @@ from .prediction_scheduler import PredictionScheduler
 from .prediction_service import FlowPredictionService, QueuePredictionService
 from .result_formatter import format_result
 from .tcp_server import TcpRuntimeServer
-from agent.qwen_agent import QwenSignalTimingAgent, SymbolicDataAgent
+from agent.qwen_agent import QwenSignalTimingAgent, QwenToolRouterAgent, SymbolicDataAgent
 from agent.control_agent import ControlProcessAgent
 from agent.harness import AgentHarness
 from agent.tools import DataQueryTools
@@ -179,6 +179,7 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
         enable_thinking=settings.llm_enable_thinking,
     )
     qwen_agent = QwenSignalTimingAgent(qwen_client, data_tools)
+    qwen_tool_router_agent = QwenToolRouterAgent(qwen_client, data_tools)
     symbolic_agent = SymbolicDataAgent(data_tools)
     control_process_agent = ControlProcessAgent(qwen_client, query_service=query_service, logger=logger)
     agent_harness = AgentHarness(
@@ -186,6 +187,7 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
         symbolic_agent=symbolic_agent,
         qwen_agent=qwen_agent,
         control_process_agent=control_process_agent,
+        qwen_tool_router_agent=qwen_tool_router_agent,
         logger=logger,
     )
     green_wave_service = GreenWaveDataService(logger=logger)

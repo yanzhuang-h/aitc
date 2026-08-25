@@ -5,7 +5,8 @@ from __future__ import annotations
 import tempfile
 import unittest
 
-from agent.qwen_agent import QwenSignalTimingAgent, SymbolicDataAgent
+from agent.qwen_agent import QwenSignalTimingAgent, QwenToolRouterAgent, SymbolicDataAgent
+from agent.harness import AgentHarness
 from agent.tools import DataQueryTools
 from app.core.tools import SingleIntersectionSignalTimingTool
 from infra.data import (
@@ -46,6 +47,22 @@ class _LLMClient:
         return _ChatResult("路口 1300068 的放行方案已生成。")
 
 
+class _RouterLLMClient:
+    """多工具路由 mock：第一次返回工具选择 JSON，第二次返回汇总答案。"""
+
+    model = "fake-qwen"
+
+    def __init__(self, tool_choice: str):
+        self.tool_choice = tool_choice
+        self.calls = []
+
+    def chat(self, messages, **kwargs):
+        self.calls.append((messages, kwargs))
+        if len(self.calls) == 1:
+            return _ChatResult(self.tool_choice)
+        return _ChatResult("已根据需求完成工具调用。")
+
+
 class SymbolicDataAgentTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tempdir = tempfile.TemporaryDirectory()
@@ -82,6 +99,7 @@ class SymbolicDataAgentTest(unittest.TestCase):
             _LLMClient(),
             DataQueryTools(query_service, signal_timing_tool=signal_tool),
         )
+        self.data_tools = DataQueryTools(query_service, signal_timing_tool=signal_tool)
 
     def test_full_history_query_flow(self) -> None:
         result = self.agent.run(
@@ -125,6 +143,66 @@ class SymbolicDataAgentTest(unittest.TestCase):
         self.assertEqual(result["meta"]["tool_name"], "generate_single_intersection_signal_timing")
         self.assertEqual(result["data"]["tool_result"]["data"]["signal_timing"], [10, 20])
         self.assertIn("放行方案", result["summary"])
+
+    # ---- 多工具路由（QwenToolRouterAgent + AgentHarness.agent.tools）----
+
+    def test_tool_router_selects_query_tool_without_cross_id_injection(self) -> None:
+        """模型选查询工具（无 cross_id 参数），不得注入 cross_id 导致多参。"""
+        router = QwenToolRouterAgent(
+            _RouterLLMClient('{"tool_name":"query_latest_results","arguments":{"limit":3}}'),
+            self.data_tools,
+        )
+        result = router.run({"request_text": "查询最新决策结果", "cross_id": "1300068"})
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["meta"]["tool_name"], "query_latest_results")
+        self.assertEqual(result["data"]["tool_result"]["status"], "ok")
+        self.assertIn("已根据需求完成工具调用", result["summary"])
+
+    def test_tool_router_selects_signal_tool_with_cross_id(self) -> None:
+        """模型选信号控制工具（声明了 cross_id），自动注入路口编号。"""
+        router = QwenToolRouterAgent(
+            _RouterLLMClient(
+                '{"tool_name":"generate_single_intersection_signal_timing","arguments":{}}'
+            ),
+            self.data_tools,
+        )
+        result = router.run({"request_text": "生成放行方案", "cross_id": "1300068"})
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["meta"]["tool_name"], "generate_single_intersection_signal_timing")
+        self.assertEqual(result["data"]["tool_result"]["data"]["signal_timing"], [10, 20])
+
+    def test_tool_router_rejects_unknown_tool(self) -> None:
+        router = QwenToolRouterAgent(
+            _RouterLLMClient('{"tool_name":"not_exist_tool","arguments":{}}'),
+            self.data_tools,
+        )
+        result = router.run({"request_text": "任意需求"})
+        self.assertEqual(result["status"], "error")
+        self.assertIn("未知工具", result["summary"])
+
+    def test_harness_routes_agent_tools_intent(self) -> None:
+        harness = AgentHarness(
+            qwen_tool_router_agent=QwenToolRouterAgent(
+                _RouterLLMClient(
+                    '{"tool_name":"query_latest_results","arguments":{"limit":2}}'
+                ),
+                self.data_tools,
+            ),
+        )
+        result = harness.handle(
+            "agent.tools",
+            {"request_text": "看看最新结果", "cross_id": "1300068"},
+        )
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["cross_id"], "1300068")
+        self.assertEqual(result["result"]["meta"]["tool_name"], "query_latest_results")
+
+    def test_harness_agent_tools_requires_request_text(self) -> None:
+        harness = AgentHarness(
+            qwen_tool_router_agent=QwenToolRouterAgent(_RouterLLMClient("{}"), self.data_tools),
+        )
+        with self.assertRaises(ValueError):
+            harness.handle("agent.tools", {"cross_id": "1300068"})
 
 
 if __name__ == "__main__":

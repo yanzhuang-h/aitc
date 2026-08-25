@@ -179,3 +179,126 @@ class QwenSignalTimingAgent:
             return json.loads(text)
         except Exception:
             return None
+
+
+class QwenToolRouterAgent:
+    """多工具路由：Qwen 从全部注册工具中按自然语言选工具并调用。
+
+    与 ``QwenSignalTimingAgent`` 的区别：不再限制单一动作，而是把
+    统一注册中心（数据查询 + 信号控制）的全部工具 schema 交给模型，
+    由模型返回 ``{"tool_name": ..., "arguments": {...}}`` 后统一调用。
+    ``cross_id`` 为可选上下文：仅当所选工具声明了 ``cross_id`` 参数时才注入。
+    """
+
+    def __init__(self, llm_client: OpenAICompatibleLLMClient, tools: DataQueryTools) -> None:
+        self.llm_client = llm_client
+        self.tools = tools
+
+    @staticmethod
+    def _parse_json(content: str) -> Any:
+        text = content.strip()
+        if text.startswith("```"):
+            lines = [line for line in text.splitlines() if not line.startswith("```")]
+            text = "\n".join(lines).strip()
+        try:
+            return json.loads(text)
+        except Exception:
+            return None
+
+    def run(self, request: Mapping[str, Any]) -> dict[str, Any]:
+        request_text = request.get("request_text")
+        if not isinstance(request_text, str) or not request_text.strip():
+            return ToolResponse.error("request_text must be a non-empty string").to_dict()
+        request_text = request_text.strip()
+        cross_id = request.get("cross_id")
+        cross_id = cross_id.strip() if isinstance(cross_id, str) and cross_id.strip() else None
+
+        choice = self._choose_tool(request_text, cross_id)
+        tool_name = choice.get("tool_name")
+        arguments = choice.get("arguments")
+        if not isinstance(tool_name, str) or not tool_name.strip():
+            return ToolResponse.error("模型未能从工具中选择可用工具").to_dict()
+        tool_name = tool_name.strip()
+        if tool_name not in self.tools.registry:
+            return ToolResponse.error(f"模型选择了未知工具：{tool_name}").to_dict()
+        if not isinstance(arguments, Mapping):
+            arguments = {}
+
+        tool_arguments = dict(arguments)
+        # 仅注入所选工具 schema 声明过的参数，避免向严格签名工具多传参数
+        spec = next(s for s in self.tools.registry.all_specs() if s.name == tool_name)
+        properties = spec.parameters.get("properties", {})
+        if cross_id and "cross_id" in properties:
+            tool_arguments.setdefault("cross_id", cross_id)
+
+        tool_result = self.tools.invoke(tool_name, tool_arguments)
+        answer = self._summarize_answer(request_text, tool_name, tool_result)
+        return ToolResponse.ok(
+            summary=answer,
+            data={
+                "request_text": request_text,
+                "cross_id": cross_id,
+                "tool_name": tool_name,
+                "tool_result": tool_result,
+                "answer": answer,
+            },
+            meta={
+                "tool_name": tool_name,
+                "llm_model": getattr(self.llm_client, "model", None),
+            },
+        ).to_dict()
+
+    def _choose_tool(self, request_text: str, cross_id: str | None) -> dict[str, Any]:
+        schemas = json.dumps(self.tools.tool_schemas(), ensure_ascii=False)
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "你是交通信号控制助手。请根据用户需求，从下列工具中选择最合适的一个，"
+                    "只返回 JSON：{\"tool_name\": \"...\", \"arguments\": {...}}。"
+                    "arguments 必须与所选工具的 parameters 匹配，没有把握的参数不要填写。"
+                    f"\n可用工具：\n{schemas}"
+                ),
+            },
+            {
+                "role": "user",
+                "content": f"路口编号（可为空）：{cross_id or '无'}\n需求：{request_text}",
+            },
+        ]
+        try:
+            result = self.llm_client.chat(messages, temperature=0.2, top_p=0.9, max_tokens=512)
+            parsed = self._parse_json(result.content)
+            if isinstance(parsed, dict) and isinstance(parsed.get("tool_name"), str):
+                parsed.setdefault("arguments", {})
+                return parsed
+        except Exception:
+            pass
+        return {"tool_name": "", "arguments": {}}
+
+    def _summarize_answer(
+        self,
+        request_text: str,
+        tool_name: str,
+        tool_result: dict[str, Any],
+    ) -> str:
+        messages = [
+            {
+                "role": "system",
+                "content": "你是交通信号方案助手。请根据工具结果，用简洁中文给出最终答案，不要输出 JSON。",
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"用户需求：{request_text}\n"
+                    f"所选工具：{tool_name}\n"
+                    f"工具结果：{tool_result}"
+                ),
+            },
+        ]
+        try:
+            result = self.llm_client.chat(messages, temperature=0.4, top_p=0.9, max_tokens=512)
+            if result.content.strip():
+                return result.content.strip()
+        except Exception:
+            pass
+        return tool_result.get("summary", "已生成结果。") if isinstance(tool_result, dict) else "已生成结果。"

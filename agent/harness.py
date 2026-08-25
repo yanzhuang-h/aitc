@@ -31,12 +31,14 @@ class AgentHarness:
         symbolic_agent: Any | None = None,
         qwen_agent: Any | None = None,
         control_process_agent: Any | None = None,
+        qwen_tool_router_agent: Any | None = None,
         logger: Any | None = None,
     ) -> None:
         self.signal_timing_tool = signal_timing_tool
         self.symbolic_agent = symbolic_agent
         self.qwen_agent = qwen_agent
         self.control_process_agent = control_process_agent
+        self.qwen_tool_router_agent = qwen_tool_router_agent
         self.logger = logger
 
     def handle(self, intent: str, payload: Mapping[str, Any]) -> dict[str, Any]:
@@ -49,6 +51,8 @@ class AgentHarness:
             return self._handle_control_process(payload)
         if intent == "symbolic":
             return self._handle_symbolic(payload)
+        if intent == "agent.tools":
+            return self._handle_qwen_tools(payload)
         raise ValueError(f"unsupported agent intent: {intent}")
 
     # ---- 意图处理器 ------------------------------------------------------
@@ -90,6 +94,18 @@ class AgentHarness:
             raise RuntimeError("symbolic agent is not configured")
         result = self.symbolic_agent.run(dict(payload))
         return {"status": "success", "result": result}
+
+    def _handle_qwen_tools(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        """多工具路由：Qwen 从全部注册工具中按自然语言选工具并调用。"""
+        if self.qwen_tool_router_agent is None:
+            raise RuntimeError("qwen tool router agent is not configured")
+        request_text = self._require_text(payload, "request_text")
+        request: dict[str, Any] = {"request_text": request_text}
+        cross_id = payload.get("cross_id")
+        if isinstance(cross_id, str) and cross_id.strip():
+            request["cross_id"] = cross_id.strip()
+        result = self.qwen_tool_router_agent.run(request)
+        return {"status": "success", "cross_id": request.get("cross_id"), "result": result}
 
     # ---- 请求校验 --------------------------------------------------------
 

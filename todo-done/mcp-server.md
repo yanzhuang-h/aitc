@@ -63,5 +63,7 @@
 
 ## 后续（方向B 与多工具路由）
 
-- 多工具路由：扩展 Qwen Agent，从全部 registry 工具中按自然语言选工具调用。
+- 多工具路由 ✅：新增 `QwenToolRouterAgent`，Qwen 从全部 registry 工具中按自然语言
+  选工具并调用；Harness 新增 `agent.tools` 意图，HTTP 新增 `/api/agent/tools`，
+  前端接口测试页新增「多工具路由」选项。
 - 方向B：把外部 MCP 服务器接入注册中心，统一收口到 ToolRegistry。
