@@ -1247,6 +1247,7 @@ def DQN_select_1300229(traffic_vector, queue_vector, traffic_vector_duration2,cu
     print("1300229-----------------------------------------------")
 
     sch=chuli_shuju("1300229", flow_map_single_intersection,extend_map_single_intersection)
+    sch = select_pilot_schedule("1300229", sch, flow_map_single_intersection, extend_map_single_intersection)
     print("1300229____________________________________",sch,"1300229____________________________________")
     return sch,coordinate_set,model_map,EXP_map
 
@@ -1262,6 +1263,7 @@ def DQN_select_1300239(traffic_vector, queue_vector, traffic_vector_duration2,cu
     print("1300239-----------------------------------------------")
 
     sch=chuli_shuju("1300239", flow_map_single_intersection,extend_map_single_intersection)
+    sch = select_pilot_schedule("1300239", sch, flow_map_single_intersection, extend_map_single_intersection)
     print("1300239____________________________________",sch,"1300239____________________________________")
     return sch,coordinate_set,model_map,EXP_map
 
@@ -1353,6 +1355,7 @@ def DQN_select_1300153(traffic_vector, queue_vector, traffic_vector_duration2,cu
     print("1300153-----------------------------------------------")
 
     sch=chuli_shuju("1300153", flow_map_single_intersection,extend_map_single_intersection)
+    sch = select_pilot_schedule("1300153", sch, flow_map_single_intersection, extend_map_single_intersection)
     print("1300153____________________________________",sch,"1300153____________________________________")
     return sch,coordinate_set,model_map,EXP_map
 
@@ -1371,6 +1374,7 @@ def DQN_select_1300166(traffic_vector, queue_vector, traffic_vector_duration2,cu
     print("1300166-----------------------------------------------")
 
     sch=chuli_shuju("1300166", flow_map_single_intersection,extend_map_single_intersection)
+    sch = select_pilot_schedule("1300166", sch, flow_map_single_intersection, extend_map_single_intersection)
     print("1300166____________________________________",sch,"1300166____________________________________")
     return sch,coordinate_set,model_map,EXP_map
 
@@ -1390,6 +1394,7 @@ def DQN_select_1300306(traffic_vector, queue_vector, traffic_vector_duration2,cu
     print("1300306-----------------------------------------------")
 
     sch=chuli_shuju("1300306", flow_map_single_intersection,extend_map_single_intersection)
+    sch = select_pilot_schedule("1300306", sch, flow_map_single_intersection, extend_map_single_intersection)
     print("1300306____________________________________",sch,"1300306____________________________________")
     return sch,coordinate_set,model_map,EXP_map
 
@@ -1406,6 +1411,7 @@ def DQN_select_1300409(traffic_vector, queue_vector, traffic_vector_duration2,cu
     print("1300409-----------------------------------------------")
 
     sch=chuli_shuju("1300409", flow_map_single_intersection,extend_map_single_intersection)
+    sch = select_pilot_schedule("1300409", sch, flow_map_single_intersection, extend_map_single_intersection)
     # print("1700079____________________________________",sch,"1700079____________________________________")
     return sch,coordinate_set,model_map,EXP_map
 
@@ -1491,6 +1497,7 @@ def DQN_select_1300362(traffic_vector, queue_vector, traffic_vector_duration2,cu
     print("1300362-----------------------------------------------")
 
     sch=chuli_shuju("1300362", flow_map_single_intersection,extend_map_single_intersection)
+    sch = select_pilot_schedule("1300362", sch, flow_map_single_intersection, extend_map_single_intersection)
     print("1300362____________________________________",sch,"1300362____________________________________")
     return sch,coordinate_set,model_map,EXP_map
 
@@ -1510,6 +1517,7 @@ def DQN_select_1300087(traffic_vector, queue_vector, traffic_vector_duration2,cu
     print("1300087-----------------------------------------------")
 
     sch=chuli_shuju("1300087", flow_map_single_intersection,extend_map_single_intersection)
+    sch = select_pilot_schedule("1300087", sch, flow_map_single_intersection, extend_map_single_intersection)
     print("1300087____________________________________",sch,"1300087____________________________________")
     return sch,coordinate_set,model_map,EXP_map
 
@@ -1525,6 +1533,7 @@ def DQN_select_1300147(traffic_vector, queue_vector, traffic_vector_duration2,cu
     print("1300147-----------------------------------------------")
 
     sch=chuli_shuju("1300147", flow_map_single_intersection,extend_map_single_intersection)
+    sch = select_pilot_schedule("1300147", sch, flow_map_single_intersection, extend_map_single_intersection)
     print("1300147____________________________________",sch,"1300147____________________________________")
     return sch,coordinate_set,model_map,EXP_map
 
@@ -1555,6 +1564,7 @@ def DQN_select_1300086(traffic_vector, queue_vector, traffic_vector_duration2, c
     print(flow_map_single_intersection)
     print("1300086-----------------------------------------------")
     sch = chuli_shuju("1300086", flow_map_single_intersection, extend_map_single_intersection)
+    sch = select_pilot_schedule("1300086", sch, flow_map_single_intersection, extend_map_single_intersection)
     print("1300086____________________________________", sch, "1300086____________________________________")
     return sch, coordinate_set, model_map, EXP_map
 
@@ -1567,6 +1577,7 @@ def DQN_select_1300364(traffic_vector, queue_vector, traffic_vector_duration2, c
     print(flow_map_single_intersection)
     print("1300364-----------------------------------------------")
     sch = chuli_shuju("1300364", flow_map_single_intersection, extend_map_single_intersection)
+    sch = select_pilot_schedule("1300364", sch, flow_map_single_intersection, extend_map_single_intersection)
     print("1300364____________________________________", sch, "1300364____________________________________")
     return sch, coordinate_set, model_map, EXP_map
 
@@ -1579,6 +1590,7 @@ def DQN_select_1300253(traffic_vector, queue_vector, traffic_vector_duration2, c
     print(flow_map_single_intersection)
     print("1300253-----------------------------------------------")
     sch = chuli_shuju("1300253", flow_map_single_intersection, extend_map_single_intersection)
+    sch = select_pilot_schedule("1300253", sch, flow_map_single_intersection, extend_map_single_intersection)
     print("1300253____________________________________", [0]*10, "1300253____________________________________")
     return sch, coordinate_set, model_map, EXP_map
 
@@ -1591,6 +1603,7 @@ def DQN_select_1300179(traffic_vector, queue_vector, traffic_vector_duration2, c
     print(flow_map_single_intersection)
     print("1300179-----------------------------------------------")
     sch = chuli_shuju("1300179", flow_map_single_intersection, extend_map_single_intersection)
+    sch = select_pilot_schedule("1300179", sch, flow_map_single_intersection, extend_map_single_intersection)
     print("1300179____________________________________", sch, "1300179____________________________________")
     return sch, coordinate_set, model_map, EXP_map
 
@@ -1603,6 +1616,7 @@ def DQN_select_1300094(traffic_vector, queue_vector, traffic_vector_duration2, c
     print(flow_map_single_intersection)
     print("1300094-----------------------------------------------")
     sch = chuli_shuju("1300094", flow_map_single_intersection, extend_map_single_intersection)
+    sch = select_pilot_schedule("1300094", sch, flow_map_single_intersection, extend_map_single_intersection)
     print("1300094____________________________________", sch, "1300094____________________________________")
     return sch, coordinate_set, model_map, EXP_map
 
@@ -1615,6 +1629,7 @@ def DQN_select_1300255(traffic_vector, queue_vector, traffic_vector_duration2, c
     print(flow_map_single_intersection)
     print("1300255-----------------------------------------------")
     sch = chuli_shuju("1300255", flow_map_single_intersection, extend_map_single_intersection)
+    sch = select_pilot_schedule("1300255", sch, flow_map_single_intersection, extend_map_single_intersection)
     print("1300255____________________________________", sch, "1300255____________________________________")
     return sch, coordinate_set, model_map, EXP_map
 
@@ -1627,6 +1642,7 @@ def DQN_select_1300039(traffic_vector, queue_vector, traffic_vector_duration2, c
     print(flow_map_single_intersection)
     print("1300039-----------------------------------------------")
     sch = chuli_shuju("1300039", flow_map_single_intersection, extend_map_single_intersection)
+    sch = select_pilot_schedule("1300039", sch, flow_map_single_intersection, extend_map_single_intersection)
     print("1300039____________________________________", sch, "1300039____________________________________")
     return sch, coordinate_set, model_map, EXP_map
 
@@ -1639,6 +1655,7 @@ def DQN_select_1300108(traffic_vector, queue_vector, traffic_vector_duration2, c
     print(flow_map_single_intersection)
     print("1300108-----------------------------------------------")
     sch = chuli_shuju("1300108", flow_map_single_intersection, extend_map_single_intersection)
+    sch = select_pilot_schedule("1300108", sch, flow_map_single_intersection, extend_map_single_intersection)
     print("1300108____________________________________", sch, "1300108____________________________________")
     return sch, coordinate_set, model_map, EXP_map
 
@@ -1663,6 +1680,7 @@ def DQN_select_1300120(traffic_vector, queue_vector, traffic_vector_duration2, c
     print(flow_map_single_intersection)
     print("1300120-----------------------------------------------")
     sch = chuli_shuju("1300120", flow_map_single_intersection, extend_map_single_intersection)
+    sch = select_pilot_schedule("1300120", sch, flow_map_single_intersection, extend_map_single_intersection)
     print("1300120____________________________________", sch, "1300120____________________________________")
     return sch, coordinate_set, model_map, EXP_map
 
@@ -1675,6 +1693,7 @@ def DQN_select_1300230(traffic_vector, queue_vector, traffic_vector_duration2, c
     print(flow_map_single_intersection)
     print("1300230-----------------------------------------------")
     sch = chuli_shuju("1300230", flow_map_single_intersection, extend_map_single_intersection)
+    sch = select_pilot_schedule("1300230", sch, flow_map_single_intersection, extend_map_single_intersection)
     print("1300230____________________________________", sch, "1300230____________________________________")
     return sch, coordinate_set, model_map, EXP_map
 
@@ -1690,6 +1709,7 @@ def DQN_select_1300089(traffic_vector, queue_vector, traffic_vector_duration2, c
     print(flow_map_single_intersection)
     print("1300089-----------------------------------------------")
     sch = chuli_shuju("1300089", flow_map_single_intersection, extend_map_single_intersection)
+    sch = select_pilot_schedule("1300089", sch, flow_map_single_intersection, extend_map_single_intersection)
     print("1300089____________________________________", sch, "1300089____________________________________")
     return sch, coordinate_set, model_map, EXP_map
 
@@ -1702,6 +1722,7 @@ def DQN_select_1300358(traffic_vector, queue_vector, traffic_vector_duration2, c
     print(flow_map_single_intersection)
     print("1300358-----------------------------------------------")
     sch = chuli_shuju("1300358", flow_map_single_intersection, extend_map_single_intersection)
+    sch = select_pilot_schedule("1300358", sch, flow_map_single_intersection, extend_map_single_intersection)
     print("1300358____________________________________", sch, "1300358____________________________________")
     return sch, coordinate_set, model_map, EXP_map
 
@@ -1714,6 +1735,7 @@ def DQN_select_1300067(traffic_vector, queue_vector, traffic_vector_duration2, c
     print(flow_map_single_intersection)
     print("1300067-----------------------------------------------")
     sch = chuli_shuju("1300067", flow_map_single_intersection, extend_map_single_intersection)
+    sch = select_pilot_schedule("1300067", sch, flow_map_single_intersection, extend_map_single_intersection)
     print("1300067____________________________________", sch, "1300067____________________________________")
     return sch, coordinate_set, model_map, EXP_map
 
