@@ -477,6 +477,7 @@
       { name: '单路口方案(直连DQN)', method: 'POST', path: '/api/signal-timing', params: ['cross'], bodyKeys: ['cross_id'] },
       { name: 'Qwen编排方案', method: 'POST', path: '/api/agent/signal-timing', params: ['cross', 'text'], bodyKeys: ['cross_id', 'request_text'] },
       { name: '多工具路由(全部工具)', method: 'POST', path: '/api/agent/tools', params: ['cross', 'text'], bodyKeys: ['cross_id', 'request_text'] },
+      { name: 'Agent自主判断', method: 'POST', path: '/api/agent/query', params: ['cross', 'text'], bodyKeys: ['cross_id', 'request_text'] },
       { name: '分步放行控制', method: 'POST', path: '/api/agent/control-process', params: ['cross', 'text'], bodyKeys: ['cross_id', 'request_text'] },
       { name: '绿波走廊-列表(摘要)', method: 'GET', path: '/green_wave', params: [] },
       { name: '绿波走廊-列表(完整)', method: 'GET', path: '/green_wave?full=true', params: [] },

@@ -64,10 +64,14 @@ app/
 
 ### 第三阶段：Agent Harness
 
-- [ ] 将符号 Agent 与数据查询工具整理为独立 Agent 核心。
-- [ ] 规范工具输入、输出、错误和权限契约。
-- [ ] 在回放和工具测试稳定后接入 Qwen 模型适配器。
+- [x] 将符号 Agent 与数据查询工具整理为独立 Agent 核心。
+- [x] 规范工具输入、输出、错误和权限契约。
+- [x] 在回放和工具测试稳定后接入 Qwen 模型适配器。
 - [ ] 为模型调用、工具调用与决策结果补充可观测性。
+
+> 进展（2026-08-25）：`agent/` 已形成 ToolRegistry + IntentRegistry + AgentHarness
+> 的 agent+harness 结构。Harness 意图路由采用三层设计：显式意图注册表 ->
+> Agent 自主判断 -> 兜底默认响应。详见 `todo-done/agent-harness.md`。
 
 ### 第四阶段：管理 API 与部署
 

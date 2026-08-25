@@ -153,6 +153,9 @@ class HttpRuntimeServer:
                 if path == "/api/agent/tools":
                     self._handle_qwen_tools(body)
                     return
+                if path == "/api/agent/query":
+                    self._handle_qwen_query(body)
+                    return
                 if path == "/green_wave/validate":
                     self._handle_green_wave_post("validate", body)
                     return
@@ -248,6 +251,9 @@ class HttpRuntimeServer:
                 if path == "/api/agent/tools":
                     self._send_json(405, {"error": "Use POST for multi-tool routing requests"})
                     return
+                if path == "/api/agent/query":
+                    self._send_json(405, {"error": "Use POST for autonomous agent query requests"})
+                    return
                 if path.startswith(("/road_info", "/cross_info")) and self._try_handle_config("GET", None):
                     return
                 self._send_json(200, runtime_server._health_payload())
@@ -308,6 +314,21 @@ class HttpRuntimeServer:
                     return
                 except Exception:
                     runtime_server._error("Error generating multi-tool routing", exc_info=True)
+                    self._send_json(500, {"error": "internal server error"})
+                    return
+                self._send_json(200, payload)
+
+            def _handle_qwen_query(self, body: Any) -> None:
+                if not isinstance(body, dict):
+                    self._send_json(400, {"error": "Request body must be an object"})
+                    return
+                try:
+                    payload = runtime_server._generate_qwen_query(body)
+                except ValueError as error:
+                    self._send_json(400, {"error": str(error)})
+                    return
+                except Exception:
+                    runtime_server._error("Error generating autonomous query", exc_info=True)
                     self._send_json(500, {"error": "internal server error"})
                     return
                 self._send_json(200, payload)
@@ -431,6 +452,9 @@ class HttpRuntimeServer:
 
     def _generate_qwen_tools(self, body: dict[str, Any]) -> dict[str, Any]:
         return self.agent_harness.handle("agent.tools", body)
+
+    def _generate_qwen_query(self, body: dict[str, Any]) -> dict[str, Any]:
+        return self.agent_harness.handle("autonomous", body)
 
     def _green_wave_status(self) -> dict[str, Any]:
         if self.green_wave_service is None:

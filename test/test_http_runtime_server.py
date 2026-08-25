@@ -176,6 +176,24 @@ class HttpRuntimeServerTest(unittest.TestCase):
         self.assertEqual(status, 405)
         self.assertIn("multi-tool", payload["error"])
 
+    def test_post_agent_query_returns_autonomous(self):
+        status, payload = self._request(
+            "POST",
+            "/api/agent/query",
+            json.dumps({"cross_id": "1300068", "request_text": "查询最新决策结果"}),
+        )
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["status"], "success")
+        self.assertEqual(payload["routed_by"], "autonomous")
+        self.assertEqual(payload["result"]["meta"]["tool_name"], "query_latest_results")
+
+    def test_get_agent_query_returns_405(self):
+        status, payload = self._request("GET", "/api/agent/query")
+
+        self.assertEqual(status, 405)
+        self.assertIn("autonomous", payload["error"])
+
 
 if __name__ == "__main__":
     unittest.main()

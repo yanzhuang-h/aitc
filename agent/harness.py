@@ -6,8 +6,14 @@
 - Harness（本模块）：负责统一入口、意图路由、请求校验、错误处理，
   以及协议层（HTTP/TCP）与 Agent / 工具之间的适配。
 
+意图路由采用三层设计：
+1. 显式意图注册表：``handle()`` 按名称精确路由到注册的处理器；
+2. Agent 自主判断：未注册的意图且带自然语言请求时，交给自主判断 Agent
+   从全部注册工具中自行选择；
+3. 兜底逻辑：既无显式意图又无法自主判断时，返回默认响应并附可用意图清单。
+
 协议层（如 HTTP handler）只依赖本门面，不再直接依赖具体 Agent 或工具；
-新增 Agent 时只需在 ``handle()`` 中登记一条路由。
+新增 Agent 时只需在 ``_register_intents()`` 中登记一条意图。
 """
 
 from __future__ import annotations
@@ -15,6 +21,8 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 from app.core.models import ToolResponse
+
+from .registry import IntentRegistry
 
 
 class AgentHarness:
@@ -32,6 +40,8 @@ class AgentHarness:
         qwen_agent: Any | None = None,
         control_process_agent: Any | None = None,
         qwen_tool_router_agent: Any | None = None,
+        autonomous_agent: Any | None = None,
+        intent_registry: IntentRegistry | None = None,
         logger: Any | None = None,
     ) -> None:
         self.signal_timing_tool = signal_timing_tool
@@ -39,21 +49,59 @@ class AgentHarness:
         self.qwen_agent = qwen_agent
         self.control_process_agent = control_process_agent
         self.qwen_tool_router_agent = qwen_tool_router_agent
+        # 自主判断 Agent：默认复用多工具路由 Agent
+        self.autonomous_agent = (
+            autonomous_agent if autonomous_agent is not None else qwen_tool_router_agent
+        )
+        self.intent_registry = (
+            intent_registry if intent_registry is not None else IntentRegistry()
+        )
         self.logger = logger
+        self._register_intents()
+
+    def _register_intents(self) -> None:
+        """注册内置意图；新增意图只需在此登记。"""
+        self.intent_registry.register(
+            "signal_timing",
+            "直连单路口方案工具（不经 LLM）",
+            self._handle_signal_timing,
+        )
+        self.intent_registry.register(
+            "agent.signal_timing",
+            "Qwen 先选工具、再调用单路口方案工具",
+            self._handle_qwen_signal_timing,
+        )
+        self.intent_registry.register(
+            "control_process",
+            "分步放行控制：规则判断 + LLM 逐步思考",
+            self._handle_control_process,
+        )
+        self.intent_registry.register(
+            "symbolic",
+            "符号动作路由（只读数据查询）",
+            self._handle_symbolic,
+        )
+        self.intent_registry.register(
+            "agent.tools",
+            "多工具路由：从全部注册工具中按自然语言选择",
+            self._handle_qwen_tools,
+        )
+        self.intent_registry.register(
+            "autonomous",
+            "Agent 自主判断：按自然语言选择最合适工具",
+            self._handle_autonomous,
+        )
 
     def handle(self, intent: str, payload: Mapping[str, Any]) -> dict[str, Any]:
-        """按意图路由到对应 Agent / 工具，返回既有协议结构。"""
-        if intent == "signal_timing":
-            return self._handle_signal_timing(payload)
-        if intent == "agent.signal_timing":
-            return self._handle_qwen_signal_timing(payload)
-        if intent == "control_process":
-            return self._handle_control_process(payload)
-        if intent == "symbolic":
-            return self._handle_symbolic(payload)
-        if intent == "agent.tools":
-            return self._handle_qwen_tools(payload)
-        raise ValueError(f"unsupported agent intent: {intent}")
+        """按意图路由：显式意图 -> 自主判断 -> 兜底。返回既有协议结构。"""
+        spec = self.intent_registry.get(intent)
+        if spec is not None:
+            return spec.handler(payload)
+        return self._handle_unregistered(intent, payload)
+
+    def intent_list(self) -> list[dict[str, str]]:
+        """返回已注册意图清单，供调试与前端展示。"""
+        return self.intent_registry.describe()
 
     # ---- 意图处理器 ------------------------------------------------------
 
@@ -106,6 +154,41 @@ class AgentHarness:
             request["cross_id"] = cross_id.strip()
         result = self.qwen_tool_router_agent.run(request)
         return {"status": "success", "cross_id": request.get("cross_id"), "result": result}
+
+    def _handle_autonomous(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        """Agent 自主判断：按自然语言从全部工具中选择并调用。"""
+        if self.autonomous_agent is None:
+            raise RuntimeError("autonomous agent is not configured")
+        request_text = self._require_text(payload, "request_text")
+        request: dict[str, Any] = {"request_text": request_text}
+        cross_id = payload.get("cross_id")
+        if isinstance(cross_id, str) and cross_id.strip():
+            request["cross_id"] = cross_id.strip()
+        result = self.autonomous_agent.run(request)
+        return {
+            "status": "success",
+            "cross_id": request.get("cross_id"),
+            "routed_by": "autonomous",
+            "result": result,
+        }
+
+    def _handle_unregistered(self, intent: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+        """未注册意图的三层兜底：先尝试自主判断，再返回默认响应。"""
+        # 自主判断：带自然语言请求且自主 Agent 可用时，让 Agent 自行选择工具
+        if self.autonomous_agent is not None:
+            request_text = payload.get("request_text")
+            if isinstance(request_text, str) and request_text.strip():
+                result = self._handle_autonomous(payload)
+                result["fallback_intent"] = intent
+                return result
+        # 兜底：返回默认响应并附可用意图清单
+        return {
+            "status": "error",
+            "result": ToolResponse.error(
+                f"未识别的意图：{intent}",
+                meta={"available_intents": self.intent_registry.describe()},
+            ).to_dict(),
+        }
 
     # ---- 请求校验 --------------------------------------------------------
 

@@ -204,6 +204,87 @@ class SymbolicDataAgentTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             harness.handle("agent.tools", {"cross_id": "1300068"})
 
+    # ---- 意图注册表 + 三层路由（显式 / 自主判断 / 兜底）----
+
+    def test_intent_registry_basics(self) -> None:
+        from agent.registry import IntentRegistry
+
+        registry = IntentRegistry()
+        registry.register("a", "A 描述", lambda payload: {"status": "success"})
+        self.assertIn("a", registry)
+        self.assertEqual(registry.get("a").description, "A 描述")
+        self.assertEqual([i["name"] for i in registry.describe()], ["a"])
+        self.assertIsNone(registry.get("missing"))
+        self.assertEqual(len(registry), 1)
+
+    def test_harness_registered_intent_goes_through_registry(self) -> None:
+        """已注册意图走注册表精确路由（仍兼容旧行为）。"""
+        harness = AgentHarness(
+            qwen_tool_router_agent=QwenToolRouterAgent(
+                _RouterLLMClient(
+                    '{"tool_name":"query_latest_results","arguments":{"limit":2}}'
+                ),
+                self.data_tools,
+            ),
+        )
+        result = harness.handle(
+            "agent.tools",
+            {"request_text": "看看最新结果", "cross_id": "1300068"},
+        )
+        self.assertEqual(result["status"], "success")
+        self.assertNotIn("routed_by", result)  # 显式意图不标记自主路由
+        self.assertEqual(result["result"]["meta"]["tool_name"], "query_latest_results")
+
+    def test_harness_unknown_intent_autonomous_routing(self) -> None:
+        """未注册意图 + 自然语言 -> 交由 Agent 自主判断。"""
+        harness = AgentHarness(
+            qwen_tool_router_agent=QwenToolRouterAgent(
+                _RouterLLMClient(
+                    '{"tool_name":"query_latest_results","arguments":{}}'
+                ),
+                self.data_tools,
+            ),
+        )
+        result = harness.handle(
+            "随便说点什么",
+            {"request_text": "看看最新结果", "cross_id": "1300068"},
+        )
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["routed_by"], "autonomous")
+        self.assertEqual(result["fallback_intent"], "随便说点什么")
+        self.assertEqual(result["result"]["meta"]["tool_name"], "query_latest_results")
+
+    def test_harness_unknown_intent_fallback(self) -> None:
+        """未注册意图且无自然语言 -> 兜底默认响应 + 可用意图清单。"""
+        harness = AgentHarness(
+            qwen_tool_router_agent=QwenToolRouterAgent(_RouterLLMClient("{}"), self.data_tools),
+        )
+        result = harness.handle("no_such_intent", {"cross_id": "1300068"})
+        self.assertEqual(result["status"], "error")
+        self.assertEqual(result["result"]["status"], "error")
+        self.assertIn("未识别的意图", result["result"]["summary"])
+        names = [i["name"] for i in result["result"]["meta"]["available_intents"]]
+        self.assertIn("agent.tools", names)
+        self.assertIn("autonomous", names)
+
+    def test_harness_autonomous_intent(self) -> None:
+        """显式 autonomous 意图 -> 自主判断。"""
+        harness = AgentHarness(
+            qwen_tool_router_agent=QwenToolRouterAgent(
+                _RouterLLMClient(
+                    '{"tool_name":"query_latest_results","arguments":{}}'
+                ),
+                self.data_tools,
+            ),
+        )
+        result = harness.handle(
+            "autonomous",
+            {"request_text": "最新结果", "cross_id": "1300068"},
+        )
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["routed_by"], "autonomous")
+        self.assertEqual(result["result"]["meta"]["tool_name"], "query_latest_results")
+
 
 if __name__ == "__main__":
     unittest.main()
