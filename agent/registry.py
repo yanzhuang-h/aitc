@@ -50,6 +50,10 @@ class ToolRegistry:
         """返回已注册工具名列表。"""
         return list(self._tools.keys())
 
+    def all_specs(self) -> list[ToolSpec]:
+        """返回全部已注册工具定义，供跨注册中心合并使用。"""
+        return list(self._tools.values())
+
     def actions(self) -> dict[str, str]:
         """返回符号路由动作名到工具名的映射（仅含注册了 action 的工具）。"""
         return {spec.action: spec.name for spec in self._tools.values() if spec.action}

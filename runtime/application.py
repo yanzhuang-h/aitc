@@ -47,6 +47,7 @@ from agent.tools import DataQueryTools
 from app.core.control.synergy.green_wave_service import GreenWaveDataService
 from app.infrastructure.llm import OpenAICompatibleLLMClient
 from app.core.tools import SingleIntersectionSignalTimingTool
+from app.core.tools.control_function_tools import ControlFunctionTools
 from app.core.tools.legacy_algorithms import DQN_select
 
 
@@ -161,6 +162,14 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
     queue_predictor = QueuePredictionService(Queue_predict, prediction_repository)
     signal_timing_tool = SingleIntersectionSignalTimingTool()
     data_tools = DataQueryTools(query_service, signal_timing_tool=signal_timing_tool)
+    control_processor = RuntimeDataProcessor(cache, Lambdas)
+    control_tools = ControlFunctionTools(
+        data_processor=control_processor,
+        overflow_warning_map=overflow_warning_map,
+        radar_event_map=radar_event_map,
+        flow_duration_seconds=settings.flow_duration_seconds,
+    )
+    control_tools.merge_into(data_tools.registry)
     qwen_client = OpenAICompatibleLLMClient(
         base_url=settings.llm_base_url,
         model=settings.llm_model,
@@ -182,6 +191,6 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
     green_wave_service = GreenWaveDataService(logger=logger)
     http_server = HttpRuntimeServer(host=settings.http_host, port=settings.http_port, ingestor=ingestor, config_service=config_service, query_service=query_service, agent_harness=agent_harness, green_wave_service=green_wave_service, logger=logger)
     tcp_server = TcpRuntimeServer(host=settings.tcp_host, port=settings.tcp_port, buffer_size=settings.tcp_buffer_size, ingestor=ingestor, result_warehouse=warehouse, result_sender=sender, send_interval=settings.result_send_interval_seconds, logger=logger)
-    pipeline = PeriodicDecisionPipeline(cache=cache, data_processor=RuntimeDataProcessor(cache, Lambdas), lambdas_module=Lambdas, writer=writer, result_warehouse=warehouse, flow_predictor=flow_predictor, queue_predictor=queue_predictor, dqn_select=DQN_select, coordinate=coordinate, phase_check=phase_check, select_data_to_send=partial(format_result, lambdas_module=Lambdas), is_millisecond_timestamp=is_millisecond_timestamp, overflow_warning_map=overflow_warning_map, radar_event_map=radar_event_map, flow_duration_seconds=settings.flow_duration_seconds, logger=logger)
+    pipeline = PeriodicDecisionPipeline(cache=cache, data_processor=control_processor, lambdas_module=Lambdas, writer=writer, result_warehouse=warehouse, flow_predictor=flow_predictor, queue_predictor=queue_predictor, dqn_select=DQN_select, coordinate=coordinate, phase_check=phase_check, select_data_to_send=partial(format_result, lambdas_module=Lambdas), is_millisecond_timestamp=is_millisecond_timestamp, overflow_warning_map=overflow_warning_map, radar_event_map=radar_event_map, flow_duration_seconds=settings.flow_duration_seconds, logger=logger)
     prediction_scheduler = PredictionScheduler(flow_job=flow_predictor.daily_prediction_job, queue_job=queue_predictor.daily_queue_prediction, hour=settings.prediction_hour, minute=settings.prediction_minute, logger=logger)
     return AITCApplication(config_sync_manager=ConfigSyncManager(), http_server=http_server, tcp_server=tcp_server, decision_pipeline=pipeline, prediction_scheduler=prediction_scheduler, send_interval=settings.decision_interval_seconds, enable_config_sync=settings.enable_config_sync, enable_prediction_scheduler=settings.enable_prediction_scheduler, llm_client=qwen_client, llm_required=settings.llm_required, logger=logger)
