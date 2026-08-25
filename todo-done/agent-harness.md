@@ -55,7 +55,9 @@
 
 ## 后续（待做）
 
+- 绿波服务纳入 harness ✅：`green_wave.*` 意图组（status/config/plan/list/get/
+  validate/update/delete/enabled），HTTP 层绿波路由全部改走 harness，
+  doc1/doc2 双格式与对外接口完全兼容。
 - Harness 可观测性：记录每次 handle 的意图、路由方式、耗时、结果状态。
-- 绿波服务纳入 harness（`green_wave.*` 意图组），协议层只依赖 harness。
 - 生命周期收敛：Agent/工具装配纳入 `AITCApplication` 统一管理。
 - 决策结果契约统一（可选）。

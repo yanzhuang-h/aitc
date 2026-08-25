@@ -65,6 +65,7 @@ class HttpRuntimeServer:
                 qwen_agent=qwen_agent,
                 control_process_agent=control_process_agent,
                 qwen_tool_router_agent=qwen_tool_router_agent,
+                green_wave_service=green_wave_service,
                 logger=logger,
             )
         self.agent_harness = agent_harness
@@ -457,57 +458,46 @@ class HttpRuntimeServer:
         return self.agent_harness.handle("autonomous", body)
 
     def _green_wave_status(self) -> dict[str, Any]:
-        if self.green_wave_service is None:
-            raise RuntimeError("green wave service is not configured")
-        return self.green_wave_service.status()
+        return self.agent_harness.handle("green_wave.status", {})
 
     def _green_wave_config(self, corridor_id: str | None = None) -> dict[str, Any]:
-        if self.green_wave_service is None:
-            raise RuntimeError("green wave service is not configured")
-        return self.green_wave_service.config(corridor_id)
+        payload: dict[str, Any] = {}
+        if corridor_id:
+            payload["corridor_id"] = corridor_id
+        return self.agent_harness.handle("green_wave.config", payload)
 
     def _green_wave_plan(self) -> dict[str, Any]:
-        if self.green_wave_service is None:
-            raise RuntimeError("green wave service is not configured")
-        return self.green_wave_service.plan()
+        return self.agent_harness.handle("green_wave.plan", {})
 
     def _green_wave_list(self, full: bool = False) -> dict[str, Any]:
-        if self.green_wave_service is None:
-            raise RuntimeError("green wave service is not configured")
-        return self.green_wave_service.list_corridors(full=full)
+        return self.agent_harness.handle("green_wave.list", {"full": full})
 
     def _green_wave_get(self, segment_id: str) -> dict[str, Any]:
-        if self.green_wave_service is None:
-            raise RuntimeError("green wave service is not configured")
-        return self.green_wave_service.get_corridor(segment_id)
+        return self.agent_harness.handle("green_wave.get", {"corridor_id": segment_id})
 
     def _green_wave_validate(self, body: Any) -> dict[str, Any]:
         if not isinstance(body, dict):
             raise ValueError("Request body must be an object")
-        if self.green_wave_service is None:
-            raise RuntimeError("green wave service is not configured")
-        return self.green_wave_service.validate_corridor(body)
+        return self.agent_harness.handle("green_wave.validate", body)
 
     def _green_wave_update(self, body: Any) -> dict[str, Any]:
         if not isinstance(body, dict):
             raise ValueError("Request body must be an object")
-        if self.green_wave_service is None:
-            raise RuntimeError("green wave service is not configured")
-        return self.green_wave_service.update_corridor(body)
+        return self.agent_harness.handle("green_wave.update", body)
 
     def _green_wave_delete(self, body: Any) -> dict[str, Any]:
         if not isinstance(body, dict) or "corridor_id" not in body:
             raise ValueError("Request body must contain corridor_id")
-        if self.green_wave_service is None:
-            raise RuntimeError("green wave service is not configured")
-        return self.green_wave_service.delete_corridor(str(body["corridor_id"]))
+        return self.agent_harness.handle(
+            "green_wave.delete", {"corridor_id": str(body["corridor_id"])}
+        )
 
     def _green_wave_set_enabled(self, segment_id: str, body: Any) -> dict[str, Any]:
         if not isinstance(body, dict) or "enabled" not in body or not isinstance(body["enabled"], bool):
             raise ValueError("Request body must contain boolean enabled")
-        if self.green_wave_service is None:
-            raise RuntimeError("green wave service is not configured")
-        return self.green_wave_service.set_corridor_enabled(segment_id, body["enabled"])
+        return self.agent_harness.handle(
+            "green_wave.enabled", {"corridor_id": segment_id, "enabled": body["enabled"]}
+        )
 
     @staticmethod
     def _is_cross_origin_request(origin: str | None, host: str | None) -> bool:

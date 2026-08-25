@@ -63,6 +63,49 @@ class _RouterLLMClient:
         return _ChatResult("已根据需求完成工具调用。")
 
 
+class _GreenWaveService:
+    """绿波服务 mock：记录调用参数并返回固定成功结构。"""
+
+    def __init__(self):
+        self.calls = []
+
+    def status(self):
+        self.calls.append(("status",))
+        return {"status": "success", "running": True}
+
+    def config(self, corridor_id=None):
+        self.calls.append(("config", corridor_id))
+        return {"status": "success", "items": []}
+
+    def plan(self):
+        self.calls.append(("plan",))
+        return {"status": "success", "plan": {}}
+
+    def list_corridors(self, full=False):
+        self.calls.append(("list", full))
+        return {"status": "success", "items": []}
+
+    def get_corridor(self, corridor_id):
+        self.calls.append(("get", corridor_id))
+        return {"status": "success", "corridor_id": corridor_id}
+
+    def validate_corridor(self, body):
+        self.calls.append(("validate", body))
+        return {"status": "success", "validated": True}
+
+    def update_corridor(self, body):
+        self.calls.append(("update", body))
+        return {"status": "success", "saved": True}
+
+    def delete_corridor(self, corridor_id):
+        self.calls.append(("delete", corridor_id))
+        return {"status": "success", "enabled": False}
+
+    def set_corridor_enabled(self, corridor_id, enabled):
+        self.calls.append(("enabled", corridor_id, enabled))
+        return {"status": "success", "enabled": enabled}
+
+
 class SymbolicDataAgentTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tempdir = tempfile.TemporaryDirectory()
@@ -284,6 +327,54 @@ class SymbolicDataAgentTest(unittest.TestCase):
         self.assertEqual(result["status"], "success")
         self.assertEqual(result["routed_by"], "autonomous")
         self.assertEqual(result["result"]["meta"]["tool_name"], "query_latest_results")
+
+    # ---- 绿波意图组（green_wave.*）----
+
+    def test_harness_green_wave_read_intents(self) -> None:
+        service = _GreenWaveService()
+        harness = AgentHarness(green_wave_service=service)
+
+        result = harness.handle("green_wave.status", {})
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["running"], True)
+
+        result = harness.handle("green_wave.config", {"corridor_id": "lvbo_01"})
+        self.assertEqual(service.calls[-1], ("config", "lvbo_01"))
+
+        result = harness.handle("green_wave.config", {})
+        self.assertEqual(service.calls[-1], ("config", None))
+
+        result = harness.handle("green_wave.plan", {})
+        self.assertEqual(service.calls[-1], ("plan",))
+
+        result = harness.handle("green_wave.list", {"full": True})
+        self.assertEqual(service.calls[-1], ("list", True))
+
+    def test_harness_green_wave_get_and_enabled(self) -> None:
+        service = _GreenWaveService()
+        harness = AgentHarness(green_wave_service=service)
+
+        result = harness.handle("green_wave.get", {"corridor_id": "lvbo_01"})
+        self.assertEqual(result["corridor_id"], "lvbo_01")
+        self.assertEqual(service.calls[-1], ("get", "lvbo_01"))
+
+        result = harness.handle(
+            "green_wave.enabled", {"corridor_id": "lvbo_01", "enabled": False}
+        )
+        self.assertEqual(service.calls[-1], ("enabled", "lvbo_01", False))
+
+        result = harness.handle("green_wave.delete", {"corridor_id": "lvbo_01"})
+        self.assertEqual(service.calls[-1], ("delete", "lvbo_01"))
+
+    def test_harness_green_wave_requires_corridor_id(self) -> None:
+        harness = AgentHarness(green_wave_service=_GreenWaveService())
+        with self.assertRaises(ValueError):
+            harness.handle("green_wave.get", {})
+
+    def test_harness_green_wave_without_service_raises(self) -> None:
+        bare = AgentHarness()
+        with self.assertRaises(RuntimeError):
+            bare.handle("green_wave.status", {})
 
 
 if __name__ == "__main__":

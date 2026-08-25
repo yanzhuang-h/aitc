@@ -42,6 +42,7 @@ class AgentHarness:
         qwen_tool_router_agent: Any | None = None,
         autonomous_agent: Any | None = None,
         intent_registry: IntentRegistry | None = None,
+        green_wave_service: Any | None = None,
         logger: Any | None = None,
     ) -> None:
         self.signal_timing_tool = signal_timing_tool
@@ -56,6 +57,7 @@ class AgentHarness:
         self.intent_registry = (
             intent_registry if intent_registry is not None else IntentRegistry()
         )
+        self.green_wave_service = green_wave_service
         self.logger = logger
         self._register_intents()
 
@@ -90,6 +92,51 @@ class AgentHarness:
             "autonomous",
             "Agent 自主判断：按自然语言选择最合适工具",
             self._handle_autonomous,
+        )
+        self.intent_registry.register(
+            "green_wave.status",
+            "绿波协调当前运行状态",
+            self._handle_green_wave_status,
+        )
+        self.intent_registry.register(
+            "green_wave.config",
+            "绿波走廊配置：未指定 corridor_id 返回全部，指定返回单条",
+            self._handle_green_wave_config,
+        )
+        self.intent_registry.register(
+            "green_wave.plan",
+            "最新一轮实际下发的绿波方案",
+            self._handle_green_wave_plan,
+        )
+        self.intent_registry.register(
+            "green_wave.list",
+            "绿波走廊列表：full=false 摘要，full=true 完整",
+            self._handle_green_wave_list,
+        )
+        self.intent_registry.register(
+            "green_wave.get",
+            "查询指定绿波走廊完整配置",
+            self._handle_green_wave_get,
+        )
+        self.intent_registry.register(
+            "green_wave.validate",
+            "只校验绿波走廊配置，不保存（支持文档1/文档2）",
+            self._handle_green_wave_validate,
+        )
+        self.intent_registry.register(
+            "green_wave.update",
+            "新增或更新绿波走廊配置并保存（支持文档1/文档2）",
+            self._handle_green_wave_update,
+        )
+        self.intent_registry.register(
+            "green_wave.delete",
+            "删除绿波走廊（转停用，配置保留）",
+            self._handle_green_wave_delete,
+        )
+        self.intent_registry.register(
+            "green_wave.enabled",
+            "启用或停用一条绿波走廊",
+            self._handle_green_wave_enabled,
         )
 
     def handle(self, intent: str, payload: Mapping[str, Any]) -> dict[str, Any]:
@@ -193,18 +240,57 @@ class AgentHarness:
     # ---- 请求校验 --------------------------------------------------------
 
     @staticmethod
-    def _require_cross_id(payload: Mapping[str, Any]) -> str:
-        cross_id = payload.get("cross_id")
-        if not isinstance(cross_id, str) or not cross_id.strip():
-            raise ValueError("cross_id must be a non-empty string")
-        return cross_id.strip()
-
-    @staticmethod
-    def _require_text(payload: Mapping[str, Any], key: str) -> str:
+    def _require_str(payload: Mapping[str, Any], key: str) -> str:
         value = payload.get(key)
         if not isinstance(value, str) or not value.strip():
             raise ValueError(f"{key} must be a non-empty string")
         return value.strip()
+
+    @staticmethod
+    def _require_cross_id(payload: Mapping[str, Any]) -> str:
+        return AgentHarness._require_str(payload, "cross_id")
+
+    @staticmethod
+    def _require_text(payload: Mapping[str, Any], key: str) -> str:
+        return AgentHarness._require_str(payload, key)
+
+    # ---- 绿波意图（委托 GreenWaveDataService）--------------------------
+
+    def _green_wave(self) -> Any:
+        if self.green_wave_service is None:
+            raise RuntimeError("green wave service is not configured")
+        return self.green_wave_service
+
+    def _handle_green_wave_status(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        return self._green_wave().status()
+
+    def _handle_green_wave_config(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        return self._green_wave().config(payload.get("corridor_id"))
+
+    def _handle_green_wave_plan(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        return self._green_wave().plan()
+
+    def _handle_green_wave_list(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        return self._green_wave().list_corridors(full=bool(payload.get("full", False)))
+
+    def _handle_green_wave_get(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        corridor_id = self._require_str(payload, "corridor_id")
+        return self._green_wave().get_corridor(corridor_id)
+
+    def _handle_green_wave_validate(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        return self._green_wave().validate_corridor(payload)
+
+    def _handle_green_wave_update(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        return self._green_wave().update_corridor(payload)
+
+    def _handle_green_wave_delete(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        corridor_id = self._require_str(payload, "corridor_id")
+        return self._green_wave().delete_corridor(corridor_id)
+
+    def _handle_green_wave_enabled(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        corridor_id = self._require_str(payload, "corridor_id")
+        enabled = bool(payload.get("enabled", False))
+        return self._green_wave().set_corridor_enabled(corridor_id, enabled)
 
     def _error(self, message: str) -> dict[str, Any]:
         return ToolResponse.error(message).to_dict()

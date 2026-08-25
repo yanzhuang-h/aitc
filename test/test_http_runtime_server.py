@@ -73,6 +73,35 @@ class _QwenToolRouterAgent:
         }
 
 
+class _GreenWaveService:
+    def status(self):
+        return {"status": "success", "running": True}
+
+    def config(self, corridor_id=None):
+        return {"status": "success", "items": []}
+
+    def plan(self):
+        return {"status": "success", "plan": {}}
+
+    def list_corridors(self, full=False):
+        return {"status": "success", "items": []}
+
+    def get_corridor(self, corridor_id):
+        return {"status": "success", "corridor_id": corridor_id}
+
+    def validate_corridor(self, body):
+        return {"status": "success", "validated": True}
+
+    def update_corridor(self, body):
+        return {"status": "success", "saved": True}
+
+    def delete_corridor(self, corridor_id):
+        return {"status": "success", "enabled": False}
+
+    def set_corridor_enabled(self, corridor_id, enabled):
+        return {"status": "success", "enabled": enabled}
+
+
 class HttpRuntimeServerTest(unittest.TestCase):
     def setUp(self):
         self.ingestor = _Ingestor()
@@ -88,6 +117,7 @@ class HttpRuntimeServerTest(unittest.TestCase):
             qwen_agent=_QwenAgent(),
             control_process_agent=self.control_process_agent,
             qwen_tool_router_agent=self.qwen_tool_router_agent,
+            green_wave_service=_GreenWaveService(),
         )
         self.server.start()
 
@@ -193,6 +223,37 @@ class HttpRuntimeServerTest(unittest.TestCase):
 
         self.assertEqual(status, 405)
         self.assertIn("autonomous", payload["error"])
+
+    def test_get_green_wave_status_goes_through_harness(self):
+        status, payload = self._request("GET", "/api/green-wave/status")
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["status"], "success")
+        self.assertEqual(payload["running"], True)
+
+    def test_get_green_wave_list_goes_through_harness(self):
+        status, payload = self._request("GET", "/green_wave")
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["status"], "success")
+
+    def test_get_green_wave_single_goes_through_harness(self):
+        status, payload = self._request("GET", "/green_wave/lvbo_01")
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["status"], "success")
+        self.assertEqual(payload["corridor_id"], "lvbo_01")
+
+    def test_patch_green_wave_enabled_goes_through_harness(self):
+        status, payload = self._request(
+            "PATCH",
+            "/green_wave/lvbo_01/enabled",
+            json.dumps({"enabled": False}),
+        )
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["status"], "success")
+        self.assertEqual(payload["enabled"], False)
 
 
 if __name__ == "__main__":

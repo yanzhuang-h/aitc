@@ -188,6 +188,7 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
         qwen_agent=qwen_agent,
         control_process_agent=control_process_agent,
         qwen_tool_router_agent=qwen_tool_router_agent,
+        green_wave_service=green_wave_service,
         logger=logger,
     )
     green_wave_service = GreenWaveDataService(logger=logger)
