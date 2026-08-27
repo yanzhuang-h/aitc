@@ -75,6 +75,10 @@ class OpenAICompatibleLLMClient:
         }
         if self.enable_thinking:
             payload["extra_body"] = {"enable_thinking": True}
+        # 显式控制 Qwen3 思考模式（vLLM 走 chat_template_kwargs）：
+        # 关闭时若不显式声明，vLLM 端 Qwen3 默认会输出 <think> 思考块，
+        # 挤占输出预算导致工具选择 JSON 被截断。
+        payload["chat_template_kwargs"] = {"enable_thinking": self.enable_thinking}
         if extra_body:
             payload.setdefault("extra_body", {}).update(dict(extra_body))
 

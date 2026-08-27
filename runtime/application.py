@@ -182,6 +182,7 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
     qwen_tool_router_agent = QwenToolRouterAgent(qwen_client, data_tools)
     symbolic_agent = SymbolicDataAgent(data_tools)
     control_process_agent = ControlProcessAgent(qwen_client, query_service=query_service, logger=logger)
+    green_wave_service = GreenWaveDataService(logger=logger)
     agent_harness = AgentHarness(
         signal_timing_tool=signal_timing_tool,
         symbolic_agent=symbolic_agent,
@@ -191,7 +192,6 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
         green_wave_service=green_wave_service,
         logger=logger,
     )
-    green_wave_service = GreenWaveDataService(logger=logger)
     http_server = HttpRuntimeServer(host=settings.http_host, port=settings.http_port, ingestor=ingestor, config_service=config_service, query_service=query_service, agent_harness=agent_harness, green_wave_service=green_wave_service, logger=logger)
     tcp_server = TcpRuntimeServer(host=settings.tcp_host, port=settings.tcp_port, buffer_size=settings.tcp_buffer_size, ingestor=ingestor, result_warehouse=warehouse, result_sender=sender, send_interval=settings.result_send_interval_seconds, logger=logger)
     pipeline = PeriodicDecisionPipeline(cache=cache, data_processor=control_processor, lambdas_module=Lambdas, writer=writer, result_warehouse=warehouse, flow_predictor=flow_predictor, queue_predictor=queue_predictor, dqn_select=DQN_select, coordinate=coordinate, phase_check=phase_check, select_data_to_send=partial(format_result, lambdas_module=Lambdas), is_millisecond_timestamp=is_millisecond_timestamp, overflow_warning_map=overflow_warning_map, radar_event_map=radar_event_map, flow_duration_seconds=settings.flow_duration_seconds, logger=logger)

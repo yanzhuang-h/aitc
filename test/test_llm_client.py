@@ -65,8 +65,28 @@ class OpenAICompatibleLLMClientTest(unittest.TestCase):
         self.assertEqual(captured["timeout"], 12)
         self.assertEqual(captured["payload"]["model"], "Qwen3-0.6B")
         self.assertEqual(captured["payload"]["extra_body"]["enable_thinking"], True)
+        self.assertEqual(
+            captured["payload"]["chat_template_kwargs"]["enable_thinking"], True
+        )
         self.assertEqual(result.content, "ok")
         self.assertEqual(result.reasoning_content, "thinking")
+
+    def test_chat_template_kwargs_disabled_by_default(self):
+        """默认（enable_thinking=False）也要显式发送关闭思考的 chat_template_kwargs。"""
+        captured = {}
+
+        def fake_urlopen(req, timeout):
+            captured["payload"] = json.loads(req.data.decode("utf-8"))
+            return _Response({"choices": [{"message": {"content": "ok"}}]})
+
+        client = OpenAICompatibleLLMClient(base_url="http://localhost:8000/v1")
+        with patch("app.infrastructure.llm.openai_compatible.request.urlopen", fake_urlopen):
+            client.chat([{"role": "user", "content": "hi"}])
+
+        self.assertEqual(
+            captured["payload"]["chat_template_kwargs"]["enable_thinking"], False
+        )
+        self.assertNotIn("extra_body", captured["payload"])
 
     def test_retries_on_rate_limit_then_succeeds(self):
         calls = []

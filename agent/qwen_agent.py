@@ -6,12 +6,41 @@
 from __future__ import annotations
 
 import json
+import logging
+import re
 from typing import Any, Mapping
 
 from app.core.models import ToolResponse
 from app.infrastructure.llm import OpenAICompatibleLLMClient
 
 from .tools import DataQueryTools
+
+logger = logging.getLogger("aitc.qwen")
+
+
+def _parse_json_response(content: str) -> Any:
+    """解析模型返回的 JSON，兼容 Qwen3 思考标记与代码块包裹。
+
+    优先直接解析；失败时剥离 ``<think>...</think>`` 思考块后重试，
+    最后提取首个 JSON 对象兜底。
+    """
+    text = content.strip()
+    if "<think>" in text:
+        text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+    if text.startswith("```"):
+        lines = [line for line in text.splitlines() if not line.startswith("```")]
+        text = "\n".join(lines).strip()
+    try:
+        return json.loads(text)
+    except Exception:
+        pass
+    start, end = text.find("{"), text.rfind("}")
+    if start != -1 and end > start:
+        try:
+            return json.loads(text[start:end + 1])
+        except Exception:
+            return None
+    return None
 
 
 class SymbolicDataAgent:
@@ -135,7 +164,7 @@ class QwenSignalTimingAgent:
             },
         ]
         try:
-            result = self.llm_client.chat(messages, temperature=0.2, top_p=0.9, max_tokens=256)
+            result = self.llm_client.chat(messages, temperature=0.2, top_p=0.9, max_tokens=512)
             parsed = self._parse_json(result.content)
             if isinstance(parsed, dict):
                 parsed.setdefault("action", "signal.timing.single")
@@ -162,7 +191,7 @@ class QwenSignalTimingAgent:
             },
         ]
         try:
-            result = self.llm_client.chat(messages, temperature=0.4, top_p=0.9, max_tokens=512)
+            result = self.llm_client.chat(messages, temperature=0.4, top_p=0.9, max_tokens=1024)
             if result.content.strip():
                 return result.content.strip()
         except Exception:
@@ -171,14 +200,7 @@ class QwenSignalTimingAgent:
 
     @staticmethod
     def _parse_json(content: str) -> Any:
-        text = content.strip()
-        if text.startswith("```"):
-            lines = [line for line in text.splitlines() if not line.startswith("```")]
-            text = "\n".join(lines).strip()
-        try:
-            return json.loads(text)
-        except Exception:
-            return None
+        return _parse_json_response(content)
 
 
 class QwenToolRouterAgent:
@@ -196,14 +218,7 @@ class QwenToolRouterAgent:
 
     @staticmethod
     def _parse_json(content: str) -> Any:
-        text = content.strip()
-        if text.startswith("```"):
-            lines = [line for line in text.splitlines() if not line.startswith("```")]
-            text = "\n".join(lines).strip()
-        try:
-            return json.loads(text)
-        except Exception:
-            return None
+        return _parse_json_response(content)
 
     def run(self, request: Mapping[str, Any]) -> dict[str, Any]:
         request_text = request.get("request_text")
@@ -266,13 +281,15 @@ class QwenToolRouterAgent:
             },
         ]
         try:
-            result = self.llm_client.chat(messages, temperature=0.2, top_p=0.9, max_tokens=512)
+            result = self.llm_client.chat(messages, temperature=0.2, top_p=0.9, max_tokens=1024)
+            logger.info("Qwen 工具选择原始返回: %s", result.content[:200])
             parsed = self._parse_json(result.content)
             if isinstance(parsed, dict) and isinstance(parsed.get("tool_name"), str):
                 parsed.setdefault("arguments", {})
                 return parsed
-        except Exception:
-            pass
+            logger.warning("Qwen 工具选择返回无法解析: %s", result.content[:200])
+        except Exception as exc:
+            logger.warning("Qwen 工具选择调用异常: %s", exc)
         return {"tool_name": "", "arguments": {}}
 
     def _summarize_answer(
@@ -296,7 +313,7 @@ class QwenToolRouterAgent:
             },
         ]
         try:
-            result = self.llm_client.chat(messages, temperature=0.4, top_p=0.9, max_tokens=512)
+            result = self.llm_client.chat(messages, temperature=0.4, top_p=0.9, max_tokens=1024)
             if result.content.strip():
                 return result.content.strip()
         except Exception:

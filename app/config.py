@@ -13,11 +13,30 @@ import os
 from pathlib import Path
 
 
+def _strip_inline_comment(value: str) -> str:
+    """剥离配置值中的行内注释与引号。
+
+    支持 ``KEY="value" # 注释`` 与 ``KEY=value # 注释`` 两种形式；
+    引号内的 ``#`` 不会被当作注释。
+    """
+    value = value.strip()
+    if value[:1] in {'"', "'"}:
+        quote = value[0]
+        end = value.find(quote, 1)
+        if end == -1:
+            return value[1:]
+        return value[1:end]
+    hash_pos = value.find(" #")
+    if hash_pos != -1:
+        return value[:hash_pos].strip()
+    return value
+
+
 def _load_dotenv(path: str | os.PathLike | None = None) -> None:
     """零依赖加载项目根目录的 .env 文件到环境变量。
 
     遵循 dotenv 惯例：已存在的环境变量不会被覆盖。支持 ``#`` 注释、
-    ``KEY=VALUE`` 形式以及带引号的值。
+    ``KEY=VALUE`` 形式、带引号的值以及行内注释（``KEY=VALUE # 注释``）。
     """
     env_path = Path(path) if path else Path(__file__).resolve().parent.parent / ".env"
     if not env_path.is_file():
@@ -28,9 +47,7 @@ def _load_dotenv(path: str | os.PathLike | None = None) -> None:
             continue
         key, _, value = line.partition("=")
         key = key.strip()
-        value = value.strip()
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
-            value = value[1:-1]
+        value = _strip_inline_comment(value)
         if key and key not in os.environ:
             os.environ[key] = value
 
