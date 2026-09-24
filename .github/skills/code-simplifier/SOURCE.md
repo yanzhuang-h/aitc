@@ -7,9 +7,11 @@
   <https://github.com/anthropics/claude-plugins-official/blob/main/plugins/code-simplifier/agents/code-simplifier.md>
 - **改写情况**：`SKILL.md` 为原文照搬，未做改写。
 
-## 与 AITC 的差异（待定，未改）
+## 与上游的差异（已本地化 1 处）
 
-`SKILL.md` 第 2 节「Apply Project Standards」引用的是 Sentry 前端的 `CLAUDE.md` 约定
-（ES 模块、箭头函数、React Props 类型等），与 AITC 的 Python 项目不符。
-如需对齐，可把该节换成 AITC 的既有约定（`lib/` 只包装不改算法、中文注释与提交、
-`compileall` + `unittest` 验证等）——另行提交，保持本节内容的可追溯性。
+`SKILL.md` 正文与上游一致，唯一改动是第 2 节「Apply Project Standards」：
+上游引用 Sentry 前端的 `CLAUDE.md` 约定（ES 模块、箭头函数、React Props 类型等），
+本仓库已替换为 AITC 的项目约定（Python 3.11 风格、中文注释与提交、不新增依赖、
+`lib/` 保持行为兼容、`compileall` + `unittest` 验证）。
+
+其余章节如需与上游同步（例如上游新增规则），直接对照上游路径覆盖后重做本节调整即可。

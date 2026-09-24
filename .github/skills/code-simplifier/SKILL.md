@@ -20,14 +20,17 @@ Never change what the code does - only how it does it. All original features, ou
 
 ### 2. Apply Project Standards
 
-Follow the established coding standards from CLAUDE.md including:
+Follow the project standards defined in `.github/copilot-instructions.md` and `docs/CONTRIBUTING.md`,
+并与仓库内既有代码保持一致：
 
-- Use ES modules with proper import sorting and extensions
-- Prefer `function` keyword over arrow functions
-- Use explicit return type annotations for top-level functions
-- Follow proper React component patterns with explicit Props types
-- Use proper error handling patterns (avoid try/catch when possible)
-- Maintain consistent naming conventions
+- Python 3.11；沿用周边风格：`from __future__ import annotations`、`X | None`、`dataclass(slots=True)`、`StrEnum`；
+- 注释、文档、提交信息一律中文，提交信息用约定式前缀（`feat:` / `fix:` / `docs:` / `chore:`）；
+- 不新增第三方依赖：`requirements.txt` 是依赖的单一来源；
+- 日志使用 `logging` 分级，禁止裸 `print`；
+- `lib/` 可改，但默认只做包装、边界调整与去冗余，保持行为与报文格式兼容；
+- 顺手清理同一文件内触手可及的冗余（重复默认值、重复样板），不做跨模块搬家；
+- 验证统一用：`.venv/bin/python -m compileall -q infra runtime agent app` +
+  `.venv/bin/python -m unittest discover -s test -p "test_*.py"`。
 
 ### 3. Enhance Clarity
 
