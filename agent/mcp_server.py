@@ -7,16 +7,16 @@ Cursor 等）可通过 stdio 启动本模块，执行 ``list_tools`` / ``call_to
 
 新增工具只需在 registry 注册，MCP 层自动暴露，无需修改本文件。
 
-启动方式（stdio，默认）::
+启动方式（stdio，默认，WSL `.venv`）::
 
-    python agent/mcp_server.py
+    .venv/bin/python agent/mcp_server.py
 
 外部 MCP 客户端配置示例（mcp.json / claude_desktop_config.json）::
 
     {
       "mcpServers": {
         "aitc": {
-          "command": "C:\\\\Users\\\\Finn\\\\.conda\\\\envs\\\\aitc\\\\python.exe",
+          "command": "<项目根目录>/.venv/bin/python",
           "args": ["agent/mcp_server.py"],
           "cwd": "<项目根目录>"
         }

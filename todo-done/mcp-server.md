@@ -1,6 +1,6 @@
 # MCP 封装（方向A）：AITC 工具注册中心 → MCP 服务器
 
-> 2026-08-25 · 依赖：`mcp>=1.0,<2`（安装于 aitc conda 环境，版本 1.29.1）
+> 2026-08-25 · 依赖：`mcp>=1.0,<2`（WSL `.venv`，版本 1.30.0）
 
 ## 目标
 
@@ -40,7 +40,7 @@
 {
   "mcpServers": {
     "aitc": {
-      "command": "C:\\Users\\Finn\\.conda\\envs\\aitc\\python.exe",
+      "command": "<项目根目录>/.venv/bin/python",
       "args": ["agent/mcp_server.py"],
       "cwd": "<项目根目录>"
     }

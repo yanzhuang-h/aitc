@@ -2,6 +2,7 @@
 
 > 2026-09-24 起启用。目标：`main` 始终稳定可运行，所有改动走「短分支 + PR」合入。
 > 流程对齐主流团队（含实习团队）的协作方式，命令可平移使用。
+> 开发环境为 WSL2（Ubuntu）`~/projects/aitc`，下文命令均在 WSL 终端（bash）执行。
 
 ## 一、分支模型（简化主干式）
 
@@ -19,7 +20,7 @@
 
 ### 1. 同步并开分支
 
-```powershell
+```bash
 git switch main
 git pull
 git switch -c feature/xxx
@@ -31,10 +32,10 @@ git switch -c feature/xxx
 
 ### 3. 本地验证（全过再推送）
 
-```powershell
-# Windows（aitc conda 环境）
-C:\Users\Finn\.conda\envs\aitc\python.exe -m compileall -q infra runtime agent app
-C:\Users\Finn\.conda\envs\aitc\python.exe -m unittest discover -s test -p "test_*.py"
+```bash
+# WSL 开发环境（仓库根目录下执行，.venv）
+.venv/bin/python -m compileall -q infra runtime agent app
+.venv/bin/python -m unittest discover -s test -p "test_*.py"
 
 # Linux 服务器（llm 环境）
 python -m unittest discover -s test -p "test_*.py"
@@ -42,7 +43,7 @@ python -m unittest discover -s test -p "test_*.py"
 
 ### 4. 推送并创建 PR
 
-```powershell
+```bash
 git push -u origin feature/xxx
 gh pr create --fill    # 或网页操作；描述自动套用 .github/pull_request_template.md
 ```
@@ -55,7 +56,7 @@ gh pr create --fill    # 或网页操作；描述自动套用 .github/pull_reque
 
 ### 6. 回到 main 并清理
 
-```powershell
+```bash
 git switch main
 git pull
 git fetch --prune
@@ -89,7 +90,7 @@ git fetch --prune
 
 查看方式（PR 页面会自动显示检查状态）：
 
-```powershell
+```bash
 gh pr checks               # 当前 PR 的检查结果
 gh run list -L 10          # 最近的工作流运行
 gh run view --log-failed   # 失败时查看日志
@@ -103,7 +104,7 @@ gh run view --log-failed   # 失败时查看日志
 
 ## 七、常用命令速查
 
-```powershell
+```bash
 git status -sb                 # 查看分支及领先/落后情况
 git switch main; git pull      # 同步主线
 git switch -c fix/xxx          # 从当前 HEAD 开修复分支
