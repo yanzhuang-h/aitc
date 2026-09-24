@@ -6,6 +6,8 @@
 from __future__ import annotations
 
 import copy
+import json
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable
@@ -36,6 +38,8 @@ class PeriodicDecisionPipeline:
         flow_duration_seconds: int,
         worker_count: int = 30,
         logger: Any | None = None,
+        control_snapshot_enabled: bool = False,
+        control_snapshot_dir: str | os.PathLike = "logs_data/control_snapshots",
     ) -> None:
         self.cache = cache
         self.data_processor = data_processor
@@ -54,16 +58,21 @@ class PeriodicDecisionPipeline:
         self.flow_duration_seconds = flow_duration_seconds
         self.worker_count = worker_count
         self.logger = logger
+        self.control_snapshot_enabled = control_snapshot_enabled
+        self.control_snapshot_dir = os.fspath(control_snapshot_dir)
         self.last_coordinate_set = copy.deepcopy(self.lambdas.map_lambda)
 
     def run_once(self) -> list[dict[str, Any]]:
         """聚合当前窗口数据，执行路口决策并更新结果仓库。"""
-        current_result, online_map, overflow_map = self._process_data()
+        current_result, online_map, overflow_map, extend_map = self._process_data()
         action = {
             intersection_id: result["result_action"]
             for intersection_id, result in current_result.items()
         }
         if len(current_result) == len(self.lambdas.intersection_list):
+            self._save_control_input_snapshot(
+                action, self.last_coordinate_set, online_map, overflow_map, extend_map
+            )
             action = self.coordinate(
                 action,
                 self.last_coordinate_set,
@@ -87,7 +96,29 @@ class PeriodicDecisionPipeline:
         self.result_warehouse.replace(results_to_send)
         return results_to_send
 
-    def _process_data(self) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    def _save_control_input_snapshot(self, action, coordinate_set, online_map, overflow_map, extend_map):
+        if not self.control_snapshot_enabled:
+            return None
+        os.makedirs(self.control_snapshot_dir, exist_ok=True)
+        stamp = time.strftime("%Y%m%d_%H%M%S") + f"_{time.time_ns() % 1_000_000:06d}"
+        target = os.path.join(self.control_snapshot_dir, f"control_{stamp}.json")
+        temp = target + ".tmp"
+        payload = {
+            "schema_version": 1,
+            "captured_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            "coordinate_input": copy.deepcopy(action),
+            "coordinate_map_set": copy.deepcopy(coordinate_set),
+            "online_map": copy.deepcopy(online_map),
+            "overflow_map": copy.deepcopy(overflow_map),
+            "extend_map": copy.deepcopy(extend_map),
+        }
+        with open(temp, "w", encoding="utf-8") as file:
+            json.dump(payload, file, ensure_ascii=False, default=str)
+        os.replace(temp, target)
+        self._info("Saved control input snapshot: %s", target)
+        return target
+
+    def _process_data(self) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
         self.cache.clear_expired()
         recent_data = self.data_processor.snapshot()
         recent_flow_data = recent_data["flow"]
@@ -147,7 +178,7 @@ class PeriodicDecisionPipeline:
                     self._error("Error processing intersection data: %s", error, exc_info=True)
 
         self.last_coordinate_set = new_coordinate_set
-        return result_map, online_map, overflow_map
+        return result_map, online_map, overflow_map, extend_map
 
     def _build_flow_data(self, recent_flow_data: list[dict[str, Any]]):
         if not recent_flow_data:

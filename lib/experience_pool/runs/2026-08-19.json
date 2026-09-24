@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "source_date": "2026-08-19",
+  "triggered_at": "2026-08-21T12:00:01.596065+08:00",
+  "source_day_delay": 2,
+  "status": "skipped_missing_source_data",
+  "missing_files": [
+    "E:\\aitc_1\\aitc-main\\logs_data\\flow\\2026-08-19_flow.txt",
+    "E:\\aitc_1\\aitc-main\\logs_data\\extend\\2026-08-19_extend.txt"
+  ],
+  "pool_committed": false,
+  "table_updated": false
+}

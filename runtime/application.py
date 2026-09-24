@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import threading
+import time
 from functools import partial
 from typing import Any
 
@@ -48,17 +49,19 @@ from app.core.control.synergy.green_wave_service import GreenWaveDataService
 from app.infrastructure.llm import OpenAICompatibleLLMClient
 from app.core.tools import SingleIntersectionSignalTimingTool
 from app.core.tools.legacy_algorithms import DQN_select
+from lib.data_ANS.experience_runtime import ExperiencePoolScheduler
 
 
 class AITCApplication:
     """协调数据服务、决策管线与配置同步的应用生命周期。"""
 
-    def __init__(self, *, config_sync_manager, http_server, tcp_server, decision_pipeline, prediction_scheduler, send_interval, enable_config_sync=True, enable_prediction_scheduler=True, llm_client=None, llm_required=False, logger=None):
+    def __init__(self, *, config_sync_manager, http_server, tcp_server, decision_pipeline, prediction_scheduler, send_interval, enable_config_sync=False, enable_prediction_scheduler=True, experience_pool_scheduler=None, llm_client=None, llm_required=False, logger=None):
         self.config_sync_manager = config_sync_manager
         self.http_server = http_server
         self.tcp_server = tcp_server
         self.decision_pipeline = decision_pipeline
         self.prediction_scheduler = prediction_scheduler
+        self.experience_pool_scheduler = experience_pool_scheduler
         self.send_interval = send_interval
         self.enable_config_sync = enable_config_sync
         self.enable_prediction_scheduler = enable_prediction_scheduler
@@ -80,6 +83,8 @@ class AITCApplication:
         self.tcp_server.start_broadcast_thread()
         if self.enable_prediction_scheduler:
             self.prediction_scheduler.start()
+        if self.experience_pool_scheduler is not None:
+            self.experience_pool_scheduler.start()
         self._info("AITC application started")
 
     def _check_llm_ready(self) -> None:
@@ -110,6 +115,8 @@ class AITCApplication:
             self.config_sync_manager.stop()
         if self.enable_prediction_scheduler:
             self.prediction_scheduler.stop()
+        if self.experience_pool_scheduler is not None:
+            self.experience_pool_scheduler.stop()
         self.http_server.stop()
         self.tcp_server.stop()
         if self._decision_thread is not None:
@@ -118,11 +125,12 @@ class AITCApplication:
 
     def _run_decision_loop(self) -> None:
         while not self._stop_event.is_set():
+            started_at = time.monotonic()
             try:
                 self.decision_pipeline.run_once()
             except Exception:
                 self._error("数据处理失败", exc_info=True)
-            self._stop_event.wait(self.send_interval)
+            self._stop_event.wait(max(0.0, self.send_interval - (time.monotonic() - started_at)))
 
     def _info(self, message, *args):
         if self.logger is not None:
@@ -182,6 +190,11 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
     green_wave_service = GreenWaveDataService(logger=logger)
     http_server = HttpRuntimeServer(host=settings.http_host, port=settings.http_port, ingestor=ingestor, config_service=config_service, query_service=query_service, agent_harness=agent_harness, green_wave_service=green_wave_service, logger=logger)
     tcp_server = TcpRuntimeServer(host=settings.tcp_host, port=settings.tcp_port, buffer_size=settings.tcp_buffer_size, ingestor=ingestor, result_warehouse=warehouse, result_sender=sender, send_interval=settings.result_send_interval_seconds, logger=logger)
-    pipeline = PeriodicDecisionPipeline(cache=cache, data_processor=RuntimeDataProcessor(cache, Lambdas), lambdas_module=Lambdas, writer=writer, result_warehouse=warehouse, flow_predictor=flow_predictor, queue_predictor=queue_predictor, dqn_select=DQN_select, coordinate=coordinate, phase_check=phase_check, select_data_to_send=partial(format_result, lambdas_module=Lambdas), is_millisecond_timestamp=is_millisecond_timestamp, overflow_warning_map=overflow_warning_map, radar_event_map=radar_event_map, flow_duration_seconds=settings.flow_duration_seconds, logger=logger)
+    pipeline = PeriodicDecisionPipeline(cache=cache, data_processor=RuntimeDataProcessor(cache, Lambdas), lambdas_module=Lambdas, writer=writer, result_warehouse=warehouse, flow_predictor=flow_predictor, queue_predictor=queue_predictor, dqn_select=DQN_select, coordinate=coordinate, phase_check=phase_check, select_data_to_send=partial(format_result, lambdas_module=Lambdas), is_millisecond_timestamp=is_millisecond_timestamp, overflow_warning_map=overflow_warning_map, radar_event_map=radar_event_map, flow_duration_seconds=settings.flow_duration_seconds, logger=logger, control_snapshot_enabled=settings.control_snapshot_enabled, control_snapshot_dir=settings.control_snapshot_dir)
     prediction_scheduler = PredictionScheduler(flow_job=flow_predictor.daily_prediction_job, queue_job=queue_predictor.daily_queue_prediction, hour=settings.prediction_hour, minute=settings.prediction_minute, logger=logger)
-    return AITCApplication(config_sync_manager=ConfigSyncManager(), http_server=http_server, tcp_server=tcp_server, decision_pipeline=pipeline, prediction_scheduler=prediction_scheduler, send_interval=settings.decision_interval_seconds, enable_config_sync=settings.enable_config_sync, enable_prediction_scheduler=settings.enable_prediction_scheduler, llm_client=qwen_client, llm_required=settings.llm_required, logger=logger)
+    experience_pool_scheduler = (
+        ExperiencePoolScheduler(logger=logger)
+        if settings.enable_experience_pool_scheduler
+        else None
+    )
+    return AITCApplication(config_sync_manager=ConfigSyncManager(), http_server=http_server, tcp_server=tcp_server, decision_pipeline=pipeline, prediction_scheduler=prediction_scheduler, experience_pool_scheduler=experience_pool_scheduler, send_interval=settings.decision_interval_seconds, enable_config_sync=settings.enable_config_sync, enable_prediction_scheduler=settings.enable_prediction_scheduler, llm_client=qwen_client, llm_required=settings.llm_required, logger=logger)

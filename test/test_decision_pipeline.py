@@ -1,4 +1,7 @@
 import unittest
+import json
+import tempfile
+from pathlib import Path
 
 from infra.data import ResultWarehouse
 from runtime import PeriodicDecisionPipeline
@@ -112,6 +115,30 @@ class PeriodicDecisionPipelineTest(unittest.TestCase):
         self.assertEqual(result[0]["action"][0], 10)
         self.assertEqual(writer.experience, [({"exp": 1}, "100")])
         self.assertEqual(writer.phase_reports, [{"100": {"check_status": 0}}])
+
+    def test_optional_control_snapshot_preserves_legacy_inputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pipeline = PeriodicDecisionPipeline(
+                cache=_Cache(), data_processor=_LegacyProcessor(), lambdas_module=_Lambdas,
+                writer=_Writer(), result_warehouse=ResultWarehouse(),
+                flow_predictor=_Predictor(), queue_predictor=_Predictor(),
+                dqn_select=lambda *_args: ([10] + [0] * 8 + [1], {}, [], {}),
+                coordinate=lambda action, *_args: action,
+                phase_check=lambda action: (action, {}),
+                select_data_to_send=lambda intersection_id, *_args: {"id": intersection_id},
+                is_millisecond_timestamp=lambda _value: True,
+                overflow_warning_map={"100": {}}, radar_event_map={}, flow_duration_seconds=150,
+                control_snapshot_enabled=True, control_snapshot_dir=directory,
+            )
+            pipeline.run_once()
+            files = list(Path(directory).glob("control_*.json"))
+            self.assertEqual(len(files), 1)
+            payload = json.loads(files[0].read_text(encoding="utf-8"))
+            self.assertIn("coordinate_input", payload)
+            self.assertIn("coordinate_map_set", payload)
+            self.assertIn("online_map", payload)
+            self.assertIn("overflow_map", payload)
+            self.assertEqual(payload["extend_map"], {"100": {}})
 
 
 if __name__ == "__main__":

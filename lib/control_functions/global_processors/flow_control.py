@@ -11,7 +11,21 @@ def select_flow_control_state(cross_id, demand, road_config, hour):
         return state
     if hour < 5 and "5" in road_config:
         state = "5"
-    overrides = {"1700079": (((7, 9), "21"), ((16, 19), "16")), "1300306": (((7, 8), "21"), ((17, 18), "21")), "1700293": (((6, 6), "23"), ((7, 9), "22"), ((16, 19), "21")), "1300364": (((7, 8), ("4",)), ((16, 18), ("4",)))}
+    # 与 V2.65 保持一致：部分路口的高峰强制状态带尾逗号（tuple）。
+    # tuple 在后续 road_config[state] 查表时会抛 KeyError，整体回退到
+    # 时段表方案（Get_time_map），这正是 V2.65 的原始行为，不能去掉。
+    overrides = {
+        "1700079": (((7, 9), "21"), ((16, 19), "16")),
+        "1300306": (((7, 8), "21"), ((17, 18), "21")),
+        "1700293": (((6, 6), "23"), ((7, 9), "22"), ((16, 19), "21")),
+        "2702736": (((16, 19), ("21",)),),
+        "1300255": (((6, 8), ("21",)),),
+        "1300364": (((7, 8), ("4",)), ((16, 18), ("4",))),
+        "1700124": (((7, 8), ("21",)), ((16, 19), ("21",))),
+        "1300039": (((7, 8), ("2",)),),
+        "1300108": (((16, 19), ("1",)),),
+        "1300120": (((8, 11), ("2",)),),
+    }
     for window, value in overrides.get(str(cross_id), ()):
         if window[0] <= hour <= window[1]:
             state = value
@@ -21,7 +35,17 @@ def select_flow_control_state(cross_id, demand, road_config, hour):
 def generate_flow_phase_plan(plan, demand, state_config):
     """Generate flow phases using the legacy dedicated half-phase rules."""
     phases = state_config["phase"]
-    mins, maxs = state_config["platform_min_pass_time"], state_config["max_pass_time"]
+    # 两套下限逐相位取大（详见 mixed_control 同款说明），只增不减地兜底。
+    signal_minimums = state_config.get("min_pass_time") or []
+    platform_minimums = state_config.get("platform_min_pass_time") or []
+    mins = [
+        max(
+            signal_minimums[i] if i < len(signal_minimums) else 0,
+            platform_minimums[i] if i < len(platform_minimums) else 0,
+        )
+        for i in range(8)
+    ]
+    maxs = state_config["max_pass_time"]
     marks = {name: -1 for name in ("L", "R", "U", "D", "LR", "UD")}
     for i, name in enumerate(phases[:8]):
         if name in marks: marks[name] = i
@@ -70,4 +94,7 @@ def process_flow_intersection(cross_id, current_plan, road_config, hour,
         return current_plan, report
     except Exception as exc:
         report["error"] = f"{type(exc).__name__}: {exc}"
+        # 与 V2.65 的内层 try/except 语义一致：状态计算或相位生成
+        # 异常时保持当前 plan（已清零，交由后续最小周期等公共处理），
+        # 不在这里回退时段表。
         return current_plan, report

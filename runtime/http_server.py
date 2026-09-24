@@ -309,6 +309,7 @@ class HttpRuntimeServer:
                     return
                 self._send_json(200, payload)
 
+
             def _handle_green_wave_patch(self, segment: str, body: Any) -> None:
                 if not isinstance(body, dict):
                     self._send_json(400, {"error": "Request body must be an object"})

@@ -44,7 +44,7 @@ class MixedControlTests(unittest.TestCase):
     def test_generates_bounded_mixed_phase_plan(self):
         config = {
             "phase": ["UD", "LR", "L", "R", "UDL", "LRL", "P", "P"],
-            "platform_min_pass_time": [5] * 8,
+            "min_pass_time": [5] * 8,
             "max_pass_time": [60] * 8,
         }
         demand = {"L": 20, "R": 10, "U": 30, "D": 15,
@@ -60,7 +60,7 @@ class MixedControlTests(unittest.TestCase):
 
     def test_flow_phase_generator_handles_half_and_pedestrian_phases(self):
         config = {"phase": ["UD1", "LR1", "U", "D", "P", "P", "P", "P"],
-                  "platform_min_pass_time": [5] * 8, "max_pass_time": [60] * 8}
+                  "min_pass_time": [5] * 8, "max_pass_time": [60] * 8}
         plan = generate_flow_phase_plan(
             [0] * 10, {"L": 10, "R": 20, "U": 30, "D": 10,
                        "UTL": 4, "DTL": 5, "LTL": 6, "RTL": 7}, config)
@@ -68,7 +68,7 @@ class MixedControlTests(unittest.TestCase):
 
     def test_flow_phase_generator_clamps_special_turn_phases(self):
         config = {"phase": ["LRL", "UDL", "L", "R", "UD", "LR", "P", "P"],
-                  "platform_min_pass_time": [8] * 8, "max_pass_time": [20] * 8}
+                  "min_pass_time": [8] * 8, "max_pass_time": [20] * 8}
         plan = generate_flow_phase_plan(
             [0] * 10, {"L": 40, "R": 10, "U": 30, "D": 20,
                        "UTL": 18, "DTL": 4, "LTL": 16, "RTL": 5}, config)
@@ -95,10 +95,33 @@ class MixedControlTests(unittest.TestCase):
         self.assertEqual(report["fallback"], "time_schedule")
         self.assertEqual(plan, [2] * 10)
 
+    def test_bounds_take_max_of_signal_and_platform_minimums(self):
+        # 信号机下限为 0、平台下限为 6 时，应取大兜底（防止单相位 0）。
+        config = {"phase": ["UD", "LR", "P", "P", "P", "P", "P", "P"],
+                  "min_pass_time": [0] * 8, "platform_min_pass_time": [6] * 8,
+                  "max_pass_time": [60] * 8}
+        plan = generate_mixed_phase_plan(
+            [0] * 10,
+            {"L": 0, "R": 0, "U": 0, "D": 0,
+             "UTL": 0, "DTL": 0, "LTL": 0, "RTL": 0}, config)
+        self.assertEqual(plan[0], 6)
+        self.assertEqual(plan[1], 6)
+
+    def test_flow_bounds_take_max_of_signal_and_platform_minimums(self):
+        config = {"phase": ["UD", "LR", "P", "P", "P", "P", "P", "P"],
+                  "min_pass_time": [0] * 8, "platform_min_pass_time": [5] * 8,
+                  "max_pass_time": [60] * 8}
+        plan = generate_flow_phase_plan(
+            [0] * 10,
+            {"L": 0, "R": 0, "U": 0, "D": 0,
+             "UTL": 0, "DTL": 0, "LTL": 0, "RTL": 0}, config)
+        self.assertEqual(plan[0], 5)
+        self.assertEqual(plan[1], 5)
+
     def test_mixed_entry_allocates_using_forced_state(self):
         state_config = {
-            "0": {"phase": ["P"] * 8, "platform_min_pass_time": [1] * 8, "max_pass_time": [60] * 8},
-            "2": {"phase": ["LR", "P", "P", "P", "P", "P", "P", "P"], "platform_min_pass_time": [3] * 8, "max_pass_time": [60] * 8},
+            "0": {"phase": ["P"] * 8, "min_pass_time": [1] * 8, "max_pass_time": [60] * 8},
+            "2": {"phase": ["LR", "P", "P", "P", "P", "P", "P", "P"], "min_pass_time": [3] * 8, "max_pass_time": [60] * 8},
         }
         plan, report = process_mixed_intersection(
             "100", [10, 10, 10, 30, 0, 0, 0, 0, 0, 0],
@@ -112,8 +135,8 @@ class MixedControlTests(unittest.TestCase):
 
     def test_flow_entry_allocates_using_forced_state(self):
         config = {
-            "0": {"phase": ["P"] * 8, "platform_min_pass_time": [1] * 8, "max_pass_time": [60] * 8},
-            "2": {"phase": ["LR1"] + ["P"] * 7, "platform_min_pass_time": [3] * 8, "max_pass_time": [60] * 8},
+            "0": {"phase": ["P"] * 8, "min_pass_time": [1] * 8, "max_pass_time": [60] * 8},
+            "2": {"phase": ["LR1"] + ["P"] * 7, "min_pass_time": [3] * 8, "max_pass_time": [60] * 8},
         }
         plan, report = process_flow_intersection(
             "100", [10, 10, 10, 30, 0, 0, 0, 0, 0, 0], config, 12,

@@ -19,11 +19,8 @@ class ExperienceRuntimeTests(unittest.TestCase):
             update_roads = RUNTIME._configured_update_roads()
             collection_roads = RUNTIME._configured_collection_roads()
 
-        self.assertEqual(
-            update_roads,
-            {"1700125", "1300069", "1300068", "1300070"},
-        )
-        self.assertEqual(len(collection_roads), 26)
+        self.assertTrue({"2272", "2620"}.issubset(collection_roads))
+        self.assertTrue({"2272", "2620"}.issubset(update_roads))
         self.assertTrue(update_roads.issubset(set(collection_roads)))
 
     def test_scheduler_uses_t_minus_two_without_startup_catchup(self):

@@ -1,6 +1,7 @@
 import json
 import time
 import random
+from datetime import datetime
 from lib.AITC_tool import *
 from lib.floating_value import apply_floating_value
 from lib.road_state import get_forced_state
@@ -302,7 +303,7 @@ intern_road_id= {
 2702784,
 2702783,
 1300035,
-1300870,   #花卉市场
+    1300870,   #花卉市场
 1300271, #学院桥
 1300068,
 1300044,
@@ -328,10 +329,12 @@ intern_road_id= {
 # 1300306,
 # 1300409,
 
+
+
 }
 
 aibi_road = {
-    1300870,
+    # 1300870,
     1300271,
 }
 shipin_road={
@@ -345,6 +348,7 @@ shipin_road={
 }
 # （只有流量）
 shipin1_road={
+    # 1300870,
     1700086,
     1700275,
     1700276,
@@ -398,7 +402,15 @@ shipin1_road={
     1300070,
     1300266,
 
-
+1700542,
+1700448,
+1700449,
+1700450,
+1700545,
+2620,
+2272,
+2468,
+		2625,
 
 
 
