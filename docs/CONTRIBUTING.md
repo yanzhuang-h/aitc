@@ -77,15 +77,31 @@ git fetch --prune
 - 标题与提交信息同格式（`feat: ...`）
 - 描述自动套用 `.github/pull_request_template.md`（背景 / 改动 / 验证 / 自查 / 影响面）
 - 合并方式统一 **Squash**（仓库配置为仅允许 Squash），合入后自动删除源分支
+- 每个 PR 自动运行 CI（编译 + 单元测试），**通过后才能合入**
 - 单人阶段无需批准即可合入；引入评审后可在仓库设置中要求批准数
 
-## 五、main 分支保护（已启用）
+## 五、CI（自动检查）
+
+`.github/workflows/ci.yml` 在每次 PR 与 main 推送时自动运行：
+
+1. 编译检查：`python -m compileall -q infra runtime agent app`
+2. 单元测试：`python -m unittest discover -s test -p "test_*.py"`
+
+查看方式（PR 页面会自动显示检查状态）：
+
+```powershell
+gh pr checks               # 当前 PR 的检查结果
+gh run list -L 10          # 最近的工作流运行
+gh run view --log-failed   # 失败时查看日志
+```
+
+## 六、main 分支保护（已启用）
 
 - 必须通过 PR 合入，禁止直接 push（管理员同样受限）
 - 禁止 force push 与删除分支
 - 修改入口：GitHub 仓库 Settings -> Branches / Rulesets
 
-## 六、常用命令速查
+## 七、常用命令速查
 
 ```powershell
 git status -sb                 # 查看分支及领先/落后情况
