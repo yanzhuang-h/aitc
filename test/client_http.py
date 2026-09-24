@@ -1,4 +1,7 @@
+import argparse
 import json
+import os
+import sys
 import time
 import requests
 from collections import defaultdict, deque
@@ -6,9 +9,9 @@ from threading import Thread, Lock
 import logging
 
 # ==================== 配置参数 ====================
-# 在这里修改您的配置
+# 默认值；命令行参数（--file / --url / --interval）可覆盖
 CONFIG = {
-    'file_path': '2025-09-08_radar.txt',                          # 日志文件路径
+    'file_path': 'test/radar_data/2026-09-24_radar_sample.txt',   # 日志文件路径
     'server_url': 'http://127.0.0.1:8088',    # 目标服务器URL
     'max_lines': 50000,                                  # 最大读取行数，None表示读取全部
     'send_interval': 1.0,                               # 发送间隔（秒）
@@ -108,10 +111,11 @@ class LogProcessor:
         except Exception as e:
             logger.error(f"读取文件时发生错误: {e}")
             raise
-    
+
     def send_data(self, data):
         """发送数据到服务器"""
-        device_id = data.get('deviceId')
+        # 雷达与雷达事件用 deviceNo，博研用 deviceId
+        device_id = data.get('deviceNo') or data.get('deviceId')
         
         if self.test_mode:
             logger.info(f"[测试模式] 模拟发送数据 - 设备ID: {device_id}")
@@ -234,11 +238,34 @@ def test_server():
         return False
 
 
+def parse_args(argv=None):
+    """命令行参数；不传时沿用 CONFIG 里的默认值。"""
+    parser = argparse.ArgumentParser(description='HTTP 数据回放客户端（雷达 / 雷达事件 / 博研）')
+    parser.add_argument('--file', help=f"数据文件路径（默认 {CONFIG['file_path']}）")
+    parser.add_argument('--url', help=f"目标服务器 URL（默认 {CONFIG['server_url']}）")
+    parser.add_argument('--interval', type=float,
+                        help=f"每轮发送间隔秒（默认 {CONFIG['send_interval']}）")
+    return parser.parse_args(argv)
+
+
 def main():
     """主函数"""
+    args = parse_args()
+    if args.file:
+        CONFIG['file_path'] = args.file
+    if args.url:
+        CONFIG['server_url'] = args.url
+    if args.interval is not None:
+        CONFIG['send_interval'] = args.interval
+
     print("\n日志文件处理器 v1.0")
     print("=" * 50)
-    
+
+    if not os.path.exists(CONFIG['file_path']):
+        logger.error(f"数据文件不存在: {CONFIG['file_path']}")
+        logger.error("可用样例: test/radar_data/2026-09-24_radar_sample.txt")
+        sys.exit(1)
+
     # 创建并运行处理器
     processor = LogProcessor(CONFIG)
     
