@@ -7,8 +7,8 @@ AITC 交通信号控制系统，正在进行企业级重构：**Qwen 大模型�
 
 ## 硬性规则
 1. **`lib/` 目录禁止修改**：这是受保护的遗留算法层，只能被调用，不能改内部实现。
-2. **每步改动完成后主动 Git commit，提交信息使用中文**，用户可直接 `git push`。
-3. **注释、文档、提交信息一律使用中文**。
+2. **一切改动走「短分支 + PR」**：`main` 已启用保护，禁止直接 push；每个改动从最新 `main` 开短分支（`feature/`、`fix/`、`docs/`、`chore/`），本地验证后推送、提 PR，以 **Squash** 方式合入并删除源分支。
+3. **注释、文档、提交信息一律使用中文**；提交信息使用约定式前缀（`feat:` / `fix:` / `docs:` / `chore:`）+ 中文简述。
 4. **不动算法核心**：重构只移动调用边界，保持旧接口、报文格式和行为兼容。
 5. **减法优先**：只做"能合并才合并"的精简，用户明确要求时才抽象新层，避免过度架构化。
 6. **协作方代码更新不实时**：除非用户明确授权，避免大范围改动共享文件（如 `Server_AITC.py`、`lib/`）。
@@ -41,9 +41,15 @@ C:\Users\Finn\.conda\envs\aitc\python.exe -m unittest discover -s test -p "test_
 
 # Linux 服务器（llm 环境）
 python -m unittest discover -s test -p "test_*.py"
+
+# 分支与 PR（gh CLI）
+git switch main; git pull; git switch -c feature/xxx
+git push -u origin feature/xxx
+gh pr create --fill; gh pr checks; gh pr merge --squash --delete-branch
 ```
 
 ## 工作方式
 - 动手前先读相关代码和 `todo-done/` 下的开发文档（8-5.md checklist、data-flow-baseline.md、data-contract.md、architecture-migration-plan.md）。
 - 大改动先给方案/顺序，用户确认后再实施。
-- 每一步完成：验证（编译 + 测试）-> 更新 `todo-done/` 与项目记忆 -> 中文 commit。
+- 每一步完成（DoD）：本地验证（编译 + 测试）-> 更新 `todo-done/` 与项目记忆 -> 在短分支上中文提交 -> 推送并开 PR（Squash 合入、删除源分支）。
+- 分支 / PR / 提交信息的完整规范见 `docs/CONTRIBUTING.md`。
