@@ -1,0 +1,16 @@
+# AITC 运行与测试依赖（单一来源：本地 WSL .venv 与 GitHub Actions CI 共用）
+#
+# 环境搭建：
+#   python -m venv .venv
+#   .venv/bin/python -m pip install -r requirements.txt
+#
+# 说明：
+# - mcp 固定在 1.x：agent/mcp_server.py 使用 mcp.server.fastmcp（2.x 已更名为 MCPServer）；
+# - 以下依赖仅离线工具/历史脚本使用，不随本文件安装：
+#     pandas        -> time_schedule/*.py 表格处理脚本
+#     python-docx   -> gen_api_docs.py 生成接口说明文档
+#     torch / transformers / einops -> infra/model/qwen/main.py 本地模型冒烟脚本
+mcp>=1.0,<2
+APScheduler>=3.10,<4
+chinesecalendar>=1.9
+numpy>=1.26,<3
