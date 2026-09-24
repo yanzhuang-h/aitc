@@ -7,7 +7,7 @@
 <!-- 按模块列出主要变更点；涉及行为变化请明确写出 -->
 
 ## 验证方式与结果
-- [ ] 编译通过：`python -m compileall -q infra data runtime agent app`
+- [ ] 编译通过：`python -m compileall -q infra runtime agent app`
 - [ ] 测试通过：`python -m unittest discover -s test -p "test_*.py"`
 - [ ] 手工验证（回放客户端 / 前端页面 / 服务器环境）：
 - [ ] 验证结果摘要：

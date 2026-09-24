@@ -33,7 +33,7 @@ git switch -c feature/xxx
 
 ```powershell
 # Windows（aitc conda 环境）
-C:\Users\Finn\.conda\envs\aitc\python.exe -m compileall -q infra data runtime agent app
+C:\Users\Finn\.conda\envs\aitc\python.exe -m compileall -q infra runtime agent app
 C:\Users\Finn\.conda\envs\aitc\python.exe -m unittest discover -s test -p "test_*.py"
 
 # Linux 服务器（llm 环境）

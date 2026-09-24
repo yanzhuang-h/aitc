@@ -36,7 +36,7 @@ test/                 自动化测试 + 手工回放客户端
 ## 常用命令
 ```powershell
 # Windows（aitc conda 环境）
-C:\Users\Finn\.conda\envs\aitc\python.exe -m compileall -q infra data runtime agent app
+C:\Users\Finn\.conda\envs\aitc\python.exe -m compileall -q infra runtime agent app
 C:\Users\Finn\.conda\envs\aitc\python.exe -m unittest discover -s test -p "test_*.py" -v
 
 # Linux 服务器（llm 环境）
