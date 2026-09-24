@@ -33,14 +33,15 @@ class _LLMClient:
 
 class ApplicationTest(unittest.TestCase):
     def test_start_and_stop_manage_components(self):
-        config, http, tcp, scheduler, pipeline = _Component(), _Component(), _Component(), _Component(), _Pipeline()
-        app = AITCApplication(config_sync_manager=config, http_server=http, tcp_server=tcp, decision_pipeline=pipeline, prediction_scheduler=scheduler, send_interval=0.01)
+        config, http, tcp, scheduler, experience, pipeline = _Component(), _Component(), _Component(), _Component(), _Component(), _Pipeline()
+        app = AITCApplication(config_sync_manager=config, http_server=http, tcp_server=tcp, decision_pipeline=pipeline, prediction_scheduler=scheduler, experience_pool_scheduler=experience, send_interval=0.01, enable_config_sync=True)
         app.start()
         time.sleep(0.03)
         app.stop()
         self.assertEqual(config.calls, ["start", "stop"])
         self.assertEqual(http.calls, ["start", "stop"])
         self.assertEqual(scheduler.calls, ["start", "stop"])
+        self.assertEqual(experience.calls, ["start", "stop"])
         self.assertIn("broadcast", tcp.calls)
         self.assertIn("stop", tcp.calls)
         self.assertGreaterEqual(pipeline.calls, 1)

@@ -131,8 +131,9 @@ class RuntimeSettings:
     runtime_data_dir: Path = Path("infra/data/runtime")
     runtime_output_dir: Path = Path("logs_data")
     prediction_data_dir: Path = Path("logs_data")
-    enable_config_sync: bool = True
+    enable_config_sync: bool = False
     enable_prediction_scheduler: bool = True
+    enable_experience_pool_scheduler: bool = True
     llm_base_url: str = "http://127.0.0.1:8000/v1"
     llm_model: str = "Qwen3-0.6B"
     llm_api_key: str = "EMPTY"
@@ -140,6 +141,8 @@ class RuntimeSettings:
     llm_max_tokens: int = 1024
     llm_enable_thinking: bool = False
     llm_required: bool = False
+    control_snapshot_enabled: bool = False
+    control_snapshot_dir: Path = Path("logs_data/control_snapshots")
 
     @classmethod
     def from_environment(cls) -> "RuntimeSettings":
@@ -160,13 +163,13 @@ class RuntimeSettings:
             RunMode.DEVELOPMENT: {
                 "tcp_host": "127.0.0.1",
                 "http_host": "127.0.0.1",
-                "enable_config_sync": True,
+                "enable_config_sync": False,
                 "enable_prediction_scheduler": True,
             },
             RunMode.PRODUCTION: {
                 "tcp_host": "0.0.0.0",
                 "http_host": "0.0.0.0",
-                "enable_config_sync": True,
+                "enable_config_sync": False,
                 "enable_prediction_scheduler": True,
             },
         }[run_mode]
@@ -187,6 +190,7 @@ class RuntimeSettings:
             prediction_data_dir=_read_path("AITC_PREDICTION_DATA_DIR", "logs_data"),
             enable_config_sync=_read_bool("AITC_ENABLE_CONFIG_SYNC", mode_defaults["enable_config_sync"]),
             enable_prediction_scheduler=_read_bool("AITC_ENABLE_PREDICTION_SCHEDULER", mode_defaults["enable_prediction_scheduler"]),
+            enable_experience_pool_scheduler=_read_bool("AITC_EXPERIENCE_POOL_ENABLED", True),
             llm_base_url=_read_str("AITC_LLM_BASE_URL", "http://127.0.0.1:8000/v1", "LLM_BASE_URL"),
             llm_model=_read_str("AITC_LLM_MODEL", "Qwen3-0.6B", "LLM_MODEL_ID"),
             llm_api_key=_read_str("AITC_LLM_API_KEY", "EMPTY", "LLM_API_KEY"),
@@ -194,6 +198,8 @@ class RuntimeSettings:
             llm_max_tokens=_read_int("AITC_LLM_MAX_TOKENS", 1024, "LLM_MAX_TOKENS"),
             llm_enable_thinking=_read_bool("AITC_LLM_ENABLE_THINKING", False, "LLM_ENABLE_THINKING"),
             llm_required=_read_bool("AITC_LLM_REQUIRED", False, "LLM_REQUIRED"),
+            control_snapshot_enabled=_read_bool("AITC_CONTROL_SNAPSHOT_ENABLED", False),
+            control_snapshot_dir=_read_path("AITC_CONTROL_SNAPSHOT_DIR", "logs_data/control_snapshots"),
         )
 
     def validate(self) -> "RuntimeSettings":

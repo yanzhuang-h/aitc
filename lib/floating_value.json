@@ -6,8 +6,27 @@
         "time_during_start": "11:00",
         "time_during_end": "11:30",
         "phase_偏移": [
-            1,
+            10,
+            2,
+            3,
             0,
+            0,
+            0,
+            0,
+            0,
+            0
+        ]
+    },
+
+    {
+        "Cross_id": "1300069",
+        "Change_id": "0",
+        "IS_work_day": "no",
+        "time_during_start": "10:00",
+        "time_during_end": "22:30",
+        "phase_偏移": [
+            0,
+            2,
             3,
             0,
             0,

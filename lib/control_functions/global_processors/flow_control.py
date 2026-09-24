@@ -35,7 +35,17 @@ def select_flow_control_state(cross_id, demand, road_config, hour):
 def generate_flow_phase_plan(plan, demand, state_config):
     """Generate flow phases using the legacy dedicated half-phase rules."""
     phases = state_config["phase"]
-    mins, maxs = state_config["platform_min_pass_time"], state_config["max_pass_time"]
+    # 两套下限逐相位取大（详见 mixed_control 同款说明），只增不减地兜底。
+    signal_minimums = state_config.get("min_pass_time") or []
+    platform_minimums = state_config.get("platform_min_pass_time") or []
+    mins = [
+        max(
+            signal_minimums[i] if i < len(signal_minimums) else 0,
+            platform_minimums[i] if i < len(platform_minimums) else 0,
+        )
+        for i in range(8)
+    ]
+    maxs = state_config["max_pass_time"]
     marks = {name: -1 for name in ("L", "R", "U", "D", "LR", "UD")}
     for i, name in enumerate(phases[:8]):
         if name in marks: marks[name] = i

@@ -18,6 +18,7 @@ class _ConfigService:
         return None
 
 
+
 class _QueryService:
     def get_runtime_size(self, _kind):
         return 3
@@ -146,6 +147,7 @@ class HttpRuntimeServerTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(payload["radar_cache_size"], 3)
         self.assertEqual(payload["data_quality"]["total_issues"], 2)
+
 
     def test_get_root_returns_frontend_html(self):
         connection = http.client.HTTPConnection(*self.server.address, timeout=2)

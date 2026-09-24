@@ -195,9 +195,35 @@ Cross_Video = {
     "Cross_type": "Radar"
 },
 
+'1700542': {
+    "Cross_type": "Radar"
+},
+'1700448': {
+    "Cross_type": "Radar"
+},
+'1700449': {
+    "Cross_type": "Radar"
+},
+'1700450': {
+    "Cross_type": "Radar"
+},
+'1700545': {
+    "Cross_type": "Radar"
+},
 
+'2272': {
+    "Cross_type": "Radar"
+},
+'2620': {
+    "Cross_type": "Radar"
+},
 
-
+'2468': {
+    "Cross_type": "Radar"
+},
+'2625': {
+    "Cross_type": "Radar"
+},
 
 
 
@@ -490,6 +516,60 @@ def DQN_select(traffic_vector, queue_vector,traffic_vector_duration2,current_tim
             return DQN_select_1300070(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
                                   flow_map_single_intersection, queue_map_single_intersection,
                                   stage_map_single_intersection, extend_map_single_intersection, 0, cur_flow_pre_map, cur_queue_pre_map)
+
+
+
+        elif cross_id == '1700542':
+            return DQN_select_1700542(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
+                                      flow_map_single_intersection, queue_map_single_intersection,
+                                      stage_map_single_intersection, extend_map_single_intersection, 0,
+                                      cur_flow_pre_map, cur_queue_pre_map)
+        elif cross_id == '1700448':
+            return DQN_select_1700448(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
+                                      flow_map_single_intersection, queue_map_single_intersection,
+                                      stage_map_single_intersection, extend_map_single_intersection, 0,
+                                      cur_flow_pre_map, cur_queue_pre_map)
+        elif cross_id == '1700449':
+            return DQN_select_1700449(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
+                                      flow_map_single_intersection, queue_map_single_intersection,
+                                      stage_map_single_intersection, extend_map_single_intersection, 0,
+                                      cur_flow_pre_map, cur_queue_pre_map)
+        elif cross_id == '1700450':
+            return DQN_select_1700450(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
+                                      flow_map_single_intersection, queue_map_single_intersection,
+                                      stage_map_single_intersection, extend_map_single_intersection, 0,
+                                      cur_flow_pre_map, cur_queue_pre_map)
+        elif cross_id == '1700545':
+            return DQN_select_1700545(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
+                                      flow_map_single_intersection, queue_map_single_intersection,
+                                      stage_map_single_intersection, extend_map_single_intersection, 0,
+                                      cur_flow_pre_map, cur_queue_pre_map)
+
+
+        elif cross_id == '2272':
+            return DQN_select_2272(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
+                                      flow_map_single_intersection, queue_map_single_intersection,
+                                      stage_map_single_intersection, extend_map_single_intersection, 0,
+                                      cur_flow_pre_map, cur_queue_pre_map)
+        elif cross_id == '2620':
+            return DQN_select_2620(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
+                                      flow_map_single_intersection, queue_map_single_intersection,
+                                      stage_map_single_intersection, extend_map_single_intersection, 0,
+                                      cur_flow_pre_map, cur_queue_pre_map)
+        elif cross_id == '2625':
+            return DQN_select_2625(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
+                                      flow_map_single_intersection, queue_map_single_intersection,
+                                      stage_map_single_intersection, extend_map_single_intersection, 0,
+                                      cur_flow_pre_map, cur_queue_pre_map)
+        elif cross_id == '2468':
+            return DQN_select_2468(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
+                                      flow_map_single_intersection, queue_map_single_intersection,
+                                      stage_map_single_intersection, extend_map_single_intersection, 0,
+                                      cur_flow_pre_map, cur_queue_pre_map)
+
+
+
+
     else:
         sch = [0] * 10
     # if cross_id in Cross_Radar:
@@ -747,7 +827,7 @@ def DQN_select_1300870(traffic_vector, queue_vector,traffic_vector_duration2,cur
 
 
     print(ul,d)
-    if ((minutes>= 7*60 and minutes<=9*60+30)or(minutes>= 17*60 +30and minutes<=19*60))and is_workday(today):
+    if ((minutes>= 7*60 and minutes<=9*60+30)or(minutes>= 16*60 +30and minutes<=19*60))and is_workday(today):
            sch[9] = 18
            sch[3] = 40
            sch[1] = int(sch[0] - 20)
@@ -769,7 +849,19 @@ def DQN_select_1300870(traffic_vector, queue_vector,traffic_vector_duration2,cur
                 sch[2] = (ul + 25) // 2
 
     coordinate_set = {}
-
+    # model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
+    # EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
+    #
+    # coordinate_set = {"Start1": 1, "start2": 0}
+    # print("1300870-----------------------------------------------")
+    #
+    # print(flow_map_single_intersection)
+    #
+    # print("1300870-----------------------------------------------")
+    #
+    # sch = chuli_shuju3("1300870", flow_map_single_intersection)
+    # print("1700086____________________________________", sch, "1700086____________________________________")
+    # return sch, coordinate_set, model_map, EXP_map
 
     return sch,coordinate_set,model_map,EXP_map
 
@@ -1758,4 +1850,131 @@ def DQN_select_1300070(traffic_vector, queue_vector, traffic_vector_duration2, c
 
 
 
+    return sch, coordinate_set, model_map, EXP_map
+
+
+
+def DQN_select_1700542(traffic_vector, queue_vector, traffic_vector_duration2, current_time, flow_map_single_intersection, queue_map_single_intersection, stage_map_single_intersection, extend_map_single_intersection, coordinate_map_set, cur_flow_pre_map, cur_queue_pre_map):
+    model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
+    EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
+    coordinate_set = {"Start1": 1, "start2": 0}
+    print("1700542-----------------------------------------------")
+    print(flow_map_single_intersection)
+    print("1700542-----------------------------------------------")
+    # sch = chuli_shuju("1700542", flow_map_single_intersection, extend_map_single_intersection)
+    sch = [0] * 10
+    sch = select_pilot_schedule("1700542", sch, flow_map_single_intersection, extend_map_single_intersection)
+    print("1700542____________________________________", sch, "1700542____________________________________")
+    return sch, coordinate_set, model_map, EXP_map
+
+
+def DQN_select_1700448(traffic_vector, queue_vector, traffic_vector_duration2, current_time, flow_map_single_intersection, queue_map_single_intersection, stage_map_single_intersection, extend_map_single_intersection, coordinate_map_set, cur_flow_pre_map, cur_queue_pre_map):
+    model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
+    EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
+    coordinate_set = {"Start1": 1, "start2": 0}
+    print("1700448-----------------------------------------------")
+    print(flow_map_single_intersection)
+    print("1700448-----------------------------------------------")
+    # sch = chuli_shuju("1700448", flow_map_single_intersection, extend_map_single_intersection)
+    sch=[0]*10
+    sch = select_pilot_schedule("1700448", sch, flow_map_single_intersection, extend_map_single_intersection)
+    print("1700448____________________________________", sch, "1700448____________________________________")
+    return sch, coordinate_set, model_map, EXP_map
+
+
+def DQN_select_1700449(traffic_vector, queue_vector, traffic_vector_duration2, current_time, flow_map_single_intersection, queue_map_single_intersection, stage_map_single_intersection, extend_map_single_intersection, coordinate_map_set, cur_flow_pre_map, cur_queue_pre_map):
+    model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
+    EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
+    coordinate_set = {"Start1": 1, "start2": 0}
+    print("1700449-----------------------------------------------")
+    print(flow_map_single_intersection)
+    print("1700449-----------------------------------------------")
+    # sch = chuli_shuju("1700449", flow_map_single_intersection, extend_map_single_intersection)
+    sch = [0] * 10
+    sch = select_pilot_schedule("1700449", sch, flow_map_single_intersection, extend_map_single_intersection)
+    print("1700449____________________________________", sch, "1700449____________________________________")
+    return sch, coordinate_set, model_map, EXP_map
+
+
+def DQN_select_1700450(traffic_vector, queue_vector, traffic_vector_duration2, current_time, flow_map_single_intersection, queue_map_single_intersection, stage_map_single_intersection, extend_map_single_intersection, coordinate_map_set, cur_flow_pre_map, cur_queue_pre_map):
+    model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
+    EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
+    coordinate_set = {"Start1": 1, "start2": 0}
+    print("1700450-----------------------------------------------")
+    print(flow_map_single_intersection)
+    print("1700450-----------------------------------------------")
+    # sch = chuli_shuju("1700450", flow_map_single_intersection, extend_map_single_intersection)
+    sch = [0] * 10
+    sch = select_pilot_schedule("1700450", sch, flow_map_single_intersection, extend_map_single_intersection)
+    print("1700450____________________________________", sch, "1700450____________________________________")
+    return sch, coordinate_set, model_map, EXP_map
+
+
+def DQN_select_1700545(traffic_vector, queue_vector, traffic_vector_duration2, current_time, flow_map_single_intersection, queue_map_single_intersection, stage_map_single_intersection, extend_map_single_intersection, coordinate_map_set, cur_flow_pre_map, cur_queue_pre_map):
+    model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
+    EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
+    coordinate_set = {"Start1": 1, "start2": 0}
+    print("1700545-----------------------------------------------")
+    print(flow_map_single_intersection)
+    print("1700545-----------------------------------------------")
+    # sch = chuli_shuju("1700545", flow_map_single_intersection, extend_map_single_intersection)
+    sch = [0] * 10
+    sch = select_pilot_schedule("1700545", sch, flow_map_single_intersection, extend_map_single_intersection)
+    print("1700545____________________________________", sch, "1700545____________________________________")
+    return sch, coordinate_set, model_map, EXP_map
+
+
+
+def DQN_select_2620(traffic_vector, queue_vector, traffic_vector_duration2, current_time, flow_map_single_intersection, queue_map_single_intersection, stage_map_single_intersection, extend_map_single_intersection, coordinate_map_set, cur_flow_pre_map, cur_queue_pre_map):
+    model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
+    EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
+    coordinate_set = {"Start1": 1, "start2": 0}
+    print("2620-----------------------------------------------")
+    print(flow_map_single_intersection)
+    print("2620-----------------------------------------------")
+    # sch = chuli_shuju("1700450", flow_map_single_intersection, extend_map_single_intersection)
+    sch = [0] * 10
+    sch = select_pilot_schedule("2620", sch, flow_map_single_intersection, extend_map_single_intersection)
+    print("2620____________________________________", sch, "2620____________________________________")
+    return sch, coordinate_set, model_map, EXP_map
+
+
+def DQN_select_2272(traffic_vector, queue_vector, traffic_vector_duration2, current_time, flow_map_single_intersection, queue_map_single_intersection, stage_map_single_intersection, extend_map_single_intersection, coordinate_map_set, cur_flow_pre_map, cur_queue_pre_map):
+    model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
+    EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
+    coordinate_set = {"Start1": 1, "start2": 0}
+    print("2272-----------------------------------------------")
+    print(flow_map_single_intersection)
+    print("2272-----------------------------------------------")
+    # sch = chuli_shuju("2272", flow_map_single_intersection, extend_map_single_intersection)
+    sch = [0] * 10
+    sch = select_pilot_schedule("2272", sch, flow_map_single_intersection, extend_map_single_intersection)
+    print("2272____________________________________", sch, "2272____________________________________")
+    return sch, coordinate_set, model_map, EXP_map
+
+def DQN_select_2625(traffic_vector, queue_vector, traffic_vector_duration2, current_time, flow_map_single_intersection, queue_map_single_intersection, stage_map_single_intersection, extend_map_single_intersection, coordinate_map_set, cur_flow_pre_map, cur_queue_pre_map):
+    model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
+    EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
+    coordinate_set = {"Start1": 1, "start2": 0}
+    print("2625-----------------------------------------------")
+    print(flow_map_single_intersection)
+    print("2625-----------------------------------------------")
+    # sch = chuli_shuju("1700450", flow_map_single_intersection, extend_map_single_intersection)
+    sch = [0] * 10
+    sch = select_pilot_schedule("2625", sch, flow_map_single_intersection, extend_map_single_intersection)
+    print("2625____________________________________", sch, "2625____________________________________")
+    return sch, coordinate_set, model_map, EXP_map
+
+
+def DQN_select_2468(traffic_vector, queue_vector, traffic_vector_duration2, current_time, flow_map_single_intersection, queue_map_single_intersection, stage_map_single_intersection, extend_map_single_intersection, coordinate_map_set, cur_flow_pre_map, cur_queue_pre_map):
+    model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
+    EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
+    coordinate_set = {"Start1": 1, "start2": 0}
+    print("2468-----------------------------------------------")
+    print(flow_map_single_intersection)
+    print("2468-----------------------------------------------")
+    # sch = chuli_shuju("2272", flow_map_single_intersection, extend_map_single_intersection)
+    sch = [0] * 10
+    sch = select_pilot_schedule("2468", sch, flow_map_single_intersection, extend_map_single_intersection)
+    print("2468____________________________________", sch, "2468____________________________________")
     return sch, coordinate_set, model_map, EXP_map

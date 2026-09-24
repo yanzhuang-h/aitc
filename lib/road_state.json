@@ -1,1 +1,19 @@
-{}
+{
+"1300362": [
+    {
+      "Start_time": "21:00",
+      "end_time": "23:30",
+      "zhuangtai": 5,
+      "enabled": true
+    },
+
+  {
+      "Start_time": "00:00",
+      "end_time": "05:30",
+      "zhuangtai": 5,
+      "enabled": true
+    }
+]
+
+}
+

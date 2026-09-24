@@ -54,7 +54,18 @@ def select_mixed_control_state(direction_state, demand, road_config, hour):
 def generate_mixed_phase_plan(plan, demand, state_config):
     """Populate a mixed-road plan and apply legacy per-phase bounds."""
     phases = state_config["phase"]
-    minimums = state_config["platform_min_pass_time"]
+    # 两套下限逐相位取大：platform_min_pass_time 与信号机 min_pass_time
+    # 在不同路口中互为补充（如 1300069 平台下限全 0、1300044 信号机下限全 0），
+    # 任一套非 0 都应兜底，避免单方向流量导致首相位 0 / 空 phase。
+    signal_minimums = state_config.get("min_pass_time") or []
+    platform_minimums = state_config.get("platform_min_pass_time") or []
+    minimums = [
+        max(
+            signal_minimums[i] if i < len(signal_minimums) else 0,
+            platform_minimums[i] if i < len(platform_minimums) else 0,
+        )
+        for i in range(8)
+    ]
     maximums = state_config["max_pass_time"]
     marks = {name: -1 for name in ("L", "R", "U", "D", "LR", "UD")}
     for index, phase_type in enumerate(phases[:8]):
