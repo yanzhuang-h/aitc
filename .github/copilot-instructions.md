@@ -5,6 +5,8 @@
 ## 项目背景
 AITC 交通信号控制系统，正在进行企业级重构：**Qwen 大模型底座 + 数据仓库底座**的松散耦合架构。数据底座已基本成型，Qwen Agent 编排正在接入。
 
+开发环境（2026-09-24 起）：WSL2（Ubuntu），仓库 `~/projects/aitc`，虚拟环境 `.venv`，详见 `todo-done/wsl-migration.md`。
+
 ## 硬性规则
 1. **`lib/` 目录禁止修改**：这是受保护的遗留算法层，只能被调用，不能改内部实现。
 2. **一切改动走「短分支 + PR」**：`main` 已启用保护，禁止直接 push；每个改动从最新 `main` 开短分支（`feature/`、`fix/`、`docs/`、`chore/`），本地验证后推送、提 PR，以 **Squash** 方式合入并删除源分支。
@@ -34,10 +36,10 @@ test/                 自动化测试 + 手工回放客户端
 - 日志统一使用 `logging` 分级，禁止裸 `print` 刷屏。
 
 ## 常用命令
-```powershell
-# Windows（aitc conda 环境）
-C:\Users\Finn\.conda\envs\aitc\python.exe -m compileall -q infra runtime agent app
-C:\Users\Finn\.conda\envs\aitc\python.exe -m unittest discover -s test -p "test_*.py" -v
+```bash
+# WSL 开发环境（仓库根目录下执行，.venv）
+.venv/bin/python -m compileall -q infra runtime agent app
+.venv/bin/python -m unittest discover -s test -p "test_*.py" -v
 
 # Linux 服务器（llm 环境）
 python -m unittest discover -s test -p "test_*.py"

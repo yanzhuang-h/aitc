@@ -59,6 +59,6 @@ Ran 136 tests ... OK
 
 ## 6. 后续约定
 
-- 开发目录：`C:\Users\Finn\Desktop\dkrg-aitc\AITC`（Windows）；
+- 开发目录：WSL2（Ubuntu）`~/projects/aitc`（`.venv`），见 `todo-done/wsl-migration.md`；
 - 推送：`git push`（origin = git@github.com:yanzhuang-h/aitc.git）；
 - 服务器部署目录 `/home/feile/aitc2.0/aitc-main` 保持现状，待下次部署时同步本仓库。

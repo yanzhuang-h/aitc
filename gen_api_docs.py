@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """生成《AITC 对外 HTTP 接口说明》Word 文档。
 
-用法：C:\\Users\\Finn\\.conda\\envs\\aitc\\python.exe gen_api_docs.py
+用法：.venv/bin/python gen_api_docs.py（依赖 python-docx，需先安装）
 输出：docs/对外HTTP接口说明.docx
 """
 

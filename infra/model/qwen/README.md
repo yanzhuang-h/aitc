@@ -49,13 +49,13 @@ python -m sglang.launch_server \
 curl http://127.0.0.1:8000/v1/models
 ```
 
-再在 AITC 的 `aitc` 环境中配置客户端：
+再在 WSL 开发环境（`.venv`）中配置客户端（也可直接写入根目录 `.env`）：
 
-```powershell
-$env:AITC_LLM_BASE_URL = "http://127.0.0.1:8000/v1"
-$env:AITC_LLM_MODEL = "Qwen3-0.6B"
-$env:AITC_LLM_API_KEY = "EMPTY"
-$env:AITC_LLM_ENABLE_THINKING = "false"
+```bash
+export AITC_LLM_BASE_URL="http://127.0.0.1:8000/v1"
+export AITC_LLM_MODEL="Qwen3-0.6B"
+export AITC_LLM_API_KEY="EMPTY"
+export AITC_LLM_ENABLE_THINKING="false"
 ```
 
 客户端入口是：
