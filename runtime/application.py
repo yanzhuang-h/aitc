@@ -33,6 +33,7 @@ from infra.data import (
     is_millisecond_timestamp,
 )
 from infra.data.output_store import FileRuntimeOutputStore
+from infra.logging import LoggingMixin
 
 from .decision_pipeline import PeriodicDecisionPipeline
 from .http_server import HttpRuntimeServer
@@ -52,17 +53,32 @@ from app.core.tools.legacy_algorithms import DQN_select
 from lib.data_ANS.experience_runtime import ExperiencePoolScheduler
 
 
-class AITCApplication:
+class AITCApplication(LoggingMixin):
     """协调数据服务、决策管线与配置同步的应用生命周期。"""
 
-    def __init__(self, *, config_sync_manager, http_server, tcp_server, decision_pipeline, prediction_scheduler, send_interval, enable_config_sync=False, enable_prediction_scheduler=True, experience_pool_scheduler=None, llm_client=None, llm_required=False, logger=None):
+    def __init__(
+        self,
+        *,
+        config_sync_manager,
+        http_server,
+        tcp_server,
+        decision_pipeline,
+        prediction_scheduler,
+        decision_interval,
+        enable_config_sync=False,
+        enable_prediction_scheduler=True,
+        experience_pool_scheduler=None,
+        llm_client=None,
+        llm_required=False,
+        logger=None,
+    ):
         self.config_sync_manager = config_sync_manager
         self.http_server = http_server
         self.tcp_server = tcp_server
         self.decision_pipeline = decision_pipeline
         self.prediction_scheduler = prediction_scheduler
         self.experience_pool_scheduler = experience_pool_scheduler
-        self.send_interval = send_interval
+        self.decision_interval = decision_interval
         self.enable_config_sync = enable_config_sync
         self.enable_prediction_scheduler = enable_prediction_scheduler
         self.llm_client = llm_client
@@ -96,8 +112,8 @@ class AITCApplication:
             self.llm_client.list_models()
             self._info(
                 "LLM 服务已就绪: %s (model=%s)",
-                getattr(self.llm_client, "base_url", "?"),
-                getattr(self.llm_client, "model", "?"),
+                self.llm_client.base_url,
+                self.llm_client.model,
             )
         except Exception as error:
             if self.llm_required:
@@ -120,7 +136,7 @@ class AITCApplication:
         self.http_server.stop()
         self.tcp_server.stop()
         if self._decision_thread is not None:
-            self._decision_thread.join(timeout=self.send_interval + 1)
+            self._decision_thread.join(timeout=self.decision_interval + 1)
         self._info("AITC application stopped")
 
     def _run_decision_loop(self) -> None:
@@ -130,19 +146,7 @@ class AITCApplication:
                 self.decision_pipeline.run_once()
             except Exception:
                 self._error("数据处理失败", exc_info=True)
-            self._stop_event.wait(max(0.0, self.send_interval - (time.monotonic() - started_at)))
-
-    def _info(self, message, *args):
-        if self.logger is not None:
-            self.logger.info(message, *args)
-
-    def _warning(self, message, *args):
-        if self.logger is not None:
-            self.logger.warning(message, *args)
-
-    def _error(self, message, *args, **kwargs):
-        if self.logger is not None:
-            self.logger.error(message, *args, **kwargs)
+            self._stop_event.wait(max(0.0, self.decision_interval - (time.monotonic() - started_at)))
 
 
 def create_application(logger=None, settings: RuntimeSettings | None = None) -> AITCApplication:
@@ -215,4 +219,4 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
         if settings.enable_experience_pool_scheduler
         else None
     )
-    return AITCApplication(config_sync_manager=ConfigSyncManager(), http_server=http_server, tcp_server=tcp_server, decision_pipeline=pipeline, prediction_scheduler=prediction_scheduler, experience_pool_scheduler=experience_pool_scheduler, send_interval=settings.decision_interval_seconds, enable_config_sync=settings.enable_config_sync, enable_prediction_scheduler=settings.enable_prediction_scheduler, llm_client=qwen_client, llm_required=settings.llm_required, logger=logger)
+    return AITCApplication(config_sync_manager=ConfigSyncManager(), http_server=http_server, tcp_server=tcp_server, decision_pipeline=pipeline, prediction_scheduler=prediction_scheduler, experience_pool_scheduler=experience_pool_scheduler, decision_interval=settings.decision_interval_seconds, enable_config_sync=settings.enable_config_sync, enable_prediction_scheduler=settings.enable_prediction_scheduler, llm_client=qwen_client, llm_required=settings.llm_required, logger=logger)
