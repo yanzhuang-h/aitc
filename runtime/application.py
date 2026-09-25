@@ -19,7 +19,6 @@ from app.config import RuntimeSettings
 from infra.data import (
     ConfigService,
     ConfigSyncManager,
-    DataKind,
     LongTermMemory,
     DataQualityMonitor,
     FilePredictionRepository,
@@ -147,17 +146,20 @@ class AITCApplication:
 
 
 def create_application(logger=None, settings: RuntimeSettings | None = None) -> AITCApplication:
-    """按当前兼容配置创建完整运行应用。"""
+    """装配完整运行应用：数据底座 → 决策管线 → Agent → 协议服务与调度。"""
     settings = (settings or RuntimeSettings.from_environment()).validate()
-    cache = ShortTermMemory({
-        DataKind.FLOW: 600, DataKind.QUEUE: 240, DataKind.STAGE: 600,
-        DataKind.EXTEND: 600, DataKind.ONLINE: 1800, DataKind.LATEST: 1800,
-        DataKind.RADAR: 600, DataKind.BOYAN: 600,
-    })
+
+    # ── ① 数据底座：接收、缓存、长期仓库、聚合、查询、配置与结果收发 ──
+    # 窗口缓存：各类型窗口时长使用 ShortTermMemory 的默认表（flow 600s / queue 240s / online·latest 1800s …）
+    cache = ShortTermMemory()
+    # 兼容日志输出（logs_data/<类别>/<日期>_<类别>.txt，保留旧系统格式）
     writer = RuntimeDataWriter(FileRuntimeOutputStore(settings.runtime_output_dir))
+    # 长期仓库（infra/data/runtime/runtime/*.jsonl，供历史查询）
     repository = LongTermMemory(root=settings.runtime_data_dir)
+    # 溢出告警表：初始结构与 map_lambda 一致，按「路口×方向」记录最新告警
     overflow_warning_map = copy.deepcopy(Lambdas.map_lambda)
     quality_monitor = DataQualityMonitor()
+    # 雷达事件表：eventType → deviceNo → 最新事件
     radar_event_map = {key: {} for key in Lambdas.radar_event_list}
     receiver = RuntimeDataReceiver(cache=cache, writer=writer, repository=repository, lambdas_module=Lambdas, overflow_warning_map=overflow_warning_map, radar_event_map=radar_event_map, logger=logger, quality_monitor=quality_monitor)
     ingestor = RuntimeDataIngestor(receiver)
@@ -168,6 +170,7 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
     prediction_repository = FilePredictionRepository(root=settings.prediction_data_dir)
     flow_predictor = FlowPredictionService(Flow_predict, prediction_repository)
     queue_predictor = QueuePredictionService(Queue_predict, prediction_repository)
+    # ── ② Agent 层：查询/控制工具、Qwen 客户端与 Harness ──
     signal_timing_tool = SingleIntersectionSignalTimingTool()
     data_tools = DataQueryTools(query_service, signal_timing_tool=signal_timing_tool)
     control_processor = RuntimeDataProcessor(cache, Lambdas)
@@ -177,7 +180,9 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
         radar_event_map=radar_event_map,
         flow_duration_seconds=settings.flow_duration_seconds,
     )
+    # 控制工具并入统一注册中心：Agent 与 MCP 共用同一份工具表
     control_tools.merge_into(data_tools.registry)
+    # Qwen 客户端：OpenAI 兼容接口（本地 vLLM / SGLang 或云端 DeepSeek 均可）
     qwen_client = OpenAICompatibleLLMClient(
         base_url=settings.llm_base_url,
         model=settings.llm_model,
@@ -200,6 +205,7 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
         green_wave_service=green_wave_service,
         logger=logger,
     )
+    # ── ③ 服务与调度：HTTP / TCP 服务、周期决策管线、预测与经验池调度 ──
     http_server = HttpRuntimeServer(host=settings.http_host, port=settings.http_port, ingestor=ingestor, config_service=config_service, query_service=query_service, agent_harness=agent_harness, green_wave_service=green_wave_service, logger=logger)
     tcp_server = TcpRuntimeServer(host=settings.tcp_host, port=settings.tcp_port, buffer_size=settings.tcp_buffer_size, ingestor=ingestor, result_warehouse=warehouse, result_sender=sender, send_interval=settings.result_send_interval_seconds, logger=logger)
     pipeline = PeriodicDecisionPipeline(cache=cache, data_processor=control_processor, lambdas_module=Lambdas, writer=writer, result_warehouse=warehouse, flow_predictor=flow_predictor, queue_predictor=queue_predictor, dqn_select=DQN_select, coordinate=coordinate, phase_check=phase_check, select_data_to_send=partial(format_result, lambdas_module=Lambdas), is_millisecond_timestamp=is_millisecond_timestamp, overflow_warning_map=overflow_warning_map, radar_event_map=radar_event_map, flow_duration_seconds=settings.flow_duration_seconds, logger=logger, control_snapshot_enabled=settings.control_snapshot_enabled, control_snapshot_dir=settings.control_snapshot_dir)
