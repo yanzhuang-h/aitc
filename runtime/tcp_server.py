@@ -8,8 +8,10 @@ import threading
 import time
 from typing import Any
 
+from infra.logging import LoggingMixin
 
-class TcpRuntimeServer:
+
+class TcpRuntimeServer(LoggingMixin):
     """管理 TCP 客户端连接、运行数据接入和结果广播。"""
 
     def __init__(
@@ -139,15 +141,3 @@ class TcpRuntimeServer:
         with self._clients_lock:
             if client_socket in self._clients:
                 self._clients.remove(client_socket)
-
-    def _info(self, message: str, *args: Any) -> None:
-        if self.logger is not None:
-            self.logger.info(message, *args)
-
-    def _warning(self, message: str, *args: Any) -> None:
-        if self.logger is not None:
-            self.logger.warning(message, *args)
-
-    def _error(self, message: str, *args: Any, **kwargs: Any) -> None:
-        if self.logger is not None:
-            self.logger.error(message, *args, **kwargs)

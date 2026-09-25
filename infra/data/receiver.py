@@ -10,6 +10,7 @@ from .memory.long_term import LongTermMemory
 from .quality import DataQualityMonitor
 from .memory.short_term import ShortTermMemory
 from .writer import RuntimeDataWriter
+from infra.logging import LoggingMixin
 
 
 class TrafficReceiver:
@@ -35,7 +36,7 @@ class TrafficReceiver:
         return self.repository.receive_traffic(record)
 
 
-class RuntimeDataReceiver:
+class RuntimeDataReceiver(LoggingMixin):
     """运行数据统一处理管线。
 
     socket 和 HTTP 服务仍负责协议层解析；进入本类后统一执行：
@@ -199,15 +200,3 @@ class RuntimeDataReceiver:
         if self.lambdas is None:
             return default
         return getattr(self.lambdas, attr_name, default)
-
-    def _debug(self, message: str) -> None:
-        if self.logger is not None:
-            self.logger.debug(message)
-
-    def _info(self, message: str) -> None:
-        if self.logger is not None:
-            self.logger.info(message)
-
-    def _warning(self, message: str) -> None:
-        if self.logger is not None:
-            self.logger.warning(message)

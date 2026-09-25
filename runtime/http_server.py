@@ -10,9 +10,10 @@ from typing import Any, Mapping
 from urllib.parse import parse_qs, urlparse
 
 from infra.data.classifier import DataKind
+from infra.logging import LoggingMixin
 
 
-class HttpRuntimeServer:
+class HttpRuntimeServer(LoggingMixin):
     """管理 HTTP 数据入口，并提供单路口方案查询页面。"""
 
     _BLOCKED_CORS_HEADERS = {
@@ -525,15 +526,3 @@ class HttpRuntimeServer:
         except ValueError:
             return True
         return not origin_host or origin_host != (host or "").lower()
-
-    def _info(self, message: str, *args: Any) -> None:
-        if self.logger is not None:
-            self.logger.info(message, *args)
-
-    def _warning(self, message: str, *args: Any) -> None:
-        if self.logger is not None:
-            self.logger.warning(message, *args)
-
-    def _error(self, message: str, *args: Any, **kwargs: Any) -> None:
-        if self.logger is not None:
-            self.logger.error(message, *args, **kwargs)

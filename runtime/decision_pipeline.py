@@ -13,9 +13,10 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable
 
 from infra.data.classifier import DataKind
+from infra.logging import LoggingMixin
 
 
-class PeriodicDecisionPipeline:
+class PeriodicDecisionPipeline(LoggingMixin):
     """执行一次从实时窗口到下发结果仓库的完整决策流程。"""
 
     def __init__(
@@ -274,15 +275,3 @@ class PeriodicDecisionPipeline:
         except Exception as error:
             self._error("Error getting dqn_%s result: %s", intersection_id, error, exc_info=True)
         return intersection_id, result, coordinate_map
-
-    def _info(self, message: str, *args: Any) -> None:
-        if self.logger is not None:
-            self.logger.info(message, *args)
-
-    def _warning(self, message: str, *args: Any) -> None:
-        if self.logger is not None:
-            self.logger.warning(message, *args)
-
-    def _error(self, message: str, *args: Any, **kwargs: Any) -> None:
-        if self.logger is not None:
-            self.logger.error(message, *args, **kwargs)
