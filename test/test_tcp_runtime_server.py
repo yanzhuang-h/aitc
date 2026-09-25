@@ -63,6 +63,19 @@ class TcpRuntimeServerTest(unittest.TestCase):
         self.assertEqual(ingestor.payloads, [{"id": 1}])
         self.assertTrue(client_socket.closed)
 
+    def test_handle_client_tolerates_split_multibyte_char(self):
+        """多字节字符被 TCP 切分到两段数据时，不应断连且解析结果正确。"""
+        ingestor = _Ingestor()
+        server = self._build_server(ingestor=ingestor)
+        payload = (json.dumps({"路口": "测试"}, ensure_ascii=False) + "\n").encode("utf-8")
+        split_at = len('{"'.encode("utf-8")) + 1   # 切在"路"的中间字节
+        client_socket = _Socket([payload[:split_at], payload[split_at:]])
+
+        server.handle_client(client_socket, ("127.0.0.1", 1))
+
+        self.assertEqual(ingestor.payloads, [{"路口": "测试"}])
+        self.assertTrue(client_socket.closed)
+
     def test_broadcast_once_uses_result_sender(self):
         sender = _Sender()
         server = self._build_server(sender=sender)
