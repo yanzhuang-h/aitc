@@ -22,8 +22,8 @@ Cross_Video = {
     '1300044': {"Cross_type": "Video"},
     '1300046': {"Cross_type": "Video"},
     '1300042': {"Cross_type": "Video"},
-    '1300592': {"Cross_type": "Video"},
-    '1300644': {"Cross_type": "Video"},
+    '1300592': {"Cross_type": "Video"},  # 异常：无时刻表、无实现、无分发分支（待确认）
+    '1300644': {"Cross_type": "Video"},  # 异常：无时刻表、无实现、无分发分支（待确认）
     '1300454': {"Cross_type": "Video"},
     '1300451': {"Cross_type": "Video"},
     '1300870': {"Cross_type": "Video"},
@@ -162,7 +162,6 @@ def DQN_select(traffic_vector, queue_vector,traffic_vector_duration2,current_tim
             return DQN_select_1300870(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
                                   flow_map_single_intersection, queue_map_single_intersection,
                                   stage_map_single_intersection, extend_map_single_intersection,0, cur_flow_pre_map, cur_queue_pre_map,overflowMap)
-
         elif cross_id == '1700086':
             return DQN_select_1700086(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
                                   flow_map_single_intersection, queue_map_single_intersection,
@@ -171,17 +170,14 @@ def DQN_select(traffic_vector, queue_vector,traffic_vector_duration2,current_tim
             return DQN_select_1700275(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
                                   flow_map_single_intersection, queue_map_single_intersection,
                                   stage_map_single_intersection,extend_map_single_intersection, 0, cur_flow_pre_map, cur_queue_pre_map)
-
         elif cross_id == '1700276':
             return DQN_select_1700276(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
                                   flow_map_single_intersection, queue_map_single_intersection,
                                   stage_map_single_intersection,extend_map_single_intersection, 0, cur_flow_pre_map, cur_queue_pre_map)
-
         elif cross_id == '1700124':
             return DQN_select_1700124(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
                                   flow_map_single_intersection, queue_map_single_intersection,
                                   stage_map_single_intersection,extend_map_single_intersection, 0, cur_flow_pre_map, cur_queue_pre_map)
-
         elif cross_id == '1700125':
             return DQN_select_1700125(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
                                   flow_map_single_intersection, queue_map_single_intersection,
@@ -190,9 +186,6 @@ def DQN_select(traffic_vector, queue_vector,traffic_vector_duration2,current_tim
             return DQN_select_1300153(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
                                   flow_map_single_intersection, queue_map_single_intersection,
                                   stage_map_single_intersection,extend_map_single_intersection, 0, cur_flow_pre_map, cur_queue_pre_map)
-
-
-
         elif cross_id == '1300166':
             return DQN_select_1300166(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
                                   flow_map_single_intersection, queue_map_single_intersection,
@@ -205,24 +198,18 @@ def DQN_select(traffic_vector, queue_vector,traffic_vector_duration2,current_tim
             return DQN_select_1300409(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
                                   flow_map_single_intersection, queue_map_single_intersection,
                                   stage_map_single_intersection,extend_map_single_intersection, 0, cur_flow_pre_map, cur_queue_pre_map)
-
         elif cross_id == '1300362':
             return DQN_select_1300362(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
                                   flow_map_single_intersection, queue_map_single_intersection,
                                   stage_map_single_intersection,extend_map_single_intersection, 0, cur_flow_pre_map, cur_queue_pre_map)
-
         elif cross_id == '1300087':
             return DQN_select_1300087(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
                                   flow_map_single_intersection, queue_map_single_intersection,
                                   stage_map_single_intersection,extend_map_single_intersection, 0, cur_flow_pre_map, cur_queue_pre_map)
-
         elif cross_id == '1300147':
             return DQN_select_1300147(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
                                   flow_map_single_intersection, queue_map_single_intersection,
                                   stage_map_single_intersection,extend_map_single_intersection, 0, cur_flow_pre_map, cur_queue_pre_map)
-
-
-
         elif cross_id == '1700126':
             return DQN_select_1700126(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
                                   flow_map_single_intersection, queue_map_single_intersection,
@@ -231,71 +218,46 @@ def DQN_select(traffic_vector, queue_vector,traffic_vector_duration2,current_tim
             return DQN_select_1700079(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
                                   flow_map_single_intersection, queue_map_single_intersection,
                                   stage_map_single_intersection,extend_map_single_intersection, 0, cur_flow_pre_map, cur_queue_pre_map)
-
         elif cross_id == '1300229':
-
             return DQN_select_1300229(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
-
                                       flow_map_single_intersection, queue_map_single_intersection,
-
                                       stage_map_single_intersection, extend_map_single_intersection, 0,
                                       cur_flow_pre_map, cur_queue_pre_map)
-
-
-
-
-
         elif cross_id == '1300239':
-
             return DQN_select_1300239(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
-
                                       flow_map_single_intersection, queue_map_single_intersection,
-
                                       stage_map_single_intersection, extend_map_single_intersection, 0,
                                       cur_flow_pre_map, cur_queue_pre_map)
-
-
         elif cross_id == '2702736':
             return DQN_select_2702736(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
                                   flow_map_single_intersection, queue_map_single_intersection,
                                   stage_map_single_intersection,extend_map_single_intersection, 0, cur_flow_pre_map, cur_queue_pre_map)
-
         elif cross_id == '1700087':
             return DQN_select_1700087(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
                                   flow_map_single_intersection, queue_map_single_intersection,
                                   stage_map_single_intersection,extend_map_single_intersection, 0, cur_flow_pre_map, cur_queue_pre_map)
-
         elif cross_id == '1700262':
             return DQN_select_1700262(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
                                   flow_map_single_intersection, queue_map_single_intersection,
                                   stage_map_single_intersection,extend_map_single_intersection, 0, cur_flow_pre_map, cur_queue_pre_map)
-
         elif cross_id == '1700085':
             return DQN_select_1700085(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
                                   flow_map_single_intersection, queue_map_single_intersection,
                                   stage_map_single_intersection,extend_map_single_intersection, 0, cur_flow_pre_map, cur_queue_pre_map)
-
         elif cross_id == '1700067':
             return DQN_select_1700067(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
                                   flow_map_single_intersection, queue_map_single_intersection,
                                   stage_map_single_intersection,extend_map_single_intersection, 0, cur_flow_pre_map, cur_queue_pre_map)
-
         elif cross_id == '1700293':
             return DQN_select_1700293(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
                                   flow_map_single_intersection, queue_map_single_intersection,
                                   stage_map_single_intersection,extend_map_single_intersection, 0, cur_flow_pre_map, cur_queue_pre_map)
-
-
-
-
-
         elif cross_id == '1300271':
             return DQN_select_1300271(traffic_vector, queue_vector,traffic_vector_duration2,current_time,
                flow_map_single_intersection,queue_map_single_intersection,
                stage_map_single_intersection,last_coordinate_set,cur_flow_pre_map,
                cur_queue_pre_map,extend_map_single_intersection,
                overflowMap,radarMap_single_intersection,cross_id)
-
         elif cross_id == '1300086':
             return DQN_select_1300086(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
                                   flow_map_single_intersection, queue_map_single_intersection,
@@ -340,7 +302,6 @@ def DQN_select(traffic_vector, queue_vector,traffic_vector_duration2,current_tim
             return DQN_select_1300230(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
                                   flow_map_single_intersection, queue_map_single_intersection,
                                   stage_map_single_intersection, extend_map_single_intersection, 0, cur_flow_pre_map, cur_queue_pre_map)
-
         elif cross_id == '1300089':
             return DQN_select_1300089(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
                                   flow_map_single_intersection, queue_map_single_intersection,
@@ -351,15 +312,12 @@ def DQN_select(traffic_vector, queue_vector,traffic_vector_duration2,current_tim
                                   stage_map_single_intersection, extend_map_single_intersection, 0, cur_flow_pre_map, cur_queue_pre_map)
         elif cross_id == '1300067':
             return DQN_select_1300067(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
-                                  flow_map_single_intersection, queue_map_single_intersection,
-                                  stage_map_single_intersection, extend_map_single_intersection, 0, cur_flow_pre_map, cur_queue_pre_map)
+                                      flow_map_single_intersection, queue_map_single_intersection,
+                                      stage_map_single_intersection, extend_map_single_intersection, 0, cur_flow_pre_map, cur_queue_pre_map)
         elif cross_id == '1300070':
             return DQN_select_1300070(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
-                                  flow_map_single_intersection, queue_map_single_intersection,
-                                  stage_map_single_intersection, extend_map_single_intersection, 0, cur_flow_pre_map, cur_queue_pre_map)
-
-
-
+                                      flow_map_single_intersection, queue_map_single_intersection,
+                                      stage_map_single_intersection, extend_map_single_intersection, 0, cur_flow_pre_map, cur_queue_pre_map)
         elif cross_id == '1700542':
             return DQN_select_1700542(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
                                       flow_map_single_intersection, queue_map_single_intersection,
@@ -385,8 +343,6 @@ def DQN_select(traffic_vector, queue_vector,traffic_vector_duration2,current_tim
                                       flow_map_single_intersection, queue_map_single_intersection,
                                       stage_map_single_intersection, extend_map_single_intersection, 0,
                                       cur_flow_pre_map, cur_queue_pre_map)
-
-
         elif cross_id == '2272':
             return DQN_select_2272(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
                                       flow_map_single_intersection, queue_map_single_intersection,
@@ -404,9 +360,9 @@ def DQN_select(traffic_vector, queue_vector,traffic_vector_duration2,current_tim
                                       cur_flow_pre_map, cur_queue_pre_map)
         elif cross_id == '2468':
             return DQN_select_2468(traffic_vector, queue_vector, traffic_vector_duration2, current_time,
-                                      flow_map_single_intersection, queue_map_single_intersection,
-                                      stage_map_single_intersection, extend_map_single_intersection, 0,
-                                      cur_flow_pre_map, cur_queue_pre_map)
+                                    flow_map_single_intersection, queue_map_single_intersection,
+                                    stage_map_single_intersection, extend_map_single_intersection, 0,
+                                    cur_flow_pre_map, cur_queue_pre_map)
 
     else:
         sch = [0] * 10
