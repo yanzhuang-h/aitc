@@ -9,234 +9,77 @@ from lib.cha1 import chuli_shuju
 from lib.data_ANS.flow_allocator_shadow import select_pilot_schedule
 
 Cross_Video = {
-    '1300069': {
-        "Cross_type" : "Video"
-    },
-    '1300068':{
-        "Cross_type" : "Video"
-    },
-    '2712127':{
-        "Cross_type" : "Video"
-    },
-    '2703062':{
-        "Cross_type" : "Video"
-    },
-    '1300106':{
-        "Cross_type" : "Video"
-    },
-    '1300047':{
-        "Cross_type" : "Video"
-    },
-    '1300103':{
-        "Cross_type" : "Video"
-    },
-    '1300092':{
-        "Cross_type" : "Video"
-    },
-    '1300101':{
-        "Cross_type" : "Video"
-    },
-    '1300097':{
-        "Cross_type" : "Video"
-    },
-    '1300044':{
-        "Cross_type" : "Video"
-    },
-    '1300046':{
-        "Cross_type" : "Video"
-    },
-    '1300042':{
-        "Cross_type" : "Video"
-    },
-    '1300592':{
-        "Cross_type" : "Video"
-    },
-    '1300644':{
-        "Cross_type" : "Video"
-    },
-    '1300454':{
-        "Cross_type" : "Video"
-    },
-    '1300451':{
-        "Cross_type" : "Video"
-    },'1300870':{
-        "Cross_type" : "Video"
-    },
-    '1300271':{
-        "Cross_type" : "Radar"
-    },
-    '1700086':{
-        "Cross_type" : "Radar"
-    },
-    '1700275':{
-        "Cross_type" : "Radar"
-    },
-    '1700276':{
-        "Cross_type" : "Radar"
-    },
-    '1700087': {
-        "Cross_type": "Radar"
-    },
-    '1300239': {
-        "Cross_type": "Radar"
-    },
-    '1300229': {
-        "Cross_type": "Radar"
-    },
-    '1700124': {
-        "Cross_type": "Radar"
-    },
-    '1700125': {
-        "Cross_type": "Radar"
-    },
-    '1700126': {
-        "Cross_type": "Radar"
-    },
-    '1700079': {
-        "Cross_type": "Radar"
-    },
-'1300153': {
-        "Cross_type": "Radar"
-    },
-'1300166': {
-        "Cross_type": "Radar"
-    },
-'1300306': {
-        "Cross_type": "Radar"
-    },
-'1300409': {
-        "Cross_type": "Radar"
-    },
-
-
-
-
-
-'1300362': {
-        "Cross_type": "Radar"
-    },
-
-'1300087': {
-        "Cross_type": "Radar"
-    },
-
-'1300147': {
-        "Cross_type": "Radar"
-    },
-
-
-
-'2702736': {
-        "Cross_type": "Radar"
-    },
-'1700262': {
-        "Cross_type": "Radar"
-    },
-
-
-'1700085': {
-        "Cross_type": "Radar"
-    },
-
-
-'1700067': {
-        "Cross_type": "Radar"
-    },
-
-
-'1700293': {
-        "Cross_type": "Radar"
-    },
-
-
-'1300364': {
-    "Cross_type": "Radar"
-},
-'1300179': {
-    "Cross_type": "Radar"
-},
-'1300094': {
-    "Cross_type": "Radar"
-},
-'1300255': {
-    "Cross_type": "Radar"
-},
-'1300039': {
-    "Cross_type": "Radar"
-},
-'1300108': {
-    "Cross_type": "Radar"
-},
-'1300266': {
-    "Cross_type": "Radar"
-},
-'1300120': {
-    "Cross_type": "Radar"
-},
-'1300230': {
-    "Cross_type": "Radar"
-},
-'1300089': {
-    "Cross_type": "Radar"
-},
-'1300067': {
-    "Cross_type": "Radar"
-},
-'1300070': {
-    "Cross_type": "Radar"
-},
-'1300086': {
-    "Cross_type": "Radar"
-},
-'1300253': {
-    "Cross_type": "Radar"
-},
-'1300358': {
-    "Cross_type": "Radar"
-},
-
-'1700542': {
-    "Cross_type": "Radar"
-},
-'1700448': {
-    "Cross_type": "Radar"
-},
-'1700449': {
-    "Cross_type": "Radar"
-},
-'1700450': {
-    "Cross_type": "Radar"
-},
-'1700545': {
-    "Cross_type": "Radar"
-},
-
-'2272': {
-    "Cross_type": "Radar"
-},
-'2620': {
-    "Cross_type": "Radar"
-},
-
-'2468': {
-    "Cross_type": "Radar"
-},
-'2625': {
-    "Cross_type": "Radar"
-},
-
-
-
-}
-
-Cross_Radar ={
-    '1300271':{
-        "Cross_type" : "Radar"
-    }
+    '1300069': {"Cross_type": "Video"},
+    '1300068': {"Cross_type": "Video"},
+    '2712127': {"Cross_type": "Video"},
+    '2703062': {"Cross_type": "Video"},
+    '1300106': {"Cross_type": "Video"},
+    '1300047': {"Cross_type": "Video"},
+    '1300103': {"Cross_type": "Video"},
+    '1300092': {"Cross_type": "Video"},
+    '1300101': {"Cross_type": "Video"},
+    '1300097': {"Cross_type": "Video"},
+    '1300044': {"Cross_type": "Video"},
+    '1300046': {"Cross_type": "Video"},
+    '1300042': {"Cross_type": "Video"},
+    '1300592': {"Cross_type": "Video"},
+    '1300644': {"Cross_type": "Video"},
+    '1300454': {"Cross_type": "Video"},
+    '1300451': {"Cross_type": "Video"},
+    '1300870': {"Cross_type": "Video"},
+    '1300271': {"Cross_type": "Radar"},
+    '1700086': {"Cross_type": "Radar"},
+    '1700275': {"Cross_type": "Radar"},
+    '1700276': {"Cross_type": "Radar"},
+    '1700087': {"Cross_type": "Radar"},
+    '1300239': {"Cross_type": "Radar"},
+    '1300229': {"Cross_type": "Radar"},
+    '1700124': {"Cross_type": "Radar"},
+    '1700125': {"Cross_type": "Radar"},
+    '1700126': {"Cross_type": "Radar"},
+    '1700079': {"Cross_type": "Radar"},
+    '1300153': {"Cross_type": "Radar"},
+    '1300166': {"Cross_type": "Radar"},
+    '1300306': {"Cross_type": "Radar"},
+    '1300409': {"Cross_type": "Radar"},
+    '1300362': {"Cross_type": "Radar"},
+    '1300087': {"Cross_type": "Radar"},
+    '1300147': {"Cross_type": "Radar"},
+    '2702736': {"Cross_type": "Radar"},
+    '1700262': {"Cross_type": "Radar"},
+    '1700085': {"Cross_type": "Radar"},
+    '1700067': {"Cross_type": "Radar"},
+    '1700293': {"Cross_type": "Radar"},
+    '1300364': {"Cross_type": "Radar"},
+    '1300179': {"Cross_type": "Radar"},
+    '1300094': {"Cross_type": "Radar"},
+    '1300255': {"Cross_type": "Radar"},
+    '1300039': {"Cross_type": "Radar"},
+    '1300108': {"Cross_type": "Radar"},
+    '1300266': {"Cross_type": "Radar"},
+    '1300120': {"Cross_type": "Radar"},
+    '1300230': {"Cross_type": "Radar"},
+    '1300089': {"Cross_type": "Radar"},
+    '1300067': {"Cross_type": "Radar"},
+    '1300070': {"Cross_type": "Radar"},
+    '1300086': {"Cross_type": "Radar"},
+    '1300253': {"Cross_type": "Radar"},
+    '1300358': {"Cross_type": "Radar"},
+    '1700542': {"Cross_type": "Radar"},
+    '1700448': {"Cross_type": "Radar"},
+    '1700449': {"Cross_type": "Radar"},
+    '1700450': {"Cross_type": "Radar"},
+    '1700545': {"Cross_type": "Radar"},
+    '2272': {"Cross_type": "Radar"},
+    '2620': {"Cross_type": "Radar"},
+    '2468': {"Cross_type": "Radar"},
+    '2625': {"Cross_type": "Radar"},
 }
 
 
-
+Cross_Radar = {
+    '1300271': {"Cross_type": "Radar"},
+}
 
 
 def DQN_select(traffic_vector, queue_vector,traffic_vector_duration2,current_time,
