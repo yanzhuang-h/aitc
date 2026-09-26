@@ -487,6 +487,7 @@
       { name: '绿波走廊-新增/更新', method: 'POST', path: '/green_wave/update', params: ['corridorObj'], bodyKeys: ['corridor'] },
       { name: '绿波走廊-删除(停用)', method: 'POST', path: '/green_wave/delete', params: ['corridor'], bodyKeys: ['corridor_id'] },
       { name: '绿波走廊-启用/停用', method: 'PATCH', path: '/green_wave/{corridor_id}/enabled', params: ['corridor', 'enabled'], bodyKeys: ['enabled'] },
+      // 彻底删除后端暂未实现（返回 501）：绿波业务逻辑待协同后补齐
       { name: '绿波走廊-彻底删除', method: 'DELETE', path: '/green_wave/{corridor_id}', params: ['corridor'] },
     ];
 
