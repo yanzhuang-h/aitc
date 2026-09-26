@@ -77,9 +77,7 @@ Cross_Video = {
 }
 
 
-Cross_Radar = {
-    '1300271': {"Cross_type": "Radar"},
-}
+Cross_Radar = {}
 
 
 def DQN_select(traffic_vector, queue_vector,traffic_vector_duration2,current_time,
@@ -410,18 +408,8 @@ def DQN_select(traffic_vector, queue_vector,traffic_vector_duration2,current_tim
                                       stage_map_single_intersection, extend_map_single_intersection, 0,
                                       cur_flow_pre_map, cur_queue_pre_map)
 
-
-
-
     else:
         sch = [0] * 10
-    # if cross_id in Cross_Radar:
-    #     if cross_id == '1300271':
-    #         return DQN_select_1300271(traffic_vector, queue_vector,traffic_vector_duration2,current_time,
-    #            flow_map_single_intersection,queue_map_single_intersection,
-    #            stage_map_single_intersection,last_coordinate_set,cur_flow_pre_map,
-    #            cur_queue_pre_map,extend_map_single_intersection,
-    #            overflowMap,radarMap_single_intersection,cross_id)
 
     return sch,coordinate_map,model_info_list,EXP_list
 
