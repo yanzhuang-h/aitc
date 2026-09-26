@@ -473,7 +473,6 @@ def DQN_select_1300271(traffic_vector, queue_vector,traffic_vector_duration2,cur
     t = time.localtime(current_time)
     sch = schedule[str(t[3])]
 
-
     if ud < 34:
         ud = 38
     elif ud < 100:
@@ -519,38 +518,68 @@ def DQN_select_1300271(traffic_vector, queue_vector,traffic_vector_duration2,cur
     return sch,coordinate_set,model_map,EXP_map
 
 
-def DQN_select_1300068(traffic_vector, queue_vector, traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,extend_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map):
+def DQN_select_1300068(
+    traffic_vector,
+    queue_vector,
+    traffic_vector_duration2,
+    current_time,
+    flow_map_single_intersection,
+    queue_map_single_intersection,
+    stage_map_single_intersection,
+    extend_map_single_intersection,
+    coordinate_map_set,
+    cur_flow_pre_map,
+    cur_queue_pre_map,
+):
     SUB_NS = 5
     SUB_LR = 5
-    if traffic_vector_duration2[0]==0 or traffic_vector_duration2[1] == 0:
+    if traffic_vector_duration2[0] == 0 or traffic_vector_duration2[1] == 0:
         SUB_LR = 0
-    if traffic_vector_duration2[2]==0 or traffic_vector_duration2[3] == 0:
+    if traffic_vector_duration2[2] == 0 or traffic_vector_duration2[3] == 0:
         SUB_NS = 0
     schedule = Get_time_map(1300068)
-    stage = Stage_signal_ans1(1,2,3,0,0,0,0,0,0,3,stage_map_single_intersection)
+    stage = Stage_signal_ans1(
+        1, 2, 3, 0, 0, 0, 0, 0, 0, 3, stage_map_single_intersection
+    )
     t = time.localtime(current_time)
-    model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
+    model_map = get_model_map(
+        traffic_vector, queue_map_single_intersection, stage_map_single_intersection
+    )
     EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
     sch = schedule[str(t[3])]
     print([sch[0], sch[1], sch[2], sch[3], 1300068])
-    if stage[0]!=0:
-        L,R,LL,RL,N,S = Get_pass_1368(stage,flow_map_single_intersection)
-        pr = [L,R,LL,RL,N,S, 1300068]
+    if stage[0] != 0:
+        L, R, LL, RL, N, S = Get_pass_1368(stage, flow_map_single_intersection)
+        pr = [L, R, LL, RL, N, S, 1300068]
         print(pr)
-        sch[0] = Ng(sch[0]+max(L,R),2,min(76, sch[0] + 10), max(42, sch[0] - SUB_LR))
-        sch[1] = Ng(sch[1]+max(LL,RL)+max(queue_vector['L'][1],queue_vector['R'][1])*1.7+13,3,min(35, sch[1] + 10), max(16, sch[1] - SUB_LR))
-        sch[2] = Ng(sch[2]+max(N,S),2,min(55, sch[2] + 10), max(44, sch[2] - SUB_NS))
-        if R - L > 13 and SUB_LR==5:
+        sch[0] = Ng(
+            sch[0] + max(L, R), 2, min(76, sch[0] + 10), max(42, sch[0] - SUB_LR)
+        )
+        sch[1] = Ng(
+            sch[1]
+            + max(LL, RL)
+            + max(queue_vector['L'][1], queue_vector['R'][1]) * 1.7
+            + 13,
+            3,
+            min(35, sch[1] + 10),
+            max(16, sch[1] - SUB_LR),
+        )
+        sch[2] = Ng(
+            sch[2] + max(N, S), 2, min(55, sch[2] + 10), max(44, sch[2] - SUB_NS)
+        )
+        if R - L > 13 and SUB_LR == 5:
             sch[3] = int(sch[2])
             sch[2] = int(sch[1])
             sch[1] = 15
             sch[9] = 1
             if L < sch[0]:
                 sch[0] = max(sch[0] - min(sch[0] - L, 5), 40)
-    coordinate_set = {"s1":stage[0],"s2":stage[3]}
+    coordinate_set = {"s1": stage[0], "s2": stage[3]}
     print([sch[0], sch[1], sch[2], sch[3], 1300068])
     # if (traffic_vector_duration2[0]+traffic_vector_duration2[1]+traffic_vector_duration2[2]+traffic_vector_duration2[3])==0:
-    sch=chuli_shuju("1300068",flow_map_single_intersection,extend_map_single_intersection)
+    sch = chuli_shuju(
+        "1300068", flow_map_single_intersection, extend_map_single_intersection
+    )
     sch = select_pilot_schedule(
         "1300068",
         sch,
@@ -559,51 +588,107 @@ def DQN_select_1300068(traffic_vector, queue_vector, traffic_vector_duration2,cu
     )
     print("kjhxkjcshadkjsahdksad", sch)
 
-    return sch,coordinate_set,model_map,EXP_map
+    return sch, coordinate_set, model_map, EXP_map
 
-def DQN_select_2712127(traffic_vector, queue_vector,traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,extend_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map):
-    stage = Stage_signal_ans2(1, 2, 0, 0, 0, 0, 0, 0, 0, 2, stage_map_single_intersection)
+
+def DQN_select_2712127(
+    traffic_vector,
+    queue_vector,
+    traffic_vector_duration2,
+    current_time,
+    flow_map_single_intersection,
+    queue_map_single_intersection,
+    stage_map_single_intersection,
+    extend_map_single_intersection,
+    coordinate_map_set,
+    cur_flow_pre_map,
+    cur_queue_pre_map,
+):
+    stage = Stage_signal_ans2(
+        1, 2, 0, 0, 0, 0, 0, 0, 0, 2, stage_map_single_intersection
+    )
     stage[8] = 2712127
     # print(stage)
     coordinate_map = {"s1": 0, "s2": 0}
-    if stage[0]!=0:
-        coordinate_map = {"s1":stage[0]-30,"s2":stage[2]-30}
-    model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
+    if stage[0] != 0:
+        coordinate_map = {"s1": stage[0] - 30, "s2": stage[2] - 30}
+    model_map = get_model_map(
+        traffic_vector, queue_map_single_intersection, stage_map_single_intersection
+    )
     EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
-    sch=chuli_shuju("2712127",flow_map_single_intersection,extend_map_single_intersection)
-    return sch,coordinate_map,model_map,EXP_map
+    sch = chuli_shuju(
+        "2712127", flow_map_single_intersection, extend_map_single_intersection
+    )
+    return sch, coordinate_map, model_map, EXP_map
 
 
-
-def DQN_select_2703062(traffic_vector, queue_vector,traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,extend_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map):
+def DQN_select_2703062(
+    traffic_vector,
+    queue_vector,
+    traffic_vector_duration2,
+    current_time,
+    flow_map_single_intersection,
+    queue_map_single_intersection,
+    stage_map_single_intersection,
+    extend_map_single_intersection,
+    coordinate_map_set,
+    cur_flow_pre_map,
+    cur_queue_pre_map,
+):
     SUB_NS = 5
     SUB_LR = 5
     if traffic_vector_duration2[1] == 0:
         SUB_LR = 0
-    if traffic_vector_duration2[2]==0 or traffic_vector_duration2[3] == 0:
+    if traffic_vector_duration2[2] == 0 or traffic_vector_duration2[3] == 0:
         SUB_NS = 0
     schedule = Get_time_map(2703062)
-    stage = Stage_signal_ans1(1, 5, 3, 0, 0, 0, 0, 0, 0, 3, stage_map_single_intersection)
+    stage = Stage_signal_ans1(
+        1, 5, 3, 0, 0, 0, 0, 0, 0, 3, stage_map_single_intersection
+    )
     t = time.localtime(current_time)
-    model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
+    model_map = get_model_map(
+        traffic_vector, queue_map_single_intersection, stage_map_single_intersection
+    )
     EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
     sch = schedule[str(t[3])]
     print([sch[0], sch[1], sch[2], sch[3], 2703062])
     if stage[0] != 0:
         predict = predict_head(stage, flow_map_single_intersection, 3)
-        print([predict[0], predict[1],predict[2], 2703062])
-        sch[0] = Ng(sch[0] + predict[0], 2, min(55, sch[0] + 10), max(25, sch[0] - SUB_NS))
-        sch[1] = Ng(sch[1] + predict[1] + queue_vector['U'][1] * 1.7 + 13, 3,min(35, sch[1] + 10), max(14, sch[1] - SUB_NS))
-        sch[2] = Ng(sch[2] + predict[2], 2, min(55, sch[2] + 10), max(30, sch[2] - SUB_LR))
+        print([predict[0], predict[1], predict[2], 2703062])
+        sch[0] = Ng(
+            sch[0] + predict[0], 2, min(55, sch[0] + 10), max(25, sch[0] - SUB_NS)
+        )
+        sch[1] = Ng(
+            sch[1] + predict[1] + queue_vector['U'][1] * 1.7 + 13,
+            3,
+            min(35, sch[1] + 10),
+            max(14, sch[1] - SUB_NS),
+        )
+        sch[2] = Ng(
+            sch[2] + predict[2], 2, min(55, sch[2] + 10), max(30, sch[2] - SUB_LR)
+        )
     print([sch[0], sch[1], sch[2], sch[3], 2703062])
     coordinate_set = {"s1": stage[0], "s2": stage[3]}
-    sch=chuli_shuju("2703062",flow_map_single_intersection,extend_map_single_intersection)
-    return sch,coordinate_set,model_map,EXP_map
+    sch = chuli_shuju(
+        "2703062", flow_map_single_intersection, extend_map_single_intersection
+    )
+    return sch, coordinate_set, model_map, EXP_map
 
 
-
-
-def DQN_select_1300870(traffic_vector, queue_vector,traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,extend_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map,overflowMap):
+def DQN_select_1300870(
+    traffic_vector,
+    queue_vector,
+    traffic_vector_duration2,
+    current_time,
+    flow_map_single_intersection,
+    queue_map_single_intersection,
+    stage_map_single_intersection,
+    extend_map_single_intersection,
+    coordinate_map_set,
+    cur_flow_pre_map,
+    cur_queue_pre_map,
+    overflowMap,
+):
     SUB_NS = 10
     SUB_LR = 5
     print("-----------1300870------------")
@@ -636,7 +721,9 @@ def DQN_select_1300870(traffic_vector, queue_vector,traffic_vector_duration2,cur
     stage = Extend_singal_ans(phase, extend_map_single_intersection, 2)
     print("1300870", stage)
     t = time.localtime(current_time)
-    model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
+    model_map = get_model_map(
+        traffic_vector, queue_map_single_intersection, stage_map_single_intersection
+    )
     EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
     sch = schedule[str(t[3])]
     # hour = '8'
@@ -645,11 +732,15 @@ def DQN_select_1300870(traffic_vector, queue_vector,traffic_vector_duration2,cur
     if stage[0] != 0:
         predict = predict_head(stage, flow_map_single_intersection, 2)
         print([predict[0], predict[1], predict[2], 1300870])
-        sch[0] = Ng(sch[0] + predict[0], 2, min(80, sch[0] + 10), max(35, sch[0] - SUB_NS))
-        sch[1] = Ng(sch[1] + predict[1], 2, min(50, sch[1] + 10), max(40, sch[1] - SUB_LR))
+        sch[0] = Ng(
+            sch[0] + predict[0], 2, min(80, sch[0] + 10), max(35, sch[0] - SUB_NS)
+        )
+        sch[1] = Ng(
+            sch[1] + predict[1], 2, min(50, sch[1] + 10), max(40, sch[1] - SUB_LR)
+        )
     today = date.today()
 
-    minutes = t[3]*60 + t[4]
+    minutes = t[3] * 60 + t[4]
 
     if ul < 30:
         ul = 25
@@ -667,27 +758,28 @@ def DQN_select_1300870(traffic_vector, queue_vector,traffic_vector_duration2,cur
         d = 25
     d = Define_road_pass(d, 25, 15, 25, 15)
 
-
-
-    print(ul,d)
-    if ((minutes>= 7*60 and minutes<=9*60+30)or(minutes>= 16*60 +30and minutes<=19*60))and is_workday(today):
-           sch[9] = 18
-           sch[3] = 40
-           sch[1] = int(sch[0] - 20)
-           sch[0] = d
-           sch[2] = (ul + 25) // 2
+    print(ul, d)
+    if (
+        (minutes >= 7 * 60 and minutes <= 9 * 60 + 30)
+        or (minutes >= 16 * 60 + 30 and minutes <= 19 * 60)
+    ) and is_workday(today):
+        sch[9] = 18
+        sch[3] = 40
+        sch[1] = int(sch[0] - 20)
+        sch[0] = d
+        sch[2] = (ul + 25) // 2
     print([sch[0], sch[1], sch[2], sch[3], 1300870])
 
     if 'overflow_U' in overflowMap and sch[9] == 0:
         if overflowMap['overflow_U']['distance'] < 50:
             sch[9] = 18
             sch[3] = 40
-            sch[1] = max(min(int(sch[0] - 20),60),35)
-            sch[0] = d+3
+            sch[1] = max(min(int(sch[0] - 20), 60), 35)
+            sch[0] = d + 3
             sch[2] = (ul + 25) // 2
             if overflowMap['overflow_U']['distance'] < 0:
                 sch[3] = 40
-                sch[1] = max(min(int(sch[0] - 20),60),35)
+                sch[1] = max(min(int(sch[0] - 20), 60), 35)
                 sch[0] = d + 6
                 sch[2] = (ul + 25) // 2
 
@@ -706,61 +798,111 @@ def DQN_select_1300870(traffic_vector, queue_vector,traffic_vector_duration2,cur
     # print("1700086____________________________________", sch, "1700086____________________________________")
     # return sch, coordinate_set, model_map, EXP_map
 
-    return sch,coordinate_set,model_map,EXP_map
+    return sch, coordinate_set, model_map, EXP_map
 
 
-def DQN_select_1300106(traffic_vector, queue_vector,traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,extend_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map):
+def DQN_select_1300106(
+    traffic_vector,
+    queue_vector,
+    traffic_vector_duration2,
+    current_time,
+    flow_map_single_intersection,
+    queue_map_single_intersection,
+    stage_map_single_intersection,
+    extend_map_single_intersection,
+    coordinate_map_set,
+    cur_flow_pre_map,
+    cur_queue_pre_map,
+):
     SUB_NS = 5
     SUB_LR = 5
-    if traffic_vector_duration2[0]==0:
+    if traffic_vector_duration2[0] == 0:
         SUB_LR = 0
-    if traffic_vector_duration2[2]==0 or traffic_vector_duration2[3] == 0:
+    if traffic_vector_duration2[2] == 0 or traffic_vector_duration2[3] == 0:
         SUB_NS = 0
     schedule = Get_time_map(1300106)
-    stage = Stage_signal_ans1(2, 1, 3, 0, 0, 0, 0, 0, 0, 3, stage_map_single_intersection)
+    stage = Stage_signal_ans1(
+        2, 1, 3, 0, 0, 0, 0, 0, 0, 3, stage_map_single_intersection
+    )
     t = time.localtime(current_time)
-    model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
+    model_map = get_model_map(
+        traffic_vector, queue_map_single_intersection, stage_map_single_intersection
+    )
     EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
     sch = schedule[str(t[3])]
     print([sch[0], sch[1], sch[2], sch[3], 1300106])
-    sch[9]=1
+    sch[9] = 1
     if stage[0] != 0:
         predict = predict_head(stage, flow_map_single_intersection, 3)
-        print([predict[0], predict[1],predict[2], 1300106])
+        print([predict[0], predict[1], predict[2], 1300106])
 
-        sch[0] = Ng(sch[0] + predict[0], 2, min(60, sch[0] + 10), max(30, sch[0] - SUB_NS))
-        sch[1] = Ng(sch[1] + predict[1] + max(queue_vector['L'][1], queue_vector['R'][1]) * 1.7 + 13, 3,min(35, sch[1] + 10), max(14, sch[1] - SUB_LR))
-        sch[2] = Ng(sch[2] + predict[2], 2, min(50, sch[2] + 10), max(14, sch[2] - SUB_NS))
-        coordinate_set = {"s1": stage[0]+10, "s2": stage[3]+10}
+        sch[0] = Ng(
+            sch[0] + predict[0], 2, min(60, sch[0] + 10), max(30, sch[0] - SUB_NS)
+        )
+        sch[1] = Ng(
+            sch[1]
+            + predict[1]
+            + max(queue_vector['L'][1], queue_vector['R'][1]) * 1.7
+            + 13,
+            3,
+            min(35, sch[1] + 10),
+            max(14, sch[1] - SUB_LR),
+        )
+        sch[2] = Ng(
+            sch[2] + predict[2], 2, min(50, sch[2] + 10), max(14, sch[2] - SUB_NS)
+        )
+        coordinate_set = {"s1": stage[0] + 10, "s2": stage[3] + 10}
     else:
         coordinate_set = {"s1": 0, "s2": 0}
     print([sch[0], sch[1], sch[2], sch[3], 1300106])
-    sch=chuli_shuju("1300106",flow_map_single_intersection,extend_map_single_intersection)
-    return sch,coordinate_set,model_map,EXP_map
+    sch = chuli_shuju(
+        "1300106", flow_map_single_intersection, extend_map_single_intersection
+    )
+    return sch, coordinate_set, model_map, EXP_map
 
 
-def DQN_select_1300047(traffic_vector, queue_vector, traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,extend_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map):
+def DQN_select_1300047(
+    traffic_vector,
+    queue_vector,
+    traffic_vector_duration2,
+    current_time,
+    flow_map_single_intersection,
+    queue_map_single_intersection,
+    stage_map_single_intersection,
+    extend_map_single_intersection,
+    coordinate_map_set,
+    cur_flow_pre_map,
+    cur_queue_pre_map,
+):
     SUB_NS = 5
     SUB_LR = 5
-    if traffic_vector_duration2[0]==0 or traffic_vector_duration2[1] == 0:
+    if traffic_vector_duration2[0] == 0 or traffic_vector_duration2[1] == 0:
         SUB_LR = 0
-    if traffic_vector_duration2[2]==0 or traffic_vector_duration2[3] == 0:
+    if traffic_vector_duration2[2] == 0 or traffic_vector_duration2[3] == 0:
         SUB_NS = 0
     schedule = Get_time_map(1300047)
-    stage = Stage_signal_ans2(8,4,0,0,0,0,0,0,0,2,stage_map_single_intersection)
+    stage = Stage_signal_ans2(
+        8, 4, 0, 0, 0, 0, 0, 0, 0, 2, stage_map_single_intersection
+    )
     stage[8] = 1300047
     print(stage)
     t = time.localtime(current_time)
-    model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
+    model_map = get_model_map(
+        traffic_vector, queue_map_single_intersection, stage_map_single_intersection
+    )
     EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
     sch = schedule[str(t[3])]
     print([sch[0], sch[1], sch[2], sch[3], 1300047])
-    if stage[0]!=0:
+    if stage[0] != 0:
         predict = predict_head(stage, flow_map_single_intersection, 2)
-        print([predict[0],predict[1],1300047])
-        sch[0] = Ng(sch[0] + predict[0], 2, min(100,sch[0]+10), max(40,sch[0]-SUB_LR))
-        sch[1] = Ng(sch[1] + predict[1], 2, min(55,sch[1]+10), max(40,sch[1]-SUB_NS))
-    coordinate_set = {"s1":stage[0],"s2":stage[2]}
+        print([predict[0], predict[1], 1300047])
+        sch[0] = Ng(
+            sch[0] + predict[0], 2, min(100, sch[0] + 10), max(40, sch[0] - SUB_LR)
+        )
+        sch[1] = Ng(
+            sch[1] + predict[1], 2, min(55, sch[1] + 10), max(40, sch[1] - SUB_NS)
+        )
+    coordinate_set = {"s1": stage[0], "s2": stage[2]}
     print([sch[0], sch[1], sch[2], sch[3], 1300047])
     # if (traffic_vector_duration2[0]+traffic_vector_duration2[1]+traffic_vector_duration2[2]+traffic_vector_duration2[3])==0:
 
@@ -769,95 +911,176 @@ def DQN_select_1300047(traffic_vector, queue_vector, traffic_vector_duration2,cu
     # print("-----------------------------------------1300047-----------------------------------")
     # sch = reverse_time_from_three_cycle("1300047", flow_map_single_intersection, extend_map_single_intersection)
     #
-    sch=chuli_shuju("1300047",flow_map_single_intersection,extend_map_single_intersection)
+    sch = chuli_shuju(
+        "1300047", flow_map_single_intersection, extend_map_single_intersection
+    )
     # print("kjhxkjcshadkjsahdksad 1300047", sch)
     # if sch == None:
     #     sch = [0] * 10
-    return sch,coordinate_set,model_map,EXP_map
+    return sch, coordinate_set, model_map, EXP_map
 
-def DQN_select_1300103(traffic_vector, queue_vector, traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map):
+
+def DQN_select_1300103(
+    traffic_vector,
+    queue_vector,
+    traffic_vector_duration2,
+    current_time,
+    flow_map_single_intersection,
+    queue_map_single_intersection,
+    stage_map_single_intersection,
+    coordinate_map_set,
+    cur_flow_pre_map,
+    cur_queue_pre_map,
+):
     SUB_NS = 5
     SUB_LR = 5
-    if traffic_vector_duration2[0]==0 or traffic_vector_duration2[1] == 0:
+    if traffic_vector_duration2[0] == 0 or traffic_vector_duration2[1] == 0:
         SUB_LR = 0
-    if traffic_vector_duration2[2]==0 or traffic_vector_duration2[3] == 0:
+    if traffic_vector_duration2[2] == 0 or traffic_vector_duration2[3] == 0:
         SUB_NS = 0
     schedule = Get_time_map(1300103)
-    stage = Stage_signal_ans1(1,2,0,0,0,0,0,0,0,2,stage_map_single_intersection)
+    stage = Stage_signal_ans1(
+        1, 2, 0, 0, 0, 0, 0, 0, 0, 2, stage_map_single_intersection
+    )
     stage[8] = 1300103
     print(stage)
     t = time.localtime(current_time)
-    model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
+    model_map = get_model_map(
+        traffic_vector, queue_map_single_intersection, stage_map_single_intersection
+    )
     EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
     sch = schedule[str(t[3])]
     print([sch[0], sch[1], sch[2], sch[3], 1300103])
-    if stage[0]!=0:
+    if stage[0] != 0:
         predict = predict_head(stage, flow_map_single_intersection, 1)
         print([predict[0], 1300103])
-        sch[0] = Ng(sch[0] + predict[0], 2, min(70, sch[0] + 10), max(30, sch[0] - SUB_NS))
-        sch[1] = int((sch[0]-30)*0.2)+20
-    coordinate_set = {"Start1":0,"start2":0}
+        sch[0] = Ng(
+            sch[0] + predict[0], 2, min(70, sch[0] + 10), max(30, sch[0] - SUB_NS)
+        )
+        sch[1] = int((sch[0] - 30) * 0.2) + 20
+    coordinate_set = {"Start1": 0, "start2": 0}
     print([sch[0], sch[1], sch[2], sch[3], 1300103])
     # if (traffic_vector_duration2[0]+traffic_vector_duration2[1]+traffic_vector_duration2[2]+traffic_vector_duration2[3])==0:
-    return sch,coordinate_set,model_map,EXP_map
+    return sch, coordinate_set, model_map, EXP_map
 
-def DQN_select_1300092(traffic_vector, queue_vector, traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,extend_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map):
+
+def DQN_select_1300092(
+    traffic_vector,
+    queue_vector,
+    traffic_vector_duration2,
+    current_time,
+    flow_map_single_intersection,
+    queue_map_single_intersection,
+    stage_map_single_intersection,
+    extend_map_single_intersection,
+    coordinate_map_set,
+    cur_flow_pre_map,
+    cur_queue_pre_map,
+):
     SUB_NS = 5
     SUB_LR = 5
-    if traffic_vector_duration2[0]==0 or traffic_vector_duration2[1] == 0:
+    if traffic_vector_duration2[0] == 0 or traffic_vector_duration2[1] == 0:
         SUB_LR = 0
-    if traffic_vector_duration2[2]==0 or traffic_vector_duration2[3] == 0:
+    if traffic_vector_duration2[2] == 0 or traffic_vector_duration2[3] == 0:
         SUB_NS = 0
     schedule = Get_time_map(1300092)
-    stage = Stage_signal_ans2(8,4,0,0,0,0,0,0,0,2,stage_map_single_intersection)
+    stage = Stage_signal_ans2(
+        8, 4, 0, 0, 0, 0, 0, 0, 0, 2, stage_map_single_intersection
+    )
     stage[8] = 1300092
     print(stage)
     t = time.localtime(current_time)
-    model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
+    model_map = get_model_map(
+        traffic_vector, queue_map_single_intersection, stage_map_single_intersection
+    )
     EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
     sch = schedule[str(t[3])]
     print([sch[0], sch[1], sch[2], sch[3], 1300092])
     if stage[0] != 0:
         predict = predict_head(stage, flow_map_single_intersection, 2)
-        print([predict[0],predict[1],1300092])
-        sch[0] = Ng(sch[0] + predict[1], 2, min(50, sch[0] + 10), max(25, sch[0] - SUB_NS))
-        sch[1] = Ng(sch[1] + predict[0], 2, min(30, sch[1] + 10), max(20, sch[1] - SUB_LR))
-    coordinate_set = {"s1":1,"s2":0}
+        print([predict[0], predict[1], 1300092])
+        sch[0] = Ng(
+            sch[0] + predict[1], 2, min(50, sch[0] + 10), max(25, sch[0] - SUB_NS)
+        )
+        sch[1] = Ng(
+            sch[1] + predict[0], 2, min(30, sch[1] + 10), max(20, sch[1] - SUB_LR)
+        )
+    coordinate_set = {"s1": 1, "s2": 0}
     print([sch[0], sch[1], sch[2], sch[3], 1300092])
     # if (traffic_vector_duration2[0]+traffic_vector_duration2[1]+traffic_vector_duration2[2]+traffic_vector_duration2[3])==0:
-    sch=chuli_shuju("1300092",flow_map_single_intersection,extend_map_single_intersection)
-    return sch,coordinate_set,model_map,EXP_map
+    sch = chuli_shuju(
+        "1300092", flow_map_single_intersection, extend_map_single_intersection
+    )
+    return sch, coordinate_set, model_map, EXP_map
 
 
-def DQN_select_1300069(traffic_vector, queue_vector, traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,extend_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map):
+def DQN_select_1300069(
+    traffic_vector,
+    queue_vector,
+    traffic_vector_duration2,
+    current_time,
+    flow_map_single_intersection,
+    queue_map_single_intersection,
+    stage_map_single_intersection,
+    extend_map_single_intersection,
+    coordinate_map_set,
+    cur_flow_pre_map,
+    cur_queue_pre_map,
+):
     SUB_NS = 5
     SUB_LR = 5
-    if traffic_vector_duration2[0]==0 or traffic_vector_duration2[1] == 0:
+    if traffic_vector_duration2[0] == 0 or traffic_vector_duration2[1] == 0:
         SUB_LR = 0
-    if traffic_vector_duration2[2]==0 or traffic_vector_duration2[3] == 0:
+    if traffic_vector_duration2[2] == 0 or traffic_vector_duration2[3] == 0:
         SUB_NS = 0
     schedule = Get_time_map(1300069)
-    stage = Stage_signal_ans1(1,2,3,4,0,0,0,0,0,4,stage_map_single_intersection)
+    stage = Stage_signal_ans1(
+        1, 2, 3, 4, 0, 0, 0, 0, 0, 4, stage_map_single_intersection
+    )
     # print(stage)
     t = time.localtime(current_time)
-    model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
+    model_map = get_model_map(
+        traffic_vector, queue_map_single_intersection, stage_map_single_intersection
+    )
     EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
     sch = schedule[str(t[3])]
     print([sch[0], sch[1], sch[2], sch[3], 1300069])
-    if stage[0]!=0:
+    if stage[0] != 0:
         predict = predict_head(stage, flow_map_single_intersection, 4)
-        print([predict[0],predict[1],predict[2],predict[3],1300069])
-        sch[0] = Ng(sch[0] + predict[0], 2, min(60, sch[0] + 10), max(44, sch[0] - SUB_NS))
-        sch[1] = Ng(sch[1] + predict[1] + max(queue_vector['U'][1], queue_vector['D'][1]) * 1.7 + 22, 3, min(35, sch[1] + 10), max(24, sch[1] - SUB_NS))
-        sch[2] = Ng(sch[2] + predict[2], 2, min(70, sch[2] + 10), max(42, sch[2] - SUB_LR))
-        sch[3] = Ng(sch[3] + predict[3] + max(queue_vector['L'][1], queue_vector['R'][1]) * 1.7 + 13, 3, min(30, sch[3] + 10), max(16, sch[3] - SUB_LR))
+        print([predict[0], predict[1], predict[2], predict[3], 1300069])
+        sch[0] = Ng(
+            sch[0] + predict[0], 2, min(60, sch[0] + 10), max(44, sch[0] - SUB_NS)
+        )
+        sch[1] = Ng(
+            sch[1]
+            + predict[1]
+            + max(queue_vector['U'][1], queue_vector['D'][1]) * 1.7
+            + 22,
+            3,
+            min(35, sch[1] + 10),
+            max(24, sch[1] - SUB_NS),
+        )
+        sch[2] = Ng(
+            sch[2] + predict[2], 2, min(70, sch[2] + 10), max(42, sch[2] - SUB_LR)
+        )
+        sch[3] = Ng(
+            sch[3]
+            + predict[3]
+            + max(queue_vector['L'][1], queue_vector['R'][1]) * 1.7
+            + 13,
+            3,
+            min(30, sch[3] + 10),
+            max(16, sch[3] - SUB_LR),
+        )
 
-    coordinate_set = {"s1":stage[0],"s2":stage[4]}
+    coordinate_set = {"s1": stage[0], "s2": stage[4]}
     # print([sch[0], sch[1], sch[2], sch[3], 1300069])
     # # if (traffic_vector_duration2[0]+traffic_vector_duration2[1]+traffic_vector_duration2[2]+traffic_vector_duration2[3])==0:
     # sch = reverse_time_from_three_cycle("1300069", flow_map_single_intersection, extend_map_single_intersection)
     # print("kjhxkjcshadkjsahdksad 1300069", sch)
-    sch=chuli_shuju("1300069",flow_map_single_intersection,extend_map_single_intersection)
+    sch = chuli_shuju(
+        "1300069", flow_map_single_intersection, extend_map_single_intersection
+    )
     sch = select_pilot_schedule(
         "1300069",
         sch,
@@ -866,85 +1089,163 @@ def DQN_select_1300069(traffic_vector, queue_vector, traffic_vector_duration2,cu
     )
     # if sch == None:
     #     sch = [0] * 10
-    return sch,coordinate_set,model_map,EXP_map
+    return sch, coordinate_set, model_map, EXP_map
 
-def DQN_select_1300101(traffic_vector, queue_vector, traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,extend_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map):
+
+def DQN_select_1300101(
+    traffic_vector,
+    queue_vector,
+    traffic_vector_duration2,
+    current_time,
+    flow_map_single_intersection,
+    queue_map_single_intersection,
+    stage_map_single_intersection,
+    extend_map_single_intersection,
+    coordinate_map_set,
+    cur_flow_pre_map,
+    cur_queue_pre_map,
+):
     SUB_NS = 5
     SUB_LR = 5
-    if  traffic_vector_duration2[1] == 0:
+    if traffic_vector_duration2[1] == 0:
         SUB_LR = 0
-    if traffic_vector_duration2[2]==0 or traffic_vector_duration2[3] == 0:
+    if traffic_vector_duration2[2] == 0 or traffic_vector_duration2[3] == 0:
         SUB_NS = 0
     schedule = Get_time_map(1300101)
-    stage = Stage_signal_ans1(1,2,3,0,0,0,0,0,0,3,stage_map_single_intersection)
+    stage = Stage_signal_ans1(
+        1, 2, 3, 0, 0, 0, 0, 0, 0, 3, stage_map_single_intersection
+    )
     stage[8] = 1300101
     t = time.localtime(current_time)
-    model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
+    model_map = get_model_map(
+        traffic_vector, queue_map_single_intersection, stage_map_single_intersection
+    )
     EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
     sch = schedule[str(t[3])]
     print([sch[0], sch[1], sch[2], sch[3], 1300101])
-    if stage[0]!=0:
+    if stage[0] != 0:
         predict = predict_head(stage, flow_map_single_intersection, 3)
-        print([predict[0], predict[1],predict[2], 1300101])
-        sch[0] = Ng(sch[0] + predict[2], 2, min(55, sch[0] + 10), max(40, sch[0] - SUB_LR))
-        sch[1] = Ng(sch[1] + predict[0], 2, min(70, sch[1] + 10), max(40, sch[1] - SUB_NS))
-        sch[2] = Ng(sch[2] + predict[1] + max(queue_vector['U'][1], queue_vector['D'][1]) * 1.7 + 10, 3, min(35, sch[2] + 10), max(16, sch[2] - SUB_NS))
-    coordinate_set = {"s1":stage[0],"s2":stage[3]}
+        print([predict[0], predict[1], predict[2], 1300101])
+        sch[0] = Ng(
+            sch[0] + predict[2], 2, min(55, sch[0] + 10), max(40, sch[0] - SUB_LR)
+        )
+        sch[1] = Ng(
+            sch[1] + predict[0], 2, min(70, sch[1] + 10), max(40, sch[1] - SUB_NS)
+        )
+        sch[2] = Ng(
+            sch[2]
+            + predict[1]
+            + max(queue_vector['U'][1], queue_vector['D'][1]) * 1.7
+            + 10,
+            3,
+            min(35, sch[2] + 10),
+            max(16, sch[2] - SUB_NS),
+        )
+    coordinate_set = {"s1": stage[0], "s2": stage[3]}
     print([sch[0], sch[1], sch[2], sch[3], 1300101])
     # if (traffic_vector_duration2[0]+traffic_vector_duration2[1]+traffic_vector_duration2[2]+traffic_vector_duration2[3])==0:
-    sch=chuli_shuju("1300101",flow_map_single_intersection,extend_map_single_intersection)
+    sch = chuli_shuju(
+        "1300101", flow_map_single_intersection, extend_map_single_intersection
+    )
 
-    return sch,coordinate_set,model_map,EXP_map
+    return sch, coordinate_set, model_map, EXP_map
 
-def DQN_select_1300097(traffic_vector, queue_vector, traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map):
+
+def DQN_select_1300097(
+    traffic_vector,
+    queue_vector,
+    traffic_vector_duration2,
+    current_time,
+    flow_map_single_intersection,
+    queue_map_single_intersection,
+    stage_map_single_intersection,
+    coordinate_map_set,
+    cur_flow_pre_map,
+    cur_queue_pre_map,
+):
     SUB_NS = 5
     SUB_LR = 5
-    if traffic_vector_duration2[0]==0 or traffic_vector_duration2[1] == 0:
+    if traffic_vector_duration2[0] == 0 or traffic_vector_duration2[1] == 0:
         SUB_LR = 0
-    if traffic_vector_duration2[2]==0 or traffic_vector_duration2[3] == 0:
+    if traffic_vector_duration2[2] == 0 or traffic_vector_duration2[3] == 0:
         SUB_NS = 0
     schedule = Get_time_map(1300097)
-    stage = Stage_signal_ans1(1,2,0,0,0,0,0,0,0,2,stage_map_single_intersection)
+    stage = Stage_signal_ans1(
+        1, 2, 0, 0, 0, 0, 0, 0, 0, 2, stage_map_single_intersection
+    )
     # print(stage)
     stage[8] = 1300097
     t = time.localtime(current_time)
     print(stage)
-    model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
+    model_map = get_model_map(
+        traffic_vector, queue_map_single_intersection, stage_map_single_intersection
+    )
     EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
     sch = schedule[str(t[3])]
     print([sch[0], sch[1], sch[2], sch[3], 1300097])
-    coordinate_set = {"s1":0,"s2":0}
-    if stage[0]!=0:
+    coordinate_set = {"s1": 0, "s2": 0}
+    if stage[0] != 0:
         predict = predict_head(stage, flow_map_single_intersection, 1)
         print([predict[0], 1300097])
-        sch[0] = Ng(sch[0] + predict[0], 2, min(70, sch[0] + 10), max(40, sch[0] - SUB_NS))
-        coordinate_set = {"s1":stage[0]+10,"s2":stage[2]+10}
+        sch[0] = Ng(
+            sch[0] + predict[0], 2, min(70, sch[0] + 10), max(40, sch[0] - SUB_NS)
+        )
+        coordinate_set = {"s1": stage[0] + 10, "s2": stage[2] + 10}
     print([sch[0], sch[1], sch[2], sch[3], 1300097])
     # if (traffic_vector_duration2[0]+traffic_vector_duration2[1]+traffic_vector_duration2[2]+traffic_vector_duration2[3])==0:
-    return sch,coordinate_set,model_map,EXP_map
+    return sch, coordinate_set, model_map, EXP_map
 
-def DQN_select_1300044(traffic_vector, queue_vector, traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,extend_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map):
+
+def DQN_select_1300044(
+    traffic_vector,
+    queue_vector,
+    traffic_vector_duration2,
+    current_time,
+    flow_map_single_intersection,
+    queue_map_single_intersection,
+    stage_map_single_intersection,
+    extend_map_single_intersection,
+    coordinate_map_set,
+    cur_flow_pre_map,
+    cur_queue_pre_map,
+):
     SUB_NS = 5
     SUB_LR = 5
-    if traffic_vector_duration2[0]==0 or traffic_vector_duration2[1] == 0:
+    if traffic_vector_duration2[0] == 0 or traffic_vector_duration2[1] == 0:
         SUB_LR = 0
-    if traffic_vector_duration2[2]==0 or traffic_vector_duration2[3] == 0:
+    if traffic_vector_duration2[2] == 0 or traffic_vector_duration2[3] == 0:
         SUB_NS = 0
     schedule = Get_time_map(1300044)
-    stage = Stage_signal_ans1(1, 2, 3, 0, 0, 0, 0, 0, 0, 3, stage_map_single_intersection)
+    stage = Stage_signal_ans1(
+        1, 2, 3, 0, 0, 0, 0, 0, 0, 3, stage_map_single_intersection
+    )
     t = time.localtime(current_time)
-    model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
+    model_map = get_model_map(
+        traffic_vector, queue_map_single_intersection, stage_map_single_intersection
+    )
     EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
     sch = schedule[str(t[3])]
     print([sch[0], sch[1], sch[2], sch[3], 1300044])
     if stage[0] != 0:
         predict = predict_head(stage, flow_map_single_intersection, 3)
-        print([predict[0],predict[1],predict[2], 1300044])
-        sch[0] = Ng(sch[0] + predict[0] , 2, min(65,sch[0]+10), max(40,sch[0]-SUB_LR))
-        sch[1] = Ng(sch[1] + predict[1], 2, min(65,sch[1]+10), max(40,sch[1]-SUB_NS))
-        sch[2] = Ng(sch[2] + predict[2] + max(queue_vector['U'][1], queue_vector['D'][1]) * 1.7 + 17, 3, min(35,sch[2]+10), max(17,sch[2]-SUB_NS))
+        print([predict[0], predict[1], predict[2], 1300044])
+        sch[0] = Ng(
+            sch[0] + predict[0], 2, min(65, sch[0] + 10), max(40, sch[0] - SUB_LR)
+        )
+        sch[1] = Ng(
+            sch[1] + predict[1], 2, min(65, sch[1] + 10), max(40, sch[1] - SUB_NS)
+        )
+        sch[2] = Ng(
+            sch[2]
+            + predict[2]
+            + max(queue_vector['U'][1], queue_vector['D'][1]) * 1.7
+            + 17,
+            3,
+            min(35, sch[2] + 10),
+            max(17, sch[2] - SUB_NS),
+        )
     print([sch[0], sch[1], sch[2], sch[3], 1300044])
-    coordinate_set = {"Start1":1,"start2":0}
+    coordinate_set = {"Start1": 1, "start2": 0}
 
     # print("------------------------------")
     # sch = reverse_time_from_three_cycle("1300044", flow_map_single_intersection, extend_map_single_intersection)
@@ -952,68 +1253,118 @@ def DQN_select_1300044(traffic_vector, queue_vector, traffic_vector_duration2,cu
     #
     # if sch == None:
     #     sch = [0] * 10
-    sch=chuli_shuju("1300044", flow_map_single_intersection, extend_map_single_intersection)
-    return sch,coordinate_set,model_map,EXP_map
+    sch = chuli_shuju(
+        "1300044", flow_map_single_intersection, extend_map_single_intersection
+    )
+    return sch, coordinate_set, model_map, EXP_map
 
-def DQN_select_1300046(traffic_vector, queue_vector, traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map):
+
+def DQN_select_1300046(
+    traffic_vector,
+    queue_vector,
+    traffic_vector_duration2,
+    current_time,
+    flow_map_single_intersection,
+    queue_map_single_intersection,
+    stage_map_single_intersection,
+    coordinate_map_set,
+    cur_flow_pre_map,
+    cur_queue_pre_map,
+):
     SUB_NS = 5
     SUB_LR = 5
-    if traffic_vector_duration2[0]==0 or traffic_vector_duration2[1] == 0:
+    if traffic_vector_duration2[0] == 0 or traffic_vector_duration2[1] == 0:
         SUB_LR = 0
-    if traffic_vector_duration2[2]==0 or traffic_vector_duration2[3] == 0:
+    if traffic_vector_duration2[2] == 0 or traffic_vector_duration2[3] == 0:
         SUB_NS = 0
     schedule = Get_time_map(1300046)
-    stage = Stage_signal_ans2(8,4,9,0,0,0,0,0,0,3,stage_map_single_intersection)
+    stage = Stage_signal_ans2(
+        8, 4, 9, 0, 0, 0, 0, 0, 0, 3, stage_map_single_intersection
+    )
     # print(stage)
     stage[8] = 1300046
     print(stage)
     t = time.localtime(current_time)
-    model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
+    model_map = get_model_map(
+        traffic_vector, queue_map_single_intersection, stage_map_single_intersection
+    )
     EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
     sch = schedule[str(t[3])]
     print([sch[0], sch[1], sch[2], sch[3], 1300046])
-    if stage[0]!=0:
+    if stage[0] != 0:
         predict = predict_head(stage, flow_map_single_intersection, 1)
         print([predict[0], 1300046])
-        sch[0] = Ng(sch[0] + predict[0], 2, min(70,sch[0]+10), max(40,sch[0]-SUB_LR))
-        sch[1] = int((sch[0]-40)*0.2)+30
-        sch[2] = int((sch[0]-40)*0.1)+30
-    coordinate_set = {"s1":stage[0],"s2":stage[3]}
+        sch[0] = Ng(
+            sch[0] + predict[0], 2, min(70, sch[0] + 10), max(40, sch[0] - SUB_LR)
+        )
+        sch[1] = int((sch[0] - 40) * 0.2) + 30
+        sch[2] = int((sch[0] - 40) * 0.1) + 30
+    coordinate_set = {"s1": stage[0], "s2": stage[3]}
     print([sch[0], sch[1], sch[2], sch[3], 1300046])
     # if (traffic_vector_duration2[0]+traffic_vector_duration2[1]+traffic_vector_duration2[2]+traffic_vector_duration2[3])==0:
 
-    return sch,coordinate_set,model_map,EXP_map
+    return sch, coordinate_set, model_map, EXP_map
 
 
-def DQN_select_1300042(traffic_vector, queue_vector, traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,extend_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map):
+def DQN_select_1300042(
+    traffic_vector,
+    queue_vector,
+    traffic_vector_duration2,
+    current_time,
+    flow_map_single_intersection,
+    queue_map_single_intersection,
+    stage_map_single_intersection,
+    extend_map_single_intersection,
+    coordinate_map_set,
+    cur_flow_pre_map,
+    cur_queue_pre_map,
+):
     SUB_NS = 5
     SUB_LR = 5
-    if traffic_vector_duration2[0]==0 or traffic_vector_duration2[1] == 0:
+    if traffic_vector_duration2[0] == 0 or traffic_vector_duration2[1] == 0:
         SUB_LR = 0
-    if traffic_vector_duration2[2]==0 or traffic_vector_duration2[3] == 0:
+    if traffic_vector_duration2[2] == 0 or traffic_vector_duration2[3] == 0:
         SUB_NS = 0
     schedule = Get_time_map(1300042)
-    stage = Stage_signal_ans2(8, 4, 0, 0, 0, 0, 0, 0, 0, 2, stage_map_single_intersection)
+    stage = Stage_signal_ans2(
+        8, 4, 0, 0, 0, 0, 0, 0, 0, 2, stage_map_single_intersection
+    )
     stage[8] = 1300042
     t = time.localtime(current_time)
     sch = schedule[str(t[3])]
-    print([sch[0],sch[1],sch[2], sch[3],1300042])
+    print([sch[0], sch[1], sch[2], sch[3], 1300042])
     coordinate_set = {"s1": 0, "s2": 0}
-    if stage[0]!=0:
+    if stage[0] != 0:
         predict = predict_head(stage, flow_map_single_intersection, 1)
-        print([predict[0],1300042])
-        sch[0] = Ng(sch[0] + predict[0], 2, min(70, sch[0] + 10), max(42, sch[0] - SUB_LR))
+        print([predict[0], 1300042])
+        sch[0] = Ng(
+            sch[0] + predict[0], 2, min(70, sch[0] + 10), max(42, sch[0] - SUB_LR)
+        )
         coordinate_set = {"s1": stage[0], "s2": stage[2]}
-    model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
+    model_map = get_model_map(
+        traffic_vector, queue_map_single_intersection, stage_map_single_intersection
+    )
     EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
     # sch = schedule[str(t[3])]
     print([sch[0], sch[1], sch[2], sch[3], 1300042])
-    sch=chuli_shuju("1300042",flow_map_single_intersection,extend_map_single_intersection)
-    return sch,coordinate_set,model_map,EXP_map
+    sch = chuli_shuju(
+        "1300042", flow_map_single_intersection, extend_map_single_intersection
+    )
+    return sch, coordinate_set, model_map, EXP_map
 
 
-
-def DQN_select_1300454(traffic_vector, queue_vector,traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map):
+def DQN_select_1300454(
+    traffic_vector,
+    queue_vector,
+    traffic_vector_duration2,
+    current_time,
+    flow_map_single_intersection,
+    queue_map_single_intersection,
+    stage_map_single_intersection,
+    coordinate_map_set,
+    cur_flow_pre_map,
+    cur_queue_pre_map,
+):
     SUB_NS = 5
     SUB_LR = 5
     if traffic_vector_duration2[0] == 0 or traffic_vector_duration2[1] == 0:
@@ -1021,88 +1372,193 @@ def DQN_select_1300454(traffic_vector, queue_vector,traffic_vector_duration2,cur
     if traffic_vector_duration2[2] == 0 or traffic_vector_duration2[3] == 0:
         SUB_NS = 0
     schedule = Get_time_map(1300454)
-    stage = Stage_signal_ans1(1, 2, 3, 0, 0, 0, 0, 0, 0, 3, stage_map_single_intersection)
+    stage = Stage_signal_ans1(
+        1, 2, 3, 0, 0, 0, 0, 0, 0, 3, stage_map_single_intersection
+    )
     stage[8] = 1300454
     print(stage)
     t = time.localtime(current_time)
     sch = schedule[str(t[3])]
     print([sch[0], sch[1], sch[3], 1300454])
     coordinate_map = {"s1": 0, "s2": 0}
-    ret = [0]*10
+    ret = [0] * 10
     if stage[0] != 0:
-        L,R,LL,RL,N,S = Get_pass_13454(stage, flow_map_single_intersection)
+        L, R, LL, RL, N, S = Get_pass_13454(stage, flow_map_single_intersection)
         print([L, R, LL, RL, N, S, 1300454])
-        if max(L,R)>60:
-            if R-L>= 10:
-                ret[0] = Ng(sch[0] + max(L, R), 2, min(60, sch[0] + 10), max(42, sch[0] - SUB_LR))
+        if max(L, R) > 60:
+            if R - L >= 10:
+                ret[0] = Ng(
+                    sch[0] + max(L, R),
+                    2,
+                    min(60, sch[0] + 10),
+                    max(42, sch[0] - SUB_LR),
+                )
                 ret[1] = int(min(max((R - L) * 1.5, 15), 30))
-                ret[2] = Ng(sch[1] + max(LL, RL) + max(queue_vector['L'][1], queue_vector['R'][1]) * 1.5 + 14, 3,min(35, sch[1] + 10), max(16, sch[1] - SUB_LR))
+                ret[2] = Ng(
+                    sch[1]
+                    + max(LL, RL)
+                    + max(queue_vector['L'][1], queue_vector['R'][1]) * 1.5
+                    + 14,
+                    3,
+                    min(35, sch[1] + 10),
+                    max(16, sch[1] - SUB_LR),
+                )
                 ret[3] = 12
-                ret[4] = Ng(sch[3] + max(N, S), 2, min(60, sch[3] + 10), max(44, sch[3] - SUB_NS))
+                ret[4] = Ng(
+                    sch[3] + max(N, S),
+                    2,
+                    min(60, sch[3] + 10),
+                    max(44, sch[3] - SUB_NS),
+                )
                 ret[5] = 14
                 ret[9] = 1
             elif L - R >= 10:
-                ret[0] = Ng(sch[0] + max(L, R), 2, min(60, sch[0] + 10), max(42, sch[0] - SUB_LR))
+                ret[0] = Ng(
+                    sch[0] + max(L, R),
+                    2,
+                    min(60, sch[0] + 10),
+                    max(42, sch[0] - SUB_LR),
+                )
                 ret[1] = int(min(max((L - R) * 1.5, 15), 30))
-                ret[2] = Ng(sch[1] + max(LL, RL) + max(queue_vector['L'][1], queue_vector['R'][1]) * 1.5 + 14, 3,min(35, sch[1] + 10), max(16, sch[1] - SUB_LR))
+                ret[2] = Ng(
+                    sch[1]
+                    + max(LL, RL)
+                    + max(queue_vector['L'][1], queue_vector['R'][1]) * 1.5
+                    + 14,
+                    3,
+                    min(35, sch[1] + 10),
+                    max(16, sch[1] - SUB_LR),
+                )
                 ret[3] = 12
-                ret[4] = Ng(sch[3] + max(N, S), 2, min(60, sch[3] + 10), max(44, sch[3] - SUB_NS))
+                ret[4] = Ng(
+                    sch[3] + max(N, S),
+                    2,
+                    min(60, sch[3] + 10),
+                    max(44, sch[3] - SUB_NS),
+                )
                 ret[5] = 14
                 ret[9] = 3
             else:
-                ret[0] = Ng(sch[0] + max(L, R)+6, 2, min(70, sch[0] + 10), max(42, sch[0] - SUB_LR))
-                ret[1] = Ng(sch[1] + max(LL, RL) + max(queue_vector['L'][1], queue_vector['R'][1]) * 1.5 + 14, 3,min(35, sch[1] + 10), max(16, sch[1] - SUB_LR))
+                ret[0] = Ng(
+                    sch[0] + max(L, R) + 6,
+                    2,
+                    min(70, sch[0] + 10),
+                    max(42, sch[0] - SUB_LR),
+                )
+                ret[1] = Ng(
+                    sch[1]
+                    + max(LL, RL)
+                    + max(queue_vector['L'][1], queue_vector['R'][1]) * 1.5
+                    + 14,
+                    3,
+                    min(35, sch[1] + 10),
+                    max(16, sch[1] - SUB_LR),
+                )
                 ret[2] = 12
-                ret[3] = Ng(sch[3] + max(N, S), 2, min(60, sch[3] + 10), max(44, sch[3] - SUB_NS))
+                ret[3] = Ng(
+                    sch[3] + max(N, S),
+                    2,
+                    min(60, sch[3] + 10),
+                    max(44, sch[3] - SUB_NS),
+                )
                 ret[4] = 14
                 ret[9] = 2
         else:
-            ret[0] = Ng(sch[0] + max(L, R)+4, 2, min(70, sch[0] + 10), max(42, sch[0] - SUB_LR))
-            ret[1] = Ng(sch[1] + max(LL, RL) + max(queue_vector['L'][1], queue_vector['R'][1]) * 1.5 + 14, 3, min(35, sch[1] + 10), max(16, sch[1] - SUB_LR))
+            ret[0] = Ng(
+                sch[0] + max(L, R) + 4,
+                2,
+                min(70, sch[0] + 10),
+                max(42, sch[0] - SUB_LR),
+            )
+            ret[1] = Ng(
+                sch[1]
+                + max(LL, RL)
+                + max(queue_vector['L'][1], queue_vector['R'][1]) * 1.5
+                + 14,
+                3,
+                min(35, sch[1] + 10),
+                max(16, sch[1] - SUB_LR),
+            )
             ret[2] = 12
-            ret[3] = Ng(sch[3] + max(N, S), 2, min(60, sch[3] + 10), max(44, sch[3] - SUB_NS))
+            ret[3] = Ng(
+                sch[3] + max(N, S), 2, min(60, sch[3] + 10), max(44, sch[3] - SUB_NS)
+            )
             ret[4] = 14
             ret[9] = 2
     else:
         ret = sch
 
-
     coordinate_map = {"s1": stage[0], "s2": stage[1]}
     print([ret[0], ret[1], ret[2], ret[3], 1300454])
-    model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
+    model_map = get_model_map(
+        traffic_vector, queue_map_single_intersection, stage_map_single_intersection
+    )
     EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
-    return ret,coordinate_map,model_map,EXP_map
+    return ret, coordinate_map, model_map, EXP_map
 
 
-def DQN_select_1300451(traffic_vector, queue_vector,traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map):
+def DQN_select_1300451(
+    traffic_vector,
+    queue_vector,
+    traffic_vector_duration2,
+    current_time,
+    flow_map_single_intersection,
+    queue_map_single_intersection,
+    stage_map_single_intersection,
+    coordinate_map_set,
+    cur_flow_pre_map,
+    cur_queue_pre_map,
+):
     SUB_NS = 5
     SUB_LR = 5
-    if traffic_vector_duration2[0]==0 or traffic_vector_duration2[1] == 0:
+    if traffic_vector_duration2[0] == 0 or traffic_vector_duration2[1] == 0:
         SUB_LR = 0
-    if traffic_vector_duration2[2]==0 or traffic_vector_duration2[3] == 0:
+    if traffic_vector_duration2[2] == 0 or traffic_vector_duration2[3] == 0:
         SUB_NS = 0
     schedule = Get_time_map(1300451)
-    stage = Stage_signal_ans1(1, 2, 3, 4, 0, 0, 0, 0, 0, 4, stage_map_single_intersection)
+    stage = Stage_signal_ans1(
+        1, 2, 3, 4, 0, 0, 0, 0, 0, 4, stage_map_single_intersection
+    )
     stage[8] = 1300451
     print(stage)
     t = time.localtime(current_time)
     sch = schedule[str(t[3])]
-    print([sch[0],sch[1],sch[2],sch[3],1300451])
+    print([sch[0], sch[1], sch[2], sch[3], 1300451])
     coordinate_map = {"s1": 0, "s2": 0}
     if stage[0] != 0:
-        predict = predict_head(stage, flow_map_single_intersection,4)
-        print([predict[0],predict[1],predict[2],predict[3], 1300451])
-        sch[0] = Ng(sch[0] + predict[0], 2, min(70, sch[0] + 10), max(42, sch[0] - SUB_LR))
-        sch[1] = Ng(sch[1] + predict[1] + max(queue_vector['L'][1], queue_vector['R'][1]) * 1.5 + 13, 3,min(30, sch[1] + 10), max(16, sch[1] - SUB_LR))
-        sch[2] = Ng(sch[2] + predict[2], 2, min(60, sch[2] + 10), max(44, sch[2] - SUB_NS))
-        sch[3] = Ng(sch[3] + predict[3] + max(queue_vector['U'][1], queue_vector['D'][1]) * 1.7 + 22, 3,min(35, sch[3] + 10), max(24, sch[3] - SUB_NS))
-        coordinate_map = {"s1":stage[0],"s2":stage[1]}
+        predict = predict_head(stage, flow_map_single_intersection, 4)
+        print([predict[0], predict[1], predict[2], predict[3], 1300451])
+        sch[0] = Ng(
+            sch[0] + predict[0], 2, min(70, sch[0] + 10), max(42, sch[0] - SUB_LR)
+        )
+        sch[1] = Ng(
+            sch[1]
+            + predict[1]
+            + max(queue_vector['L'][1], queue_vector['R'][1]) * 1.5
+            + 13,
+            3,
+            min(30, sch[1] + 10),
+            max(16, sch[1] - SUB_LR),
+        )
+        sch[2] = Ng(
+            sch[2] + predict[2], 2, min(60, sch[2] + 10), max(44, sch[2] - SUB_NS)
+        )
+        sch[3] = Ng(
+            sch[3]
+            + predict[3]
+            + max(queue_vector['U'][1], queue_vector['D'][1]) * 1.7
+            + 22,
+            3,
+            min(35, sch[3] + 10),
+            max(24, sch[3] - SUB_NS),
+        )
+        coordinate_map = {"s1": stage[0], "s2": stage[1]}
     print([sch[0], sch[1], sch[2], sch[3], 1300451])
-    model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
+    model_map = get_model_map(
+        traffic_vector, queue_map_single_intersection, stage_map_single_intersection
+    )
     EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
-    return sch,coordinate_map,model_map,EXP_map
-
-
+    return sch, coordinate_map, model_map, EXP_map
 
 
 def DQN_select_1700086(traffic_vector, queue_vector, traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,extend_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map):
@@ -1168,8 +1624,6 @@ def DQN_select_1700087(traffic_vector, queue_vector, traffic_vector_duration2,cu
     return sch,coordinate_set,model_map,EXP_map
 
 
-
-
 def DQN_select_1300229(traffic_vector, queue_vector, traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,extend_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map):
     model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
     EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
@@ -1203,7 +1657,6 @@ def DQN_select_1300239(traffic_vector, queue_vector, traffic_vector_duration2,cu
     return sch,coordinate_set,model_map,EXP_map
 
 
-
 def DQN_select_1700124(traffic_vector, queue_vector, traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,extend_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map):
     model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
     EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
@@ -1218,7 +1671,6 @@ def DQN_select_1700124(traffic_vector, queue_vector, traffic_vector_duration2,cu
     sch=chuli_shuju("1700124", flow_map_single_intersection,extend_map_single_intersection)
     # print("1700124____________________________________",sch,"1700124____________________________________")
     return sch,coordinate_set,model_map,EXP_map
-
 
 
 def DQN_select_1700125(traffic_vector, queue_vector, traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,extend_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map):
@@ -1243,7 +1695,6 @@ def DQN_select_1700125(traffic_vector, queue_vector, traffic_vector_duration2,cu
     return sch,coordinate_set,model_map,EXP_map
 
 
-
 def DQN_select_1700126(traffic_vector, queue_vector, traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,extend_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map):
     model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
     EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
@@ -1260,7 +1711,6 @@ def DQN_select_1700126(traffic_vector, queue_vector, traffic_vector_duration2,cu
     return sch,coordinate_set,model_map,EXP_map
 
 
-
 def DQN_select_1700079(traffic_vector, queue_vector, traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,extend_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map):
     model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
     EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
@@ -1275,7 +1725,6 @@ def DQN_select_1700079(traffic_vector, queue_vector, traffic_vector_duration2,cu
     sch=chuli_shuju("1700079", flow_map_single_intersection,extend_map_single_intersection)
     # print("1700079____________________________________",sch,"1700079____________________________________")
     return sch,coordinate_set,model_map,EXP_map
-
 
 
 def DQN_select_1300153(traffic_vector, queue_vector, traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,extend_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map):
@@ -1295,8 +1744,6 @@ def DQN_select_1300153(traffic_vector, queue_vector, traffic_vector_duration2,cu
     return sch,coordinate_set,model_map,EXP_map
 
 
-
-
 def DQN_select_1300166(traffic_vector, queue_vector, traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,extend_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map):
     model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
     EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
@@ -1312,9 +1759,6 @@ def DQN_select_1300166(traffic_vector, queue_vector, traffic_vector_duration2,cu
     sch = select_pilot_schedule("1300166", sch, flow_map_single_intersection, extend_map_single_intersection)
     print("1300166____________________________________",sch,"1300166____________________________________")
     return sch,coordinate_set,model_map,EXP_map
-
-
-
 
 
 def DQN_select_1300306(traffic_vector, queue_vector, traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,extend_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map):
@@ -1367,7 +1811,6 @@ def DQN_select_1700262(traffic_vector, queue_vector, traffic_vector_duration2,cu
     return sch,coordinate_set,model_map,EXP_map
 
 
-
 def DQN_select_1700085(traffic_vector, queue_vector, traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,extend_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map):
     model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
     EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
@@ -1382,7 +1825,6 @@ def DQN_select_1700085(traffic_vector, queue_vector, traffic_vector_duration2,cu
     sch=chuli_shuju("1700085", flow_map_single_intersection,extend_map_single_intersection)
     # print("1700079____________________________________",sch,"1700079____________________________________")
     return sch,coordinate_set,model_map,EXP_map
-
 
 
 def DQN_select_1700067(traffic_vector, queue_vector, traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,extend_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map):
@@ -1401,7 +1843,6 @@ def DQN_select_1700067(traffic_vector, queue_vector, traffic_vector_duration2,cu
     return sch,coordinate_set,model_map,EXP_map
 
 
-
 def DQN_select_1700293(traffic_vector, queue_vector, traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,extend_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map):
     model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
     EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
@@ -1416,8 +1857,6 @@ def DQN_select_1700293(traffic_vector, queue_vector, traffic_vector_duration2,cu
     sch=chuli_shuju("1700293", flow_map_single_intersection,extend_map_single_intersection)
     # print("1700079____________________________________",sch,"1700079____________________________________")
     return sch,coordinate_set,model_map,EXP_map
-
-
 
 
 def DQN_select_1300362(traffic_vector, queue_vector, traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,extend_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map):
@@ -1435,9 +1874,6 @@ def DQN_select_1300362(traffic_vector, queue_vector, traffic_vector_duration2,cu
     sch = select_pilot_schedule("1300362", sch, flow_map_single_intersection, extend_map_single_intersection)
     print("1300362____________________________________",sch,"1300362____________________________________")
     return sch,coordinate_set,model_map,EXP_map
-
-
-
 
 
 def DQN_select_1300087(traffic_vector, queue_vector, traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,extend_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map):
@@ -1473,7 +1909,6 @@ def DQN_select_1300147(traffic_vector, queue_vector, traffic_vector_duration2,cu
     return sch,coordinate_set,model_map,EXP_map
 
 
-
 def DQN_select_2702736(traffic_vector, queue_vector, traffic_vector_duration2,current_time,flow_map_single_intersection,queue_map_single_intersection,stage_map_single_intersection,extend_map_single_intersection,coordinate_map_set,cur_flow_pre_map,cur_queue_pre_map):
     model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
     EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
@@ -1488,7 +1923,6 @@ def DQN_select_2702736(traffic_vector, queue_vector, traffic_vector_duration2,cu
     sch=chuli_shuju("2702736", flow_map_single_intersection,extend_map_single_intersection)
     print("2702736____________________________________",sch,"2702736____________________________________")
     return sch,coordinate_set,model_map,EXP_map
-
 
 
 def DQN_select_1300086(traffic_vector, queue_vector, traffic_vector_duration2, current_time, flow_map_single_intersection, queue_map_single_intersection, stage_map_single_intersection, extend_map_single_intersection, coordinate_map_set, cur_flow_pre_map, cur_queue_pre_map):
@@ -1633,9 +2067,6 @@ def DQN_select_1300230(traffic_vector, queue_vector, traffic_vector_duration2, c
     return sch, coordinate_set, model_map, EXP_map
 
 
-
-
-
 def DQN_select_1300089(traffic_vector, queue_vector, traffic_vector_duration2, current_time, flow_map_single_intersection, queue_map_single_intersection, stage_map_single_intersection, extend_map_single_intersection, coordinate_map_set, cur_flow_pre_map, cur_queue_pre_map):
     model_map = get_model_map(traffic_vector, queue_map_single_intersection, stage_map_single_intersection)
     EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
@@ -1694,7 +2125,6 @@ def DQN_select_1300070(traffic_vector, queue_vector, traffic_vector_duration2, c
 
 
     return sch, coordinate_set, model_map, EXP_map
-
 
 
 def DQN_select_1700542(traffic_vector, queue_vector, traffic_vector_duration2, current_time, flow_map_single_intersection, queue_map_single_intersection, stage_map_single_intersection, extend_map_single_intersection, coordinate_map_set, cur_flow_pre_map, cur_queue_pre_map):
@@ -1765,7 +2195,6 @@ def DQN_select_1700545(traffic_vector, queue_vector, traffic_vector_duration2, c
     sch = select_pilot_schedule("1700545", sch, flow_map_single_intersection, extend_map_single_intersection)
     print("1700545____________________________________", sch, "1700545____________________________________")
     return sch, coordinate_set, model_map, EXP_map
-
 
 
 def DQN_select_2620(traffic_vector, queue_vector, traffic_vector_duration2, current_time, flow_map_single_intersection, queue_map_single_intersection, stage_map_single_intersection, extend_map_single_intersection, coordinate_map_set, cur_flow_pre_map, cur_queue_pre_map):
