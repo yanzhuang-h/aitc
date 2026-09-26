@@ -109,7 +109,7 @@ class HttpRuntimeServer(LoggingMixin):
                 self._server.handle_request()
             except OSError:
                 if not self._stop_event.is_set():
-                    self._error("HTTP server request handling failed", exc_info=True)
+                    self._error("HTTP 服务请求处理失败", exc_info=True)
                 break
 
     def _build_handler(self):
@@ -169,6 +169,8 @@ class HttpRuntimeServer(LoggingMixin):
                     return
                 if path.startswith(("/road_info", "/cross_info")) and self._try_handle_config("POST", body):
                     return
+                # 兜底：除已知路由外，任意路径的 POST 都视为雷达/博研数据上报
+                # （历史协议兼容：设备直打任意路径，body 为 dict/list 即接入管线）
                 if not isinstance(body, (dict, list)):
                     self._send_json(400, {"error": "Unsupported radar data format"})
                     return
@@ -176,7 +178,7 @@ class HttpRuntimeServer(LoggingMixin):
                 try:
                     runtime_server.ingestor.ingest_http(body)
                 except Exception:
-                    runtime_server._error("Error processing radar data", exc_info=True)
+                    runtime_server._error("处理雷达数据失败", exc_info=True)
                     self._send_json(500, {"error": "internal server error"})
                     return
                 self._send_json(200, {"status": "success", "message": "Radar data received"})
@@ -266,80 +268,36 @@ class HttpRuntimeServer(LoggingMixin):
                     return
                 self._send_json(200, runtime_server._health_payload())
 
-            def _handle_signal_timing(self, body: Any) -> None:
+            def _dispatch_generate(self, generate_fn, label: str, body: Any) -> None:
+                """统一处理「生成类」接口：校验请求体 → 调用生成函数 → 400/500/200。"""
                 if not isinstance(body, dict):
                     self._send_json(400, {"error": "Request body must be an object"})
                     return
                 try:
-                    payload = runtime_server._generate_signal_timing(body)
+                    payload = generate_fn(body)
                 except ValueError as error:
                     self._send_json(400, {"error": str(error)})
                     return
                 except Exception:
-                    runtime_server._error("Error generating signal timing", exc_info=True)
+                    runtime_server._error("生成 %s 失败", label, exc_info=True)
                     self._send_json(500, {"error": "internal server error"})
                     return
                 self._send_json(200, payload)
+
+            def _handle_signal_timing(self, body: Any) -> None:
+                self._dispatch_generate(runtime_server._generate_signal_timing, "单路口信号方案", body)
 
             def _handle_qwen_signal_timing(self, body: Any) -> None:
-                if not isinstance(body, dict):
-                    self._send_json(400, {"error": "Request body must be an object"})
-                    return
-                try:
-                    payload = runtime_server._generate_qwen_signal_timing(body)
-                except ValueError as error:
-                    self._send_json(400, {"error": str(error)})
-                    return
-                except Exception:
-                    runtime_server._error("Error generating Qwen signal timing", exc_info=True)
-                    self._send_json(500, {"error": "internal server error"})
-                    return
-                self._send_json(200, payload)
+                self._dispatch_generate(runtime_server._generate_qwen_signal_timing, "Qwen 信号方案", body)
 
             def _handle_control_process(self, body: Any) -> None:
-                if not isinstance(body, dict):
-                    self._send_json(400, {"error": "Request body must be an object"})
-                    return
-                try:
-                    payload = runtime_server._generate_control_process(body)
-                except ValueError as error:
-                    self._send_json(400, {"error": str(error)})
-                    return
-                except Exception:
-                    runtime_server._error("Error generating control process", exc_info=True)
-                    self._send_json(500, {"error": "internal server error"})
-                    return
-                self._send_json(200, payload)
+                self._dispatch_generate(runtime_server._generate_control_process, "放行控制流程", body)
 
             def _handle_qwen_tools(self, body: Any) -> None:
-                if not isinstance(body, dict):
-                    self._send_json(400, {"error": "Request body must be an object"})
-                    return
-                try:
-                    payload = runtime_server._generate_qwen_tools(body)
-                except ValueError as error:
-                    self._send_json(400, {"error": str(error)})
-                    return
-                except Exception:
-                    runtime_server._error("Error generating multi-tool routing", exc_info=True)
-                    self._send_json(500, {"error": "internal server error"})
-                    return
-                self._send_json(200, payload)
+                self._dispatch_generate(runtime_server._generate_qwen_tools, "多工具路由", body)
 
             def _handle_qwen_query(self, body: Any) -> None:
-                if not isinstance(body, dict):
-                    self._send_json(400, {"error": "Request body must be an object"})
-                    return
-                try:
-                    payload = runtime_server._generate_qwen_query(body)
-                except ValueError as error:
-                    self._send_json(400, {"error": str(error)})
-                    return
-                except Exception:
-                    runtime_server._error("Error generating autonomous query", exc_info=True)
-                    self._send_json(500, {"error": "internal server error"})
-                    return
-                self._send_json(200, payload)
+                self._dispatch_generate(runtime_server._generate_qwen_query, "自主判断查询", body)
 
             def _handle_green_wave_post(self, action: str, body: Any) -> None:
                 if not isinstance(body, dict):
@@ -356,7 +314,7 @@ class HttpRuntimeServer(LoggingMixin):
                     self._send_json(400, {"error": str(error)})
                     return
                 except Exception:
-                    runtime_server._error("Error handling green wave " + action, exc_info=True)
+                    runtime_server._error("处理绿波操作失败: %s", action, exc_info=True)
                     self._send_json(500, {"error": "internal server error"})
                     return
                 self._send_json(200, payload)
@@ -372,7 +330,7 @@ class HttpRuntimeServer(LoggingMixin):
                     self._send_json(400, {"error": str(error)})
                     return
                 except Exception:
-                    runtime_server._error("Error handling green wave patch", exc_info=True)
+                    runtime_server._error("处理绿波开关失败", exc_info=True)
                     self._send_json(500, {"error": "internal server error"})
                     return
                 self._send_json(200, payload)
@@ -392,7 +350,7 @@ class HttpRuntimeServer(LoggingMixin):
                 try:
                     outcome = runtime_server.config_service.handle_request(method, urlparse(self.path).path, body)
                 except Exception:
-                    runtime_server._error("Error in config API handler", exc_info=True)
+                    runtime_server._error("配置接口处理失败", exc_info=True)
                     self._send_json(500, {"status": "error", "reason": "internal server error"})
                     return True
                 if outcome is None:
@@ -407,7 +365,7 @@ class HttpRuntimeServer(LoggingMixin):
                 if not runtime_server._is_cross_origin_request(origin, host):
                     return False
                 runtime_server._warning(
-                    "Blocked cross-origin request: origin=%s host=%s path=%s",
+                    "已拦截跨域请求: origin=%s host=%s path=%s",
                     origin,
                     host,
                     self.path,
@@ -432,7 +390,7 @@ class HttpRuntimeServer(LoggingMixin):
                 self.wfile.write(body)
 
             def log_message(self, format, *args):
-                runtime_server._info("HTTP Server: %s", format % args)
+                runtime_server._info("HTTP 访问: %s", format % args)
 
         return RuntimeRequestHandler
 
