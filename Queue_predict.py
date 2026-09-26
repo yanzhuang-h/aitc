@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 import logging
 import Lambdas
 from infra.data.prediction_repository import FilePredictionRepository
+from infra.data.prediction_windows import generate_target_windows, is_workday
 
 
 logger = logging.getLogger(__name__)
@@ -20,38 +21,9 @@ def queue_pre_json_gen(intersection_queue_data, end_time):
         }
     }
 
-def is_workday(date):
-    """判断日期是否为工作日（周一至周五）"""
-    return date.weekday() < 5
-
-def get_ten_minute_window(target_time):
-    """获取十分钟时间窗口"""
-    minute = target_time.minute
-    window_start = target_time.replace(minute=(minute // 10)*10, second=0, microsecond=0)
-    return window_start, window_start + timedelta(minutes=10)
-
-def generate_target_windows(target_time_str, days, is_workday_mode):
-    """生成历史时间窗口"""
-    target_time = datetime.strptime(target_time_str, "%Y-%m-%d-%H:%M")
-    base_start, base_end = get_ten_minute_window(target_time)
-    
-    windows = []
-    current_date = target_time.date()
-    delta = timedelta(days=1)
-    count = 0
-
-    while count < days:
-        current_date -= delta
-        current_date_obj = datetime.combine(current_date, target_time.time())
-        if is_workday_mode == is_workday(current_date_obj):
-            window_start = datetime.combine(current_date, base_start.time())
-            windows.append((window_start, window_start + timedelta(minutes=10)))
-            count += 1
-    return windows
-
-def read_queue_data(target_windows, repository=None):
-    """读取并过滤排队数据"""
-    return (repository or FilePredictionRepository()).read_history("queue_pre", target_windows)
+def read_queue_data(target_windows, repository):
+    """读取窗口时间范围内的排队历史样本。"""
+    return repository.read_history("queue_pre", target_windows)
 
 def calculate_direction_averages(positions_list):
     
@@ -104,9 +76,8 @@ def generate_time_windows():
     
     return windows
 
-def daily_queue_prediction(repository=None, current_time=None):
-    """每日预测任务"""
-    repository = repository or FilePredictionRepository()
+def daily_queue_prediction(repository, current_time=None):
+    """每日预测任务（repository 由 PredictionStore 实现注入）。"""
     now = current_time or datetime.now()
     logger.info("开始生成排队预测文件")
     
@@ -132,7 +103,7 @@ def daily_queue_prediction(repository=None, current_time=None):
     filepath = repository.save_daily_predictions("queue", now, predictions)
     logger.info("排队预测文件已生成: %s", filepath)
 
-def get_current_queue_prediction(current_time=None, repository=None):
+def get_current_queue_prediction(repository, current_time=None):
     """
     获取当前时间对应的排队预测数据
     参数：
@@ -141,11 +112,11 @@ def get_current_queue_prediction(current_time=None, repository=None):
         预测数据字典 或 None（数据不存在时）
     """
     now = current_time or datetime.now()
-    return (repository or FilePredictionRepository()).get_current_prediction("queue", now)
+    return repository.get_current_prediction("queue", now)
 
 
 if __name__ == "__main__":
-    # 测试时直接运行
-    daily_queue_prediction()
+    # 测试时直接运行；正式运行由 PredictionScheduler 定时触发
+    daily_queue_prediction(FilePredictionRepository())
     # 正式使用
     # setup_scheduler()

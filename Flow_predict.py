@@ -1,13 +1,14 @@
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta
 import logging
 import Lambdas
 from infra.data.prediction_repository import FilePredictionRepository
+from infra.data.prediction_windows import generate_target_windows, is_workday
 
 
 logger = logging.getLogger(__name__)
 
 
-def flow_pre_json_Gen(intersection_flow_duration1, intersection_flow_duration2, end_time):
+def flow_pre_json_gen(intersection_flow_duration1, intersection_flow_duration2, end_time):
     formatted_time = datetime.fromtimestamp(int(end_time) // 1000).strftime('%Y-%m-%d-%H:%M')
     flow_pre_data = {
         'time': formatted_time,
@@ -21,41 +22,9 @@ def flow_pre_json_Gen(intersection_flow_duration1, intersection_flow_duration2, 
         flow_pre_data['flow_data'][intersection_id] = flow_data
     return flow_pre_data
 
-def is_workday(date):
-    """判断日期是否为工作日（周一至周五）"""
-    return date.weekday() < 5
-
-def get_ten_minute_window(target_time):
-    """获取目标时间对应的十分钟窗口（向下取整）"""
-    minute = target_time.minute
-    window_start_minute = (minute // 10) * 10
-    window_start = target_time.replace(minute=window_start_minute, second=0, microsecond=0)
-    window_end = window_start + timedelta(minutes=10)
-    return window_start, window_end
-
-def generate_target_windows(target_time_str, days, is_workday_mode):
-    """生成目标时间窗口列表（简化跨天处理）"""
-    target_time = datetime.strptime(target_time_str, "%Y-%m-%d-%H:%M")
-    base_window_start, base_window_end = get_ten_minute_window(target_time)
-    
-    target_windows = []
-    current_date = target_time.date()
-    delta = timedelta(days=1)
-    count = 0
-
-    while count < days:
-        current_date -= delta
-        current_date_obj = datetime.combine(current_date, target_time.time())
-        if is_workday_mode == is_workday(current_date_obj):
-            date_window_start = datetime.combine(current_date, base_window_start.time())
-            date_window_end = datetime.combine(current_date, base_window_end.time())
-            target_windows.append((date_window_start, date_window_end))
-            count += 1
-    return target_windows
-
-def read_filtered_data_by_window(target_windows, repository=None):
-    """读取窗口时间范围内的数据（适配特殊窗口）"""
-    return (repository or FilePredictionRepository()).read_history("flow_pre", target_windows)
+def read_filtered_data_by_window(target_windows, repository):
+    """读取窗口时间范围内的历史样本（适配特殊窗口）。"""
+    return repository.read_history("flow_pre", target_windows)
 
 def calculate_positional_averages(durations_list):
     """计算各位置平均值"""
@@ -117,7 +86,7 @@ def generate_time_windows(start_time_str, end_time_str):
     
     return windows
 
-def get_intersection_pre_map_for_window(target_window, repository=None):
+def get_intersection_pre_map_for_window(target_window, repository):
     """获取指定时间窗口的预测数据"""
     window_start, window_end = target_window
     target_time_str = window_start.strftime("%Y-%m-%d-%H:%M")
@@ -146,9 +115,8 @@ def get_intersection_pre_map_for_window(target_window, repository=None):
         "data": flow_pre_map
     }
 
-def daily_prediction_job(repository=None, current_time=None):
-    """每日预测任务入口"""
-    repository = repository or FilePredictionRepository()
+def daily_prediction_job(repository, current_time=None):
+    """每日预测任务入口（repository 由 PredictionStore 实现注入）。"""
     now = current_time or datetime.now()
     logger.info("开始生成流量预测文件")
     # 生成当天所有时间窗口
@@ -164,7 +132,7 @@ def daily_prediction_job(repository=None, current_time=None):
     filepath = repository.save_daily_predictions("flow", now, daily_predictions)
     logger.info("流量预测文件已生成: %s", filepath)
 
-def get_current_flow_prediction(current_time=None, repository=None):
+def get_current_flow_prediction(repository, current_time=None):
     """
     获取当前时间对应的流量预测数据
     参数：
@@ -173,10 +141,10 @@ def get_current_flow_prediction(current_time=None, repository=None):
         预测数据字典 或 None（数据不存在时）
     """
     now = current_time or datetime.now()
-    return (repository or FilePredictionRepository()).get_current_prediction("flow", now)
+    return repository.get_current_prediction("flow", now)
 if __name__ == "__main__":
-    # 首次启动时立即执行一次（测试用）
-    daily_prediction_job()
+    # 首次启动时立即执行一次（测试用；正式运行由 PredictionScheduler 定时触发）
+    daily_prediction_job(FilePredictionRepository())
     
     # 正式运行使用定时任务
     # setup_scheduler()
