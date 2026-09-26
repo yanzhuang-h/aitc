@@ -197,7 +197,7 @@ class PeriodicDecisionPipeline(LoggingMixin):
         end_time = recent_flow_data[0].get("ts")
         if self.is_millisecond_timestamp(end_time):
             self.writer.write_flow_prediction(
-                self.flow_predictor.flow_pre_json_Gen(
+                self.flow_predictor.flow_pre_json_gen(
                     intersection_flow,
                     intersection_flow_duration2,
                     end_time,

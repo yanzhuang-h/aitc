@@ -36,8 +36,8 @@ class FlowPredictionService:
         self.algorithm = algorithm
         self.repository = repository
 
-    def flow_pre_json_Gen(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
-        return self.algorithm.flow_pre_json_Gen(*args, **kwargs)
+    def flow_pre_json_gen(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        return self.algorithm.flow_pre_json_gen(*args, **kwargs)
 
     def get_current_flow_prediction(self):
         return self.algorithm.get_current_flow_prediction(repository=self.repository)
