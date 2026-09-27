@@ -174,12 +174,6 @@ def process_extend_data(cache, lambdas_module):
     logger.debug("Extend data processed: %s", extend_map)
     return extend_map
 
-def parse_timestamp(raw, divisor=1000):
-    try:
-        return int(float(raw)) // divisor
-    except (TypeError, ValueError):
-        return None
-
 def process_online_data(cache, lambdas_module):
     online_map = copy.deepcopy(lambdas_module.online_data_map_lambda)
 

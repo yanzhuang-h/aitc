@@ -12,7 +12,6 @@ from typing import Any, Mapping
 
 from ..classifier import DataKind
 from ..repository import DataFoundationRepository
-from ..schemas import TrafficRecord
 
 
 class LongTermMemory:
@@ -21,26 +20,15 @@ class LongTermMemory:
     def __init__(
         self,
         root: str | Path = "infra/data/runtime",
-        cache_size: int = 100,
         runtime_max_records_per_kind: int = 10000,
     ) -> None:
         self._repository = DataFoundationRepository(
             root=root,
-            cache_size=cache_size,
             runtime_max_records_per_kind=runtime_max_records_per_kind,
         )
 
     def health(self) -> dict[str, Any]:
         return self._repository.health()
-
-    def receive_traffic(self, record: TrafficRecord | Mapping[str, Any]) -> dict[str, Any]:
-        return self._repository.traffic.add(record)
-
-    def get_latest_traffic(self, intersection_id: str) -> dict[str, Any] | None:
-        return self._repository.traffic.latest(intersection_id)
-
-    def get_traffic_window(self, intersection_id: str, limit: int = 20) -> list[dict[str, Any]]:
-        return self._repository.traffic.window(intersection_id, limit=limit)
 
     def store_runtime_data(
         self,

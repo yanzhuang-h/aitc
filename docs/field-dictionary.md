@@ -79,4 +79,5 @@
 ## Backlog（暂不实施）
 
 - 内部时间归一化：落库时补统一 `event_ts` 字段，收敛 `ts` / `time` / `start_time` / `createTime` 的差异（2026-09-27 讨论决定：先不做，记录于此）。
+- `radar_event` 四类事件中仅 `OverFlow` 进入决策，`QueueOverrun` / `Parking` / `Speeding` 暂无消费者（2026-09-27 观察记录，后续再议）。
 - ⚠️ 字段含义待核实项：`ycsb_cpzxd`、`rid`、`distance`、`carNums`、`car_nums[].queue/all`。
