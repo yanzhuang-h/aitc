@@ -4,34 +4,12 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Mapping
+from typing import Any
 
 
 def utc_now_iso() -> str:
     """Return an ISO timestamp for stored records."""
     return datetime.now(timezone.utc).isoformat()
-
-
-@dataclass(slots=True)
-class TrafficRecord:
-    """One traffic sensing record from a platform or local producer."""
-
-    intersection_id: str
-    payload: dict[str, Any]
-    source: str = "unknown"
-    timestamp: str = field(default_factory=utc_now_iso)
-
-    @classmethod
-    def from_mapping(cls, data: Mapping[str, Any]) -> "TrafficRecord":
-        return cls(
-            intersection_id=str(data["intersection_id"]),
-            payload=dict(data.get("payload", {})),
-            source=str(data.get("source", "unknown")),
-            timestamp=str(data.get("timestamp") or utc_now_iso()),
-        )
-
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
 
 
 @dataclass(slots=True)

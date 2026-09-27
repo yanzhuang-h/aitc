@@ -15,7 +15,7 @@ from .quality import DataQualityMonitor
 from .runtime_processor import RuntimeDataProcessor
 from .result_sender import ResultSender
 from .result_warehouse import ResultWarehouse
-from .receiver import RuntimeDataReceiver, TrafficReceiver
+from .receiver import RuntimeDataReceiver
 from .writer import RuntimeDataWriter
 from .validation import is_millisecond_timestamp
 
@@ -39,7 +39,6 @@ __all__ = [
     "ShortTermMemory",
     "ResultSender",
     "ResultWarehouse",
-    "TrafficReceiver",
     "classify_data",
     "is_millisecond_timestamp",
     "validate_contract",

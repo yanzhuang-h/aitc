@@ -7,44 +7,9 @@ from pathlib import Path
 import threading
 from typing import Any, Mapping
 
-from .cache import WindowCache
 from .classifier import DataKind, DataSource
-from .schemas import ConfigItem, ExperienceItem, RuntimeRecord, TrafficRecord, utc_now_iso
+from .schemas import ConfigItem, ExperienceItem, RuntimeRecord, utc_now_iso
 from .storage import JsonFileStore
-
-
-class TrafficRepository:
-    """Store received traffic records and keep recent windows in memory."""
-
-    def __init__(self, store: JsonFileStore, cache_size: int = 100) -> None:
-        self.store = store
-        self.cache: WindowCache[dict[str, Any]] = WindowCache(max_size=cache_size)
-
-    def add(self, record: TrafficRecord | Mapping[str, Any]) -> dict[str, Any]:
-        traffic_record = (
-            record if isinstance(record, TrafficRecord) else TrafficRecord.from_mapping(record)
-        )
-        data = traffic_record.to_dict()
-        self.cache.append(traffic_record.intersection_id, data)
-        self.store.append_jsonl(
-            f"traffic/{traffic_record.intersection_id}.jsonl",
-            data,
-        )
-        return data
-
-    def latest(self, intersection_id: str) -> dict[str, Any] | None:
-        cached = self.cache.latest(intersection_id)
-        if cached is not None:
-            return cached
-        records = self.store.read_jsonl(f"traffic/{intersection_id}.jsonl")
-        return records[-1] if records else None
-
-    def window(self, intersection_id: str, limit: int = 20) -> list[dict[str, Any]]:
-        cached = self.cache.window(intersection_id, limit)
-        if cached:
-            return cached
-        records = self.store.read_jsonl(f"traffic/{intersection_id}.jsonl")
-        return records[-limit:] if limit > 0 else []
 
 
 class RuntimeRepository:
@@ -235,12 +200,10 @@ class DataFoundationRepository:
     def __init__(
         self,
         root: str | Path = "infra/data/runtime",
-        cache_size: int = 100,
         runtime_max_records_per_kind: int = 10000,
     ) -> None:
         self.root = Path(root)
         self.store = JsonFileStore(self.root)
-        self.traffic = TrafficRepository(self.store, cache_size=cache_size)
         self.runtime = RuntimeRepository(
             self.store,
             max_records_per_kind=runtime_max_records_per_kind,

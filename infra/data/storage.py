@@ -68,11 +68,27 @@ class JsonFileStore:
             return json.load(file)
 
     def write_json(self, name: str, data: Any) -> Path:
+        """原子写入 JSON 文件（临时文件 + os.replace）。"""
         path = self.root / name
         path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("w", encoding="utf-8", newline="\n") as file:
-            json.dump(data, file, ensure_ascii=False, indent=2)
-            file.write("\n")
+        temp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                "w",
+                encoding="utf-8",
+                newline="\n",
+                dir=path.parent,
+                delete=False,
+            ) as file:
+                temp_path = file.name
+                json.dump(data, file, ensure_ascii=False, indent=2)
+                file.write("\n")
+                file.flush()
+                os.fsync(file.fileno())
+            os.replace(temp_path, path)
+        finally:
+            if temp_path and os.path.exists(temp_path):
+                os.remove(temp_path)
         return path
 
     def list_files(self) -> Iterable[Path]:

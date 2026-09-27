@@ -6,34 +6,10 @@ from typing import Any, Mapping
 
 from .classifier import ClassifiedData, DataKind, DataSource, classify_data
 from .contracts import validate_contract
-from .memory.long_term import LongTermMemory
 from .quality import DataQualityMonitor
 from .memory.short_term import ShortTermMemory
 from .writer import RuntimeDataWriter
 from infra.logging import LoggingMixin
-
-
-class TrafficReceiver:
-    """接收外部生产方的交通数据。"""
-
-    def __init__(self, repository: LongTermMemory | None = None) -> None:
-        self.repository = repository or LongTermMemory()
-
-    def receive(
-        self,
-        intersection_id: str,
-        payload: Mapping[str, Any],
-        source: str = "unknown",
-        timestamp: str | None = None,
-    ) -> dict[str, Any]:
-        record = {
-            "intersection_id": intersection_id,
-            "payload": dict(payload),
-            "source": source,
-        }
-        if timestamp is not None:
-            record["timestamp"] = timestamp
-        return self.repository.receive_traffic(record)
 
 
 class RuntimeDataReceiver(LoggingMixin):
