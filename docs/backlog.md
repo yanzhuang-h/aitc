@@ -1,0 +1,46 @@
+# 调整候选清单（Backlog）
+
+> 汇总学习 Day 1（入口/装配/协议）与 Day 2（数据底座 `infra/data`）过程中发现的、待后续统一处理的调整点，避免遗漏。
+> 已落地的事项不入此表（见各 PR）；每项注明来源、现状、建议与优先级（低/中/高）。
+> 处理原则：先小后大、行为不变优先；涉及算法行为的事项需单独说明影响面。
+
+## A. 架构与模块化
+
+| # | 事项 | 现状 | 建议 | 优先级 |
+| --- | --- | --- | --- | --- |
+| A1 | HTTP 服务拆分 | `runtime/http_server.py`（539 行，约 30 个路由）一锅端：雷达/博研数据收取 + 前端页面 + 配置 + Agent + 绿波 + 健康检查 | 数据收取（雷达/博研）与 TCP 同级；其余管理面服务单开文件（方向：FastAPI，Day 1 已定） | 高（后期集中做） |
+| A2 | 存储升级路线 | 短窗=内存 deque；长仓=JSONL；结果仓=内存列表 | 短窗→Redis；长仓→SQLite（首选）；结果仓→Redis；只动三个实现文件，调用方零改动 | 中（视部署规模） |
+| A3 | 两套写入收敛 | `logs_data/*.txt`（人读兼容 + 补 `AITC_SYS_TS`）与 `runtime/*.jsonl`（程序查）并存 | `runtime/*.jsonl` 做唯一真相源，`logs_data` 降级为兼容视图；先盘点消费者（flow_pre/queue_pre 预测、EXP、现场人工）再迁移；不换 YAML | 中 |
+| A4 | 配置资源同步来源抽象 | 4 类走 Nacos（floating_value/intersection_result/road_state/time_schedule），2 类走 HTTP 文件（road_info/cross_info）；`ConfigService` 门面已收口 | 暂不抽"同步源接口"（YAGNI）；出现第二类配置中心再抽象 | 低 |
+
+## B. 数据底座待办
+
+| # | 事项 | 现状 | 建议 | 优先级 |
+| --- | --- | --- | --- | --- |
+| B1 | 内部时间归一化 `event_ts` | `ts/time/start_time/createTime` 名字各异（上游协议决定），转换散落在 `cache_processor.process_*`（flow/queue/stage 毫秒//1000，radar/boyan `int(ts)`，extend/online/latest 用到达时间） | receiver 落库前补统一 `event_ts`，不动 payload | 中 |
+| B2 | 无调用方清理 | `heartbeat` 无任何消费者（仅 debug 日志+入库）；`receive_many`/`ingest_*_item` 全仓无调用方；`DataContract.intersection_fields` 无读者；`DataKind.UNSUPPORTED` 无生产者 | 逐个确认后删除或注释标注；heartbeat 可考虑做成"设备在线状态表" | 低 |
+| B3 | radar 长期记录路口为空 | 解析器不认 `deviceNo`，`intersection_id` 恒 null；窗口却靠 `device_to_location` 把关，两路径不对称 | 确认语义后补解析或文档说明 | 低 |
+| B4 | radar_event 三类事件无消费者 | 四类事件仅 `OverFlow` 进决策，`QueueOverrun/Parking/Speeding` 只收不用 | 确认占位还是补处理（属算法行为，单独评估） | 中 |
+| B5 | `latest` 无决策消费者 | 快照里有、决策不读 | 确认语义或清理 | 低 |
+| B6 | `schemas.py` 注释中文化 | 顶部与部分 docstring 为英文，与全仓中文约定不一致 | 统一中文 | 低 |
+| B7 | `read_jsonl` 无逐行容错 | 坏行直接抛（现状靠写端保证） | 可选加固 | 低 |
+| B8 | 广播断连半包 | `ResultSender` 逐条 `sendall`，断连客户端可能收到半包 | 接收端按 `\n` 分帧已兜底，保持旧行为，仅记录 | 低 |
+| B9 | CONTRACTS 条目 kind 重复 | 字典键与构造首参各写一遍 | 可选收敛（小冗余） | 低 |
+| B10 | 字段字典待核实项 | `ycsb_cpzxd`、`rid`、`distance`、`carNums`、`car_nums[].queue/all` 为推断；`ycsb_xsfx` 编码与 `ycsb` 前缀待确认 | 后续对照飞书文档/数据核实，扩展为详尽版字典 | 低 |
+
+## C. 配置抽象（路线微调候选，未落地项）
+
+| # | 事项 | 现状 | 建议 | 优先级 |
+| --- | --- | --- | --- | --- |
+| C1（#4） | 配置文件路径硬编码 | `app/core/control/synergy/green_wave_api_adapter.py:18`、`phase_check.py:14`、`time_schedule/get_sch_for_cross.py:5` 写死路径 | 收进统一路径模块 + 环境变量覆盖（lib 侧调用点需兼容） | 中 |
+| C2（#10） | 流动窗口默认值易误解 | `DEFAULT_FLOW_DURATION_SECONDS=300` 与运行配置 150 不一致（运行时会被注入覆盖） | 去默认值（必填）或注明"仅占位" | 低 |
+| C3（#9） | 两套 JSON 存储实现 | `lib/_local_json_store.py` 与 `infra/data/storage.py::JsonFileStore` 功能重复 | 只记录不合并（跨 lib 边界风险高） | 低 |
+| C4（#8） | 遗留路径与服务 | `path_config.py`（62）+ 根目录 `time_schedule.py`（688，Flask）仅旧服务引用 | 确认无外部调用后移 `legacy/` | 中 |
+| C5（#6/#7） | 根目录离线脚本混放 | `intersection_to_rid_lambda.py`、`new_online_data_map_lambda.py`、`magic_hand.py` 无引用；`config_check.py`、`gen_online_config.py`、`gen_api_docs.py` 为离线脚本 | 删除或移入 `tools/`（删前再确认动态导入） | 低 |
+
+## D. 算法与配置资产（后续再议，不改行为）
+
+| # | 事项 | 现状 | 建议 | 优先级 |
+| --- | --- | --- | --- | --- |
+| D1 | `DQN_Select.py` 后续整理 | 分发器 60+ 调用过长（已 black 排版）；`Cross_Video` 未拆 Video/Radar；存在去重/参数化空间；异常路口 `1300592`/`1300644` 待确认 | 分发器可 `# fmt: off/on`；其余逐项讨论 | 低 |
+| D2 | 绿波业务逻辑 | 由他人负责 | 暂不动，协同后处理 | — |
