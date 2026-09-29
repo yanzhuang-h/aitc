@@ -1,8 +1,35 @@
 """Stable function interface around the existing DQN selector."""
 
+from typing import Any
+
 from lib.DQN_Select import DQN_select
 
 from .types import ControlResult, IntersectionControlRequest
+
+
+def call_dqn_select(request: IntersectionControlRequest) -> tuple[Any, Any, Any, Any]:
+    """把统一请求展开为既有 DQN 入口的 15 个位置参数（唯一的展开点）。
+
+    所有调用方（决策管线、Agent 工具等）都通过 ``IntersectionControlRequest``
+    传参；底层 ``DQN_select`` 的位置参数顺序只在本文维护一处。
+    """
+    return DQN_select(
+        request.traffic_vector,
+        request.queue_vector,
+        request.traffic_vector_duration2,
+        request.current_time,
+        request.flow_map,
+        request.queue_map,
+        request.stage_map,
+        request.previous_coordinate,
+        request.predicted_flow,
+        request.predicted_queue,
+        request.extend_map,
+        request.overflow_map,
+        request.radar_map,
+        request.cross_id,
+        request.boyan_map,
+    )
 
 
 def validate_control_plan(plan):
@@ -54,23 +81,7 @@ def generate_intersection_plan(request: IntersectionControlRequest) -> ControlRe
         )
 
     try:
-        plan, coordinate_data, model_info, experience_info = DQN_select(
-            request.traffic_vector,
-            request.queue_vector,
-            request.traffic_vector_duration2,
-            request.current_time,
-            request.flow_map,
-            request.queue_map,
-            request.stage_map,
-            request.previous_coordinate,
-            request.predicted_flow,
-            request.predicted_queue,
-            request.extend_map,
-            request.overflow_map,
-            request.radar_map,
-            cross_id,
-            request.boyan_map,
-        )
+        plan, coordinate_data, model_info, experience_info = call_dqn_select(request)
         normalized_plan, warnings = validate_control_plan(plan)
         return ControlResult(
             success=True,

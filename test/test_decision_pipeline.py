@@ -80,8 +80,8 @@ class PeriodicDecisionPipelineTest(unittest.TestCase):
         warehouse = ResultWarehouse()
         dqn_calls = []
 
-        def dqn_select(*args):
-            dqn_calls.append(args)
+        def dqn_select(request):
+            dqn_calls.append(request)
             return [10, 0, 0, 0, 0, 0, 0, 0, 0, 1], {"coordinate": 1}, [1] * 8, {"exp": 1}
 
         pipeline = PeriodicDecisionPipeline(
@@ -122,7 +122,7 @@ class PeriodicDecisionPipelineTest(unittest.TestCase):
                 cache=_Cache(), data_processor=_LegacyProcessor(), lambdas_module=_Lambdas,
                 writer=_Writer(), result_warehouse=ResultWarehouse(),
                 flow_predictor=_Predictor(), queue_predictor=_Predictor(),
-                dqn_select=lambda *_args: ([10] + [0] * 8 + [1], {}, [], {}),
+                dqn_select=lambda _request: ([10] + [0] * 8 + [1], {}, [], {}),
                 coordinate=lambda action, *_args: action,
                 phase_check=lambda action: (action, {}),
                 select_data_to_send=lambda intersection_id, *_args: {"id": intersection_id},

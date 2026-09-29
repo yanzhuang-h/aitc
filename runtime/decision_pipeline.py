@@ -14,6 +14,7 @@ from typing import Any, Callable
 
 from infra.data.classifier import DataKind
 from infra.logging import LoggingMixin
+from lib.control_functions.types import IntersectionControlRequest
 
 
 class PeriodicDecisionPipeline(LoggingMixin):
@@ -29,7 +30,7 @@ class PeriodicDecisionPipeline(LoggingMixin):
         result_warehouse: Any,
         flow_predictor: Any,
         queue_predictor: Any,
-        dqn_select: Callable[..., tuple[Any, Any, Any, Any]],
+        dqn_select: Callable[[IntersectionControlRequest], tuple[Any, Any, Any, Any]],
         coordinate: Callable[..., dict[str, Any]],
         phase_check: Callable[[dict[str, Any]], tuple[dict[str, Any], dict[str, Any]]],
         select_data_to_send: Callable[..., dict[str, Any]],
@@ -251,21 +252,23 @@ class PeriodicDecisionPipeline(LoggingMixin):
         coordinate_map: dict[str, Any] = {}
         try:
             result_action, coordinate_map, model_info_list, exp_list = self.dqn_select(
-                traffic_vector,
-                result_queue_length[intersection_id],
-                intersection_flow_duration2[intersection_id],
-                time.time(),
-                dict(flow_map[intersection_id]),
-                dict(queue_map[intersection_id]),
-                dict(stage_map[intersection_id]),
-                self.last_coordinate_set,
-                current_flow_prediction,
-                current_queue_prediction,
-                dict(extend_map[intersection_id]),
-                dict(overflow_map[intersection_id]),
-                dict(radar_map[intersection_id]),
-                intersection_id,
-                dict(boyan_map[intersection_id]),
+                IntersectionControlRequest(
+                    cross_id=intersection_id,
+                    current_time=time.time(),
+                    traffic_vector=list(traffic_vector),
+                    queue_vector=result_queue_length[intersection_id],
+                    traffic_vector_duration2=intersection_flow_duration2[intersection_id],
+                    flow_map=dict(flow_map[intersection_id]),
+                    queue_map=dict(queue_map[intersection_id]),
+                    stage_map=dict(stage_map[intersection_id]),
+                    previous_coordinate=self.last_coordinate_set,
+                    predicted_flow=current_flow_prediction,
+                    predicted_queue=current_queue_prediction,
+                    extend_map=dict(extend_map[intersection_id]),
+                    overflow_map=dict(overflow_map[intersection_id]),
+                    radar_map=dict(radar_map[intersection_id]),
+                    boyan_map=dict(boyan_map[intersection_id]),
+                )
             )
             self.writer.write_experience(exp_list, intersection_id)
             result["result_action"] = result_action
