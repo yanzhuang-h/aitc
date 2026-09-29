@@ -28,6 +28,7 @@
 | B8 | 广播断连半包 | `ResultSender` 逐条 `sendall`，断连客户端可能收到半包 | 接收端按 `\n` 分帧已兜底，保持旧行为，仅记录 | 低 |
 | B9 | CONTRACTS 条目 kind 重复 | 字典键与构造首参各写一遍 | 可选收敛（小冗余） | 低 |
 | B10 | 字段字典待核实项 | `ycsb_cpzxd`、`rid`、`distance`、`carNums`、`car_nums[].queue/all` 为推断；`ycsb_xsfx` 编码与 `ycsb` 前缀待确认 | 后续对照飞书文档/数据核实，扩展为详尽版字典 | 低 |
+| B11 | Lambdas 资产整理 | `Lambdas.py`（3392 行）集中映射字典、结构模板与内联配置大表；命名不统一（`aibi_to_xinkongji`、`huawei_device_to_location` 等拼音）；部分资产与 `lib/*.json` 重复 | 拆分 json 资产、规范化英文命名、去重；只动组织方式，不动算法语义 | 低 |
 
 ## C. 配置抽象（路线微调候选，未落地项）
 

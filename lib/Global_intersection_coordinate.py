@@ -337,7 +337,8 @@ aibi_road = {
     # 1300870,
     1300271,
 }
-shipin_road={
+# 视频路口（互联网+流量混合，mixed 类）
+video_road={
     1300044,
     1300069,
     1300068,
@@ -346,8 +347,8 @@ shipin_road={
 
 
 }
-# （只有流量）
-shipin1_road={
+# 视频路口（只有流量数据，flow 类）
+video_flow_road={
     # 1300870,
     1700086,
     1700275,
@@ -1178,7 +1179,7 @@ def coordinate(result_action_map, coordinate_map_set, online_data_map, OverFlow,
             processing. It is not consumed when ``include_green_wave`` is false.
         enabled_processors: Optional iterable selecting category processors.
             Supported values are ``internet`` (``intern_road_id``), ``mixed``
-            (``shipin_road``), and ``flow`` (``shipin1_road``). ``None`` enables
+            (``video_road``), and ``flow`` (``video_flow_road``). ``None`` enables
             all three and preserves the legacy behavior.
         include_green_wave: Whether to run the green-wave module. Defaults to
             true to preserve the existing Server_AITC call path.
@@ -1226,7 +1227,7 @@ def coordinate(result_action_map, coordinate_map_set, online_data_map, OverFlow,
     ):
 
         Cross_id = str(cross_id)
-        if Cross_id in road_info and cross_id not in aibi_road and cross_id not in shipin_road:
+        if Cross_id in road_info and cross_id not in aibi_road and cross_id not in video_road:
 
             if Cross_id in Fine:
                 if Cross_id == "1300239":
@@ -1256,7 +1257,7 @@ def coordinate(result_action_map, coordinate_map_set, online_data_map, OverFlow,
                 else:
                     print("error_cross", Cross_id)
     for cross_id in (
-        shipin_road | forced_aibi_roads
+        video_road | forced_aibi_roads
         if ROAD_PROCESSOR_MIXED in enabled_processors
         else ()
     ):
@@ -1281,7 +1282,7 @@ def coordinate(result_action_map, coordinate_map_set, online_data_map, OverFlow,
             continue
 
     for cross_id in (
-        shipin1_road if ROAD_PROCESSOR_FLOW in enabled_processors else ()
+        video_flow_road if ROAD_PROCESSOR_FLOW in enabled_processors else ()
     ):
 
         Cross_id = str(cross_id)
@@ -1519,7 +1520,7 @@ def coordinate_mixed_roads(result_action_map, coordinate_map_set,
                            online_data_map, OverFlow, extend_map=None):
     """Process video plus traffic mixed intersections.
 
-    The selected set is ``shipin_road`` (plus historically forced AIBI roads
+    The selected set is ``video_road`` (plus historically forced AIBI roads
     when the existing mixed processor includes them). Inputs and output use
     the same ten-element plan format as :func:`coordinate`; green wave is off.
     """
@@ -1532,7 +1533,7 @@ def coordinate_mixed_roads(result_action_map, coordinate_map_set,
 
 def coordinate_flow_roads(result_action_map, coordinate_map_set,
                           online_data_map, OverFlow, extend_map=None):
-    """Process only pure-flow intersections from ``shipin1_road``.
+    """Process only pure-flow intersections from ``video_flow_road``.
 
     Inputs and output use the same ten-element plan format as :func:`coordinate`.
     Common post-processing is retained and green-wave coordination is disabled.

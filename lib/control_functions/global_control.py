@@ -6,8 +6,8 @@ from lib.Global_intersection_coordinate import (
     coordinate_mixed_roads,
     coordinate_without_green_wave,
     intern_road_id,
-    shipin1_road,
-    shipin_road,
+    video_flow_road,
+    video_road,
 )
 
 
@@ -20,8 +20,8 @@ def get_intersection_processing_types(cross_id):
     """Return every configured global processor for an intersection ID.
 
     Returns a tuple in legacy execution order: ``internet`` for membership in
-    ``intern_road_id``, ``mixed`` for ``shipin_road``, and ``flow`` for
-    ``shipin1_road``. Some existing IDs belong to two sets and therefore return
+    ``intern_road_id``, ``mixed`` for ``video_road``, and ``flow`` for
+    ``video_flow_road``. Some existing IDs belong to two sets and therefore return
     two values; preserving both is necessary to keep the current behavior.
     Invalid or unregistered IDs return an empty tuple.
     """
@@ -32,9 +32,9 @@ def get_intersection_processing_types(cross_id):
     processor_types = []
     if numeric_id in intern_road_id:
         processor_types.append(ROAD_TYPE_INTERNET)
-    if numeric_id in shipin_road:
+    if numeric_id in video_road:
         processor_types.append(ROAD_TYPE_MIXED)
-    if numeric_id in shipin1_road:
+    if numeric_id in video_flow_road:
         processor_types.append(ROAD_TYPE_FLOW)
     return tuple(processor_types)
 
@@ -56,7 +56,7 @@ def process_internet_intersections(plans, coordinate_data, online_data,
 
 def process_mixed_intersections(plans, coordinate_data, online_data,
                                 overflow_data, extend_data=None):
-    """Run the Internet-plus-flow ``shipin_road`` processor.
+    """Run the Internet-plus-flow ``video_road`` processor.
 
     Input/output formats and shared post-processing are identical to
     :func:`process_internet_intersections`; green-wave processing is excluded.
@@ -68,7 +68,7 @@ def process_mixed_intersections(plans, coordinate_data, online_data,
 
 def process_flow_intersections(plans, coordinate_data, online_data,
                                overflow_data, extend_data=None):
-    """Run the pure-flow ``shipin1_road`` processor.
+    """Run the pure-flow ``video_flow_road`` processor.
 
     Input/output formats and shared post-processing are identical to
     :func:`process_internet_intersections`; green-wave processing is excluded.
