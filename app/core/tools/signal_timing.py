@@ -1,6 +1,7 @@
 """单路口放行时间工具适配器。
 
-本模块只做参数整理和结果规范化，具体算法仍调用 `lib.DQN_Select.DQN_select`。
+本模块只做参数整理和结果规范化，具体算法仍调用 ``lib.DQN_Select.DQN_select``；
+参数经统一的 ``IntersectionControlRequest`` 传递。
 """
 
 from __future__ import annotations
@@ -11,7 +12,8 @@ from collections.abc import Callable, Mapping
 from typing import Any
 
 import Lambdas
-from app.core.tools.legacy_algorithms import DQN_select
+from lib.control_functions.dqn_control import call_dqn_select
+from lib.control_functions.types import IntersectionControlRequest
 
 
 class SingleIntersectionSignalTimingTool:
@@ -21,7 +23,7 @@ class SingleIntersectionSignalTimingTool:
         self,
         *,
         lambdas_module: Any = Lambdas,
-        dqn_select: Callable[..., tuple[Any, Any, Any, Any]] = DQN_select,
+        dqn_select: Callable[..., tuple[Any, Any, Any, Any]] = call_dqn_select,
         clock: Callable[[], float] = time.time,
     ) -> None:
         self.lambdas = lambdas_module
@@ -55,23 +57,24 @@ class SingleIntersectionSignalTimingTool:
         if not cross_id:
             raise ValueError("cross_id must not be empty")
 
-        action, coordinate_set, model_info, experience = self.dqn_select(
-            list(traffic_vector) if traffic_vector is not None else self._default_traffic_vector(cross_id),
-            self._mapping_or_default(queue_vector, "max_lengths_lambda", cross_id),
-            list(traffic_vector_duration2) if traffic_vector_duration2 is not None else self._default_traffic_vector(cross_id),
-            current_time if current_time is not None else self.clock(),
-            dict(flow_map or {}),
-            dict(queue_map or {}),
-            dict(stage_map or {}),
-            copy.deepcopy(last_coordinate_set) if last_coordinate_set is not None else copy.deepcopy(self.lambdas.map_lambda),
-            dict(flow_prediction or {}),
-            dict(queue_prediction or {}),
-            dict(extend_map or {}),
-            dict(overflow_map or {}),
-            dict(radar_map or {}),
-            cross_id,
-            dict(boyan_map or {}),
+        request = IntersectionControlRequest(
+            cross_id=cross_id,
+            current_time=current_time if current_time is not None else self.clock(),
+            traffic_vector=list(traffic_vector) if traffic_vector is not None else self._default_traffic_vector(cross_id),
+            queue_vector=self._mapping_or_default(queue_vector, "max_lengths_lambda", cross_id),
+            traffic_vector_duration2=list(traffic_vector_duration2) if traffic_vector_duration2 is not None else self._default_traffic_vector(cross_id),
+            flow_map=dict(flow_map or {}),
+            queue_map=dict(queue_map or {}),
+            stage_map=dict(stage_map or {}),
+            previous_coordinate=copy.deepcopy(last_coordinate_set) if last_coordinate_set is not None else copy.deepcopy(self.lambdas.map_lambda),
+            predicted_flow=dict(flow_prediction or {}),
+            predicted_queue=dict(queue_prediction or {}),
+            extend_map=dict(extend_map or {}),
+            overflow_map=dict(overflow_map or {}),
+            radar_map=dict(radar_map or {}),
+            boyan_map=dict(boyan_map or {}),
         )
+        action, coordinate_set, model_info, experience = self.dqn_select(request)
         return {
             "cross_id": cross_id,
             "signal_timing": action,

@@ -36,6 +36,7 @@ test/                 自动化测试 + 手工回放客户端
 - 结果仓库 + 纯发送器；仓库可替换为 Redis/数据库。
 - 长期记忆 = 运行历史 + 经验池 + 配置池（必须持久化的一等能力）。
 - 运行数据仓库写入 `infra/data/runtime/runtime/*.jsonl`（已 gitignore），模型权重不提交。
+- 命名规范（2026-09-29 起）：本项目自有的函数/类/变量/文件名一律使用可读英文命名，禁止拼音缩写；上游协议字段（`jtll_ddbh`、`ycsb_*` 等）保持原名不动；存量拼音命名按 `docs/backlog.md`（B12）分批改造；算法参数接口统一走 `lib/control_functions` 的类型化请求对象（`IntersectionControlRequest`）。
 - 日志统一使用 `logging` 分级，禁止裸 `print` 刷屏。
 
 ## 常用命令

@@ -111,8 +111,9 @@ class DataQueryToolsTest(unittest.TestCase):
         self.assertIn("not configured", result["summary"])
 
     def test_signal_timing_tool_contract(self) -> None:
-        def fake_dqn_select(*args):
-            self.assertEqual(args[13], "1300068")
+        def fake_dqn_select(request):
+            self.assertEqual(request.cross_id, "1300068")
+            self.assertEqual(request.traffic_vector, [1, 2, 3, 4])
             return [12, 18], {"Start1": 1}, {"model": "fake"}, {"exp": "ok"}
 
         signal_tool = SingleIntersectionSignalTimingTool(dqn_select=fake_dqn_select)

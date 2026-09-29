@@ -29,6 +29,7 @@
 | B9 | CONTRACTS 条目 kind 重复 | 字典键与构造首参各写一遍 | 可选收敛（小冗余） | 低 |
 | B10 | 字段字典待核实项 | `ycsb_cpzxd`、`rid`、`distance`、`carNums`、`car_nums[].queue/all` 为推断；`ycsb_xsfx` 编码与 `ycsb` 前缀待确认 | 后续对照飞书文档/数据核实，扩展为详尽版字典 | 低 |
 | B11 | Lambdas 资产整理 | `Lambdas.py`（3392 行）集中映射字典、结构模板与内联配置大表；命名不统一（`aibi_to_xinkongji`、`huawei_device_to_location` 等拼音）；部分资产与 `lib/*.json` 重复 | 拆分 json 资产、规范化英文命名、去重；只动组织方式，不动算法语义 | 低 |
+| B12 | 存量拼音命名改造 | `lib/` 层拼音文件与标识符：`cha.py`、`cha1.py`、`ti.py`、`lvbotest.py`、`tong_yong_biao.py`、`buqi_new2.0.py`、`data_chou.py`、`E_T_new.py`、`Get_time_map`、`Get_Fine_map`、`Init_add` 等 | 新代码一律英文命名（见项目指令）；存量按模块分批改名（文件改名需同步 import 与 json 路径引用），不改行为 | 低 |
 
 ## C. 配置抽象（路线微调候选，未落地项）
 

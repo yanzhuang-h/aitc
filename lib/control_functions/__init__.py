@@ -8,6 +8,7 @@ here would create a circular import during Server_AITC startup.
 __all__ = [
     "ControlResult",
     "IntersectionControlRequest",
+    "call_dqn_select",
     "generate_intersection_plan",
     "get_timetable_plan",
     "get_control_function",
@@ -28,10 +29,11 @@ def __getattr__(name):
         from .types import ControlResult, IntersectionControlRequest
         return {"ControlResult": ControlResult,
                 "IntersectionControlRequest": IntersectionControlRequest}[name]
-    if name in {"generate_intersection_plan", "validate_control_plan"}:
-        from .dqn_control import generate_intersection_plan, validate_control_plan
+    if name in {"generate_intersection_plan", "validate_control_plan", "call_dqn_select"}:
+        from .dqn_control import call_dqn_select, generate_intersection_plan, validate_control_plan
         return {"generate_intersection_plan": generate_intersection_plan,
-                "validate_control_plan": validate_control_plan}[name]
+                "validate_control_plan": validate_control_plan,
+                "call_dqn_select": call_dqn_select}[name]
     if name in {"get_timetable_plan", "load_intersection_timetable"}:
         from .schedule_control import get_timetable_plan, load_intersection_timetable
         return {"get_timetable_plan": get_timetable_plan,
