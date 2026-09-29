@@ -12,6 +12,7 @@
 | A2 | 存储升级路线 | 短窗=内存 deque；长仓=JSONL；结果仓=内存列表 | 短窗→Redis；长仓→SQLite（首选）；结果仓→Redis；只动三个实现文件，调用方零改动 | 中（视部署规模） |
 | A3 | 两套写入收敛 | `logs_data/*.txt`（人读兼容 + 补 `AITC_SYS_TS`）与 `runtime/*.jsonl`（程序查）并存 | `runtime/*.jsonl` 做唯一真相源，`logs_data` 降级为兼容视图；先盘点消费者（flow_pre/queue_pre 预测、EXP、现场人工）再迁移；不换 YAML | 中 |
 | A4 | 配置资源同步来源抽象 | 4 类走 Nacos（floating_value/intersection_result/road_state/time_schedule），2 类走 HTTP 文件（road_info/cross_info）；`ConfigService` 门面已收口 | 暂不抽"同步源接口"（YAGNI）；出现第二类配置中心再抽象 | 低 |
+| A5 | 接入层吞吐优化 | TCP 65432 + HTTP 8088 分端口：信控平台走 TCP（长连接、量最大），雷达/博研走 HTTP；旧原因="一个端口忙不过来" | 协议拆分保留（设备协议决定）；方向：异步接收/独立写线程池，或统一网关+消息队列（MQ）；按规模再定 | 中 |
 
 ## B. 数据底座待办
 
@@ -44,3 +45,5 @@
 | --- | --- | --- | --- | --- |
 | D1 | `DQN_Select.py` 后续整理 | 分发器 60+ 调用过长（已 black 排版）；`Cross_Video` 未拆 Video/Radar；存在去重/参数化空间；异常路口 `1300592`/`1300644` 待确认 | 分发器可 `# fmt: off/on`；其余逐项讨论 | 低 |
 | D2 | 绿波业务逻辑 | 由他人负责 | 暂不动，协同后处理 | — |
+| D3 | online 数据提级到 DQN_select | 现状：纯互联网路口（133 个）不过 DQN，由协调模块 `process_internet_intersection` 全局处理；online 同时喂绿波走廊 | 将 online 作为 DQN 单路口输入（与 radar/video 同级），互联网路口纳入 DQN；算法行为大改，待系统成熟 | 高（远期） |
+| D4 | 全局协调学习化 | 现状：绿波走廊链式规则传播（当前 1 条走廊 4 路口）+ 分类批量规则 + 共享规则（最小周期/浮动值）；非全图 GNN | 保留现状；成熟后升级为邻域学习式传播（仅与周边路口协调） | 低（远期） |
