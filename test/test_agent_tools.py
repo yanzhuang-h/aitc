@@ -80,7 +80,7 @@ class DataQueryToolsTest(unittest.TestCase):
     def test_tool_schemas_are_exposed(self) -> None:
         names = {item["name"] for item in self.tools.tool_schemas()}
         self.assertIn("query_recent_runtime_data", names)
-        self.assertIn("query_config_snapshot", names)
+        self.assertIn("query_config", names)
         self.assertIn("query_config_pool", names)
         self.assertIn("query_experience_pool", names)
 

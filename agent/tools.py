@@ -59,8 +59,8 @@ class DataQueryTools:
             },
         },
         {
-            "name": "query_config_snapshot",
-            "description": "查询配置快照；路口级配置需要提供 cross_id。",
+            "name": "query_config",
+            "description": "查询配置；路口级配置需要提供 cross_id。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -133,7 +133,7 @@ class DataQueryTools:
             "query_recent_runtime_data": self.query_recent_runtime_data,
             "query_runtime_history": self.query_runtime_history,
             "query_latest_results": self.query_latest_results,
-            "query_config_snapshot": self.query_config_snapshot,
+            "query_config": self.query_config,
             "query_config_pool": self.query_config_pool,
             "query_experience_pool": self.query_experience_pool,
             "generate_single_intersection_signal_timing": self.generate_single_intersection_signal_timing,
@@ -142,7 +142,7 @@ class DataQueryTools:
             "query_recent_runtime_data": "runtime.recent",
             "query_runtime_history": "runtime.history",
             "query_latest_results": "results.latest",
-            "query_config_snapshot": "config.snapshot",
+            "query_config": "config.get",
             "generate_single_intersection_signal_timing": "signal.timing.single",
         }
         for spec in self._TOOL_SCHEMAS:
@@ -240,18 +240,18 @@ class DataQueryTools:
         except (ValueError, RuntimeError) as error:
             return self._error(str(error))
 
-    def query_config_snapshot(
+    def query_config(
         self,
         resource: str,
         cross_id: str | None = None,
         detail: str = SUMMARY,
     ) -> dict[str, Any]:
-        """查询配置快照。"""
+        """查询配置。"""
         try:
             data = self.query_service.get_config_snapshot(resource, cross_id=cross_id)
             normalized_detail = self._detail(detail)
             return self._success(
-                f"已获取 {resource} 配置快照。",
+                f"已获取 {resource} 配置。",
                 self._format_config(data, normalized_detail),
                 {
                     "resource": resource,

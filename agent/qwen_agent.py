@@ -50,7 +50,7 @@ class SymbolicDataAgent:
         "runtime.recent": "query_recent_runtime_data",
         "runtime.history": "query_runtime_history",
         "results.latest": "query_latest_results",
-        "config.snapshot": "query_config_snapshot",
+        "config.get": "query_config",
         "signal.timing.single": "generate_single_intersection_signal_timing",
     }
 

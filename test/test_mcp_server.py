@@ -17,7 +17,7 @@ EXPECTED_TOOLS = [
     "query_recent_runtime_data",
     "query_runtime_history",
     "query_latest_results",
-    "query_config_snapshot",
+    "query_config",
     "query_config_pool",
     "query_experience_pool",
     "generate_single_intersection_signal_timing",
