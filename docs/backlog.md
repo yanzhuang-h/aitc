@@ -13,6 +13,7 @@
 | A3 | 两套写入收敛 | `logs_data/*.txt`（人读兼容 + 补 `AITC_SYS_TS`）与 `runtime/*.jsonl`（程序查）并存 | `runtime/*.jsonl` 做唯一真相源，`logs_data` 降级为兼容视图；先盘点消费者（flow_pre/queue_pre 预测、EXP、现场人工）再迁移；不换 YAML | 中 |
 | A4 | 配置资源同步来源抽象 | 4 类走 Nacos（floating_value/intersection_result/road_state/time_schedule），2 类走 HTTP 文件（road_info/cross_info）；`ConfigService` 门面已收口 | 暂不抽"同步源接口"（YAGNI）；出现第二类配置中心再抽象 | 低 |
 | A5 | 接入层吞吐优化 | TCP 65432 + HTTP 8088 分端口：信控平台走 TCP（长连接、量最大），雷达/博研走 HTTP；旧原因="一个端口忙不过来" | 协议拆分保留（设备协议决定）；方向：异步接收/独立写线程池，或统一网关+消息队列（MQ）；按规模再定 | 中 |
+| A6 | Agent 层重构（需求驱动） | 现状：五类组件叠加（SymbolicDataAgent / QwenSignalTimingAgent / QwenToolRouterAgent / ControlProcessAgent / AgentHarness）+ 双路由（IntentRegistry + action 符号路由）；工具需在 schema 表/handlers/actions/方法四处声明；LLM 不在决策路径，可整体重构 | 先盘点真实需求（数据查询/信号方案生成/绿波接口），再做减法：单一路由策略 + 装饰器式工具注册（schema 自动生成）；保留 `/api/agent/*` 接口兼容 | 中（远期） |
 
 ## B. 数据底座待办
 
