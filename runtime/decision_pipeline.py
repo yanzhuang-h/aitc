@@ -41,6 +41,7 @@ class PeriodicDecisionPipeline(LoggingMixin):
         worker_count: int = 30,
         logger: Any | None = None,
         control_snapshot_enabled: bool = False,
+        # 占位默认：生产路径由装配层注入 settings.control_snapshot_dir（AITC_CONTROL_SNAPSHOT_DIR）
         control_snapshot_dir: str | os.PathLike = "logs_data/control_snapshots",
     ) -> None:
         self.cache = cache

@@ -14,6 +14,7 @@ class FileRuntimeOutputStore:
     """保持旧日志目录格式的本地文件输出实现。"""
 
     def __init__(self, root: str | Path = "logs_data") -> None:
+        # 占位默认：生产路径由装配层注入 settings.runtime_output_dir（AITC_RUNTIME_OUTPUT_DIR）
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()

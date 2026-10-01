@@ -13,6 +13,7 @@ class FilePredictionRepository:
     """兼容既有文件格式的预测数据仓库实现。"""
 
     def __init__(self, root: str | Path = "logs_data") -> None:
+        # 占位默认：生产路径由装配层注入 settings.prediction_data_dir（AITC_PREDICTION_DATA_DIR）
         self.root = Path(root)
 
     def read_history(self, category: str, windows: Iterable[tuple[datetime, datetime]]) -> list[dict[str, Any]]:

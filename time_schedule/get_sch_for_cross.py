@@ -2,7 +2,9 @@ import json
 import time
 
 from lib.AITC_tool import Get_Fine_map
-road_info_path = 'lib/road_info.json'
+from app.paths import ROAD_INFO_PATH
+
+road_info_path = str(ROAD_INFO_PATH)
 
 def get_sch(F,road_info,Cross_id,h):
     ret = [0,0,0,0,0,0,0,0,0,0]
