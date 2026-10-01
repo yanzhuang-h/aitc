@@ -8,11 +8,7 @@ import tempfile
 import threading
 # -*- coding: utf-8 -*-
 
-
-PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
-INTERSECTION_CONFIG_PATH = os.path.join(
-    PROJECT_DIR, "intersection_result_config.json"
-)
+from app.paths import INTERSECTION_RESULT_CONFIG_PATH as INTERSECTION_CONFIG_PATH
 _config_lock = threading.RLock()
 
 

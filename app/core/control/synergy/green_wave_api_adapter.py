@@ -15,7 +15,9 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 # 文档1 返回示例中的配置文件路径（按部署位置统一为 corridors）
-CONFIG_FILE = "lib/green_wave_corridors.json"
+from app.paths import GREEN_WAVE_CORRIDORS_PATH
+
+CONFIG_FILE = str(GREEN_WAVE_CORRIDORS_PATH)
 
 # 文档1 未提供但 corridor 必须的默认值（与现有 lvbo_01 配置保持一致）
 DEFAULT_CYCLE_SECONDS = 90
