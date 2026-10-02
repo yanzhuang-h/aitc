@@ -373,6 +373,7 @@ DQN_select_<id>
 
 - `programID = plan[9]`；
 - `build_phase()` 从 `plan[0]` 开始遇到第一个 `0` 即停止，后续非零值也不会输出；
+- 该循环实际遍历整个十元素列表，没有限定 `0..7`；若前八项均非零，保留位甚至方案号也可能被当作 duration 输出。兼容 adapter 必须保留此行为，修复另立业务变更。
 - `traffic_vector` 把 LRUD 四元素按 `location_to_intersection_lambda` 反查回道路检测器 ID；一方向存在多个检测器时，字典反转只保留其中一个；
 - 模型信息为空时使用缺省值，其中 `score` 为 85–100 的随机整数；
 - 每个路口独立作为一行 JSON 广播，不是一次发送一个包含 186 路口的数组。
@@ -565,3 +566,31 @@ runtime/result_formatter.py
 - 检查最终十元素 plan 到 TCP payload 的转换和换行发送协议。
 
 本文件是 V2 重构的行为基线说明，不是对现有所有算法正确性的背书。后续任何改变最终 plan 的修复，应在独立变更中附输入快照、前后输出差异和业务审批。
+
+### 14.1 Phase 0 复核（2026-10-02）
+
+`git fetch origin main` 确认本地与最新 `origin/main` 均为
+`3e8c7b983466a6e1173bdb40d0d8d6a4bcae28c7`。重新核对真实装配、接入、聚合、
+算法、校验和发送代码，主链与无 LLM 结论成立；未修改生产逻辑。
+运行时集合计数仍为 186/65/133/3/52/1，AST 确认 63 个路口函数均未消费预测参数。
+
+需要补充两项边界事实：
+
+- `IntersectionControlRequest.queue_vector` 的注解是 `list[Any]`，但生产管线和
+  `SingleIntersectionSignalTimingTool` 实际传入方向字典（`direction -> 7 lanes`）。
+  Phase 1 应只修正注解为 list/dict 联合类型，不转换运行值或重写字段。
+- `build_phase()` 遍历整个列表，首个零值截断之外没有相位数量限制，见 7.2。
+
+修改前测试结果：
+
+| 命令（均使用 `.venv/bin/python`） | 结果 |
+|---|---|
+| `-m unittest discover -s test -p 'test_*.py'` | 137 项通过 |
+| `-m unittest discover -s lib/control_functions/tests -p 'test_*.py'` | 9 项通过 |
+| `-m unittest discover -s lib/control_functions/global_processors/tests -p 'test_*.py'` | 23 项通过 |
+| `-m unittest discover -s lib/data_ANS/tests -p 'test_*.py'` | 111 项：2 failures、1 error |
+
+经验模块已有失败：`test_non_pilot_selector_always_returns_legacy` 与
+`test_non_target_road_does_not_create_a_log` 把 `1300086` 视为非目标路口，
+与当前 pilot 白名单不一致；`test_send_experience_provenance` 仍导入不存在的
+`Write_to_file`。这些失败不属于 Phase 1 引入，本轮记录而不修改控制语义。
