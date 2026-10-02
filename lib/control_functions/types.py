@@ -18,7 +18,7 @@ class IntersectionControlRequest:
     cross_id: str
     current_time: float
     traffic_vector: list[Any] = field(default_factory=list)
-    queue_vector: list[Any] = field(default_factory=list)
+    queue_vector: list[Any] | dict[str, Any] = field(default_factory=list)
     traffic_vector_duration2: list[Any] = field(default_factory=list)
     flow_map: dict[Any, Any] = field(default_factory=dict)
     queue_map: dict[Any, Any] = field(default_factory=dict)
