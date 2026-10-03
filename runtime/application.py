@@ -46,6 +46,7 @@ from .tcp_server import TcpRuntimeServer
 from agent.qwen_agent import QwenSignalTimingAgent, QwenToolRouterAgent, SymbolicDataAgent
 from agent.control_agent import ControlProcessAgent
 from agent.harness import AgentHarness
+from agent.experts import EVExpert, InternetExpert, RadarExpert, VideoExpert
 from agent.tools import DataQueryTools
 from app.core.control.synergy.green_wave_service import GreenWaveDataService
 from app.infrastructure.llm import OpenAICompatibleLLMClient
@@ -74,8 +75,10 @@ class AITCApplication(LoggingMixin):
         llm_required=False,
         logger=None,
         datahub=None,
+        experts=None,
     ):
         self.datahub = datahub
+        self.experts = experts if experts is not None else {}
         self.config_sync_manager = config_sync_manager
         self.http_server = http_server
         self.tcp_server = tcp_server
@@ -175,6 +178,12 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
         memory_window=settings.traffic_memory.memory_window,
         event_limit=settings.traffic_memory.datahub_event_limit, logger=logger,
     )
+    experts = {
+        "video": VideoExpert(datahub, flow_duration_seconds=settings.flow_duration_seconds),
+        "radar": RadarExpert(datahub),
+        "internet": InternetExpert(datahub),
+        "ev": EVExpert(datahub),
+    }
     receiver = RuntimeDataReceiver(cache=cache, writer=writer, repository=repository, lambdas_module=Lambdas, overflow_warning_map=overflow_warning_map, radar_event_map=radar_event_map, logger=logger, quality_monitor=quality_monitor, datahub=datahub)
     ingestor = RuntimeDataIngestor(receiver)
     config_service = ConfigService()
@@ -230,4 +239,4 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
         if settings.enable_experience_pool_scheduler
         else None
     )
-    return AITCApplication(config_sync_manager=ConfigSyncManager(), http_server=http_server, tcp_server=tcp_server, decision_pipeline=pipeline, prediction_scheduler=prediction_scheduler, experience_pool_scheduler=experience_pool_scheduler, decision_interval=settings.decision_interval_seconds, enable_config_sync=settings.enable_config_sync, enable_prediction_scheduler=settings.enable_prediction_scheduler, llm_client=qwen_client, llm_required=settings.llm_required, logger=logger, datahub=datahub)
+    return AITCApplication(config_sync_manager=ConfigSyncManager(), http_server=http_server, tcp_server=tcp_server, decision_pipeline=pipeline, prediction_scheduler=prediction_scheduler, experience_pool_scheduler=experience_pool_scheduler, decision_interval=settings.decision_interval_seconds, enable_config_sync=settings.enable_config_sync, enable_prediction_scheduler=settings.enable_prediction_scheduler, llm_client=qwen_client, llm_required=settings.llm_required, logger=logger, datahub=datahub, experts=experts)

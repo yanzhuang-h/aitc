@@ -44,6 +44,10 @@ MemoryQueryLayer 和 PeriodicDecisionPipeline，应用通过 `app.datahub` 暴�
 | `history(intersection_id, limit=None)` | 最近 N 轮，按最旧到最新排列，包含当前轮；limit=0 返回空列表 |
 | `query(intersection_id, source=None, transport=None, kind=None)` | 当前原始事件、完整最新 snapshot、缺失字段、质量问题及截断标记 |
 
+Phase 4 新增可选 include_snapshot=False，供只提取当前事件的专家省略完整控制
+上下文复制；默认查询行为保持一致。专家字段与可用度见
+[Phase 4 交通专家](v2_traffic_experts.md)。
+
 所有 V2 查询和 snapshot 输入输出均深拷贝；修改结果不会影响内部历史、其他路口或
 原控制输入。索引和历史使用 RLock，调用旧缓存及聚合算法时不持有这个锁。
 查询不会调用模型、选择器或发送结果。
