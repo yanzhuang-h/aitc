@@ -27,6 +27,7 @@ from infra.data import (
     ResultSender,
     ResultWarehouse,
     ShortTermMemory,
+    TrafficDataHub,
     RuntimeDataIngestor,
     MemoryQueryLayer,
     RuntimeDataReceiver,
@@ -72,7 +73,9 @@ class AITCApplication(LoggingMixin):
         llm_client=None,
         llm_required=False,
         logger=None,
+        datahub=None,
     ):
+        self.datahub = datahub
         self.config_sync_manager = config_sync_manager
         self.http_server = http_server
         self.tcp_server = tcp_server
@@ -166,11 +169,17 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
     quality_monitor = DataQualityMonitor()
     # 雷达事件表：eventType → deviceNo → 最新事件
     radar_event_map = {key: {} for key in Lambdas.radar_event_list}
-    receiver = RuntimeDataReceiver(cache=cache, writer=writer, repository=repository, lambdas_module=Lambdas, overflow_warning_map=overflow_warning_map, radar_event_map=radar_event_map, logger=logger, quality_monitor=quality_monitor)
+    datahub = TrafficDataHub(
+        cache=cache, lambdas_module=Lambdas,
+        overflow_warning_map=overflow_warning_map, radar_event_map=radar_event_map,
+        memory_window=settings.traffic_memory.memory_window,
+        event_limit=settings.traffic_memory.datahub_event_limit, logger=logger,
+    )
+    receiver = RuntimeDataReceiver(cache=cache, writer=writer, repository=repository, lambdas_module=Lambdas, overflow_warning_map=overflow_warning_map, radar_event_map=radar_event_map, logger=logger, quality_monitor=quality_monitor, datahub=datahub)
     ingestor = RuntimeDataIngestor(receiver)
     config_service = ConfigService()
     warehouse = ResultWarehouse()
-    query_service = MemoryQueryLayer(short_term_memory=cache, result_warehouse=warehouse, config_service=config_service, long_term_memory=repository, quality_monitor=quality_monitor)
+    query_service = MemoryQueryLayer(short_term_memory=cache, result_warehouse=warehouse, config_service=config_service, long_term_memory=repository, quality_monitor=quality_monitor, datahub=datahub)
     sender = ResultSender(writer=writer, logger=logger)
     prediction_repository = FilePredictionRepository(root=settings.prediction_data_dir)
     flow_predictor = FlowPredictionService(Flow_predict, prediction_repository)
@@ -178,7 +187,7 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
     # ── ② Agent 层：查询/控制工具、Qwen 客户端与 Harness ──
     signal_timing_tool = SingleIntersectionSignalTimingTool()
     data_tools = DataQueryTools(query_service, signal_timing_tool=signal_timing_tool)
-    control_processor = RuntimeDataProcessor(cache, Lambdas)
+    control_processor = RuntimeDataProcessor(cache, Lambdas, datahub=datahub)
     control_tools = ControlFunctionTools(
         data_processor=control_processor,
         overflow_warning_map=overflow_warning_map,
@@ -214,11 +223,11 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
     http_server = HttpRuntimeServer(host=settings.http_host, port=settings.http_port, ingestor=ingestor, config_service=config_service, query_service=query_service, agent_harness=agent_harness, green_wave_service=green_wave_service, logger=logger)
     tcp_server = TcpRuntimeServer(host=settings.tcp_host, port=settings.tcp_port, buffer_size=settings.tcp_buffer_size, ingestor=ingestor, result_warehouse=warehouse, result_sender=sender, send_interval=settings.result_send_interval_seconds, logger=logger)
     control_policy = BaselineController(selector=call_dqn_select, coordinator=coordinate)
-    pipeline = PeriodicDecisionPipeline(cache=cache, data_processor=control_processor, lambdas_module=Lambdas, writer=writer, result_warehouse=warehouse, flow_predictor=flow_predictor, queue_predictor=queue_predictor, control_policy=control_policy, phase_check=phase_check, select_data_to_send=partial(format_result, lambdas_module=Lambdas), is_millisecond_timestamp=is_millisecond_timestamp, overflow_warning_map=overflow_warning_map, radar_event_map=radar_event_map, flow_duration_seconds=settings.flow_duration_seconds, logger=logger, control_snapshot_enabled=settings.control_snapshot_enabled, control_snapshot_dir=settings.control_snapshot_dir)
+    pipeline = PeriodicDecisionPipeline(cache=cache, data_processor=control_processor, lambdas_module=Lambdas, writer=writer, result_warehouse=warehouse, flow_predictor=flow_predictor, queue_predictor=queue_predictor, control_policy=control_policy, phase_check=phase_check, select_data_to_send=partial(format_result, lambdas_module=Lambdas), is_millisecond_timestamp=is_millisecond_timestamp, overflow_warning_map=overflow_warning_map, radar_event_map=radar_event_map, flow_duration_seconds=settings.flow_duration_seconds, logger=logger, control_snapshot_enabled=settings.control_snapshot_enabled, control_snapshot_dir=settings.control_snapshot_dir, datahub=datahub)
     prediction_scheduler = PredictionScheduler(flow_job=flow_predictor.daily_prediction_job, queue_job=queue_predictor.daily_queue_prediction, hour=settings.prediction_hour, minute=settings.prediction_minute, logger=logger)
     experience_pool_scheduler = (
         ExperiencePoolScheduler(logger=logger)
         if settings.enable_experience_pool_scheduler
         else None
     )
-    return AITCApplication(config_sync_manager=ConfigSyncManager(), http_server=http_server, tcp_server=tcp_server, decision_pipeline=pipeline, prediction_scheduler=prediction_scheduler, experience_pool_scheduler=experience_pool_scheduler, decision_interval=settings.decision_interval_seconds, enable_config_sync=settings.enable_config_sync, enable_prediction_scheduler=settings.enable_prediction_scheduler, llm_client=qwen_client, llm_required=settings.llm_required, logger=logger)
+    return AITCApplication(config_sync_manager=ConfigSyncManager(), http_server=http_server, tcp_server=tcp_server, decision_pipeline=pipeline, prediction_scheduler=prediction_scheduler, experience_pool_scheduler=experience_pool_scheduler, decision_interval=settings.decision_interval_seconds, enable_config_sync=settings.enable_config_sync, enable_prediction_scheduler=settings.enable_prediction_scheduler, llm_client=qwen_client, llm_required=settings.llm_required, logger=logger, datahub=datahub)

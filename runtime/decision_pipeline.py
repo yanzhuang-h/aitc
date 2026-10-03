@@ -14,6 +14,7 @@ from typing import Any, Callable
 
 from app.core.control.policies import BaselineController
 from infra.data.classifier import DataKind
+from infra.data.datahub import TrafficDataHub
 from infra.logging import LoggingMixin
 from lib.control_functions.types import IntersectionControlRequest
 
@@ -45,6 +46,7 @@ class PeriodicDecisionPipeline(LoggingMixin):
         # 占位默认：生产路径由装配层注入 settings.control_snapshot_dir（AITC_CONTROL_SNAPSHOT_DIR）
         control_snapshot_dir: str | os.PathLike = "logs_data/control_snapshots",
         control_policy: BaselineController | None = None,
+        datahub: TrafficDataHub | None = None,
     ) -> None:
         if control_policy is not None:
             if dqn_select is not None or coordinate is not None:
@@ -54,6 +56,9 @@ class PeriodicDecisionPipeline(LoggingMixin):
                 raise ValueError("legacy callbacks require both dqn_select and coordinate")
             control_policy = BaselineController(selector=dqn_select, coordinator=coordinate)
         self.cache = cache
+        if datahub is not None and cache is not datahub.cache:
+            raise ValueError("pipeline cache must be the DataHub cache")
+        self.datahub = datahub
         self.data_processor = data_processor
         self.lambdas = lambdas_module
         self.writer = writer
@@ -132,7 +137,10 @@ class PeriodicDecisionPipeline(LoggingMixin):
         return target
 
     def _process_data(self) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
-        self.cache.clear_expired()
+        if self.datahub is not None:
+            self.datahub.clear_expired()
+        else:
+            self.cache.clear_expired()
         recent_data = self.data_processor.snapshot()
         recent_flow_data = recent_data["flow"]
         recent_queue_data = recent_data["queue"]
@@ -262,25 +270,26 @@ class PeriodicDecisionPipeline(LoggingMixin):
         traffic_vector = intersection_flow[intersection_id]
         coordinate_map: dict[str, Any] = {}
         try:
-            result_action, coordinate_map, model_info_list, exp_list = self.dqn_select(
-                IntersectionControlRequest(
-                    cross_id=intersection_id,
-                    current_time=time.time(),
-                    traffic_vector=list(traffic_vector),
-                    queue_vector=result_queue_length[intersection_id],
-                    traffic_vector_duration2=intersection_flow_duration2[intersection_id],
-                    flow_map=dict(flow_map[intersection_id]),
-                    queue_map=dict(queue_map[intersection_id]),
-                    stage_map=dict(stage_map[intersection_id]),
-                    previous_coordinate=self.last_coordinate_set,
-                    predicted_flow=current_flow_prediction,
-                    predicted_queue=current_queue_prediction,
-                    extend_map=dict(extend_map[intersection_id]),
-                    overflow_map=dict(overflow_map[intersection_id]),
-                    radar_map=dict(radar_map[intersection_id]),
-                    boyan_map=dict(boyan_map[intersection_id]),
-                )
+            request = IntersectionControlRequest(
+                cross_id=intersection_id,
+                current_time=time.time(),
+                traffic_vector=list(traffic_vector),
+                queue_vector=result_queue_length[intersection_id],
+                traffic_vector_duration2=intersection_flow_duration2[intersection_id],
+                flow_map=dict(flow_map[intersection_id]),
+                queue_map=dict(queue_map[intersection_id]),
+                stage_map=dict(stage_map[intersection_id]),
+                previous_coordinate=self.last_coordinate_set,
+                predicted_flow=current_flow_prediction,
+                predicted_queue=current_queue_prediction,
+                extend_map=dict(extend_map[intersection_id]),
+                overflow_map=dict(overflow_map[intersection_id]),
+                radar_map=dict(radar_map[intersection_id]),
+                boyan_map=dict(boyan_map[intersection_id]),
             )
+            if self.datahub is not None:
+                self.datahub.capture(request)
+            result_action, coordinate_map, model_info_list, exp_list = self.dqn_select(request)
             self.writer.write_experience(exp_list, intersection_id)
             result["result_action"] = result_action
             result["traffic_vector"] = traffic_vector

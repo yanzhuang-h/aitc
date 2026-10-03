@@ -2,6 +2,10 @@
 
 `infra/data` 是 AITC 的独立数据底座，负责数据接入、分类、短期记忆、长期记忆、结果仓库和统一查询。
 
+V2 运行交通状态统一通过 `TrafficDataHub` 写入；复用原缓存和聚合，新增按路口隔离的
+当前事件、最近 N 轮决策输入及质量查询。接口、配置和兼容边界见
+[Phase 3 DataHub](../../docs/v2_datahub.md)。
+
 ## 记忆层
 
 - `memory/short_term.py`：短期记忆，保存带时间窗口的实时运行数据。当前使用线程安全内存实现，不绑定 Redis。
@@ -13,6 +17,7 @@
 ## 数据工具组件
 
 - `ingest.py`、`receiver.py`：统一接收 TCP/HTTP 协议解析后的数据。
+- `datahub.py`：交通状态写入、路口关联、当前事件查询和有界决策轮次历史。
 - `classifier.py`、`contracts.py`：数据分类和契约校验。
 - `repository.py`：长期记忆当前使用的文件存储实现。
 - `runtime_processor.py`、`cache_processor.py`：将短期记忆快照适配为既有算法输入。
