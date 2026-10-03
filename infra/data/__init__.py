@@ -8,6 +8,7 @@ from .classifier import ClassifiedData, DataKind, DataSource, classify_data
 from .config import ConfigResource, ConfigService
 from .config_sync import ConfigSyncManager
 from .contracts import CONTRACTS, DataContract, validate_contract
+from .datahub import TrafficDataHub
 from .ingest import RuntimeDataIngestor
 from .prediction_repository import FilePredictionRepository
 from .memory import LongTermMemory, MemoryQueryLayer, ShortTermMemory
@@ -28,6 +29,7 @@ __all__ = [
     "DataKind",
     "DataContract",
     "DataSource",
+    "TrafficDataHub",
     "FilePredictionRepository",
     "LongTermMemory",
     "MemoryQueryLayer",

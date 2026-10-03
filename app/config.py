@@ -1,19 +1,45 @@
 """运行配置基线。
 
-当前不引入新的第三方配置依赖。默认值与既有运行行为保持一致，部署时可
-通过环境变量覆盖。后续引入 ``pydantic-settings`` 时仅替换本模块的加载
-实现，不改变运行装配层的依赖方式。
+DataHub 配置使用 pydantic-settings，环境读取仍集中在本模块。
+其余字段暂时保留既有加载规则，避免改变部署行为。
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 import os
 from pathlib import Path
 from typing import Any, Callable, TypeVar
 
+from pydantic import AliasChoices, Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
 T = TypeVar("T")
+
+DEFAULT_MEMORY_WINDOW = 20
+DEFAULT_DATAHUB_EVENT_LIMIT = 2048
+
+
+class TrafficMemorySettings(BaseSettings):
+    """最近决策轮数与每路口原始事件容量；非法值在装配时失败。"""
+
+    model_config = SettingsConfigDict(env_prefix="AITC_", extra="ignore", populate_by_name=True)
+
+    memory_window: int = Field(
+        default=DEFAULT_MEMORY_WINDOW, gt=0,
+        validation_alias=AliasChoices("AITC_MEMORY_WINDOW", "MEMORY_WINDOW"),
+    )
+    datahub_event_limit: int = Field(default=DEFAULT_DATAHUB_EVENT_LIMIT, gt=0)
+
+    @field_validator("memory_window", "datahub_event_limit", mode="before")
+    @classmethod
+    def integer_capacity(cls, value: Any) -> Any:
+        if isinstance(value, (bool, float)):
+            raise ValueError("capacity must be a positive integer")
+        if isinstance(value, str):
+            return int(value)
+        return value
 
 # 中文类型名 → 英文报错文案（报错文案先中文后英文）
 _TYPE_NAME_EN = {"字符串": "a string", "整数": "an integer", "数字": "a number"}
@@ -160,6 +186,9 @@ class RuntimeSettings:
 
     # ── 控制快照 ──
     control_snapshot_enabled: bool = False   # 是否落盘每轮决策输入快照
+
+    # ── DataHub ──
+    traffic_memory: TrafficMemorySettings = field(default_factory=TrafficMemorySettings)
 
     @classmethod
     def from_environment(cls) -> "RuntimeSettings":
