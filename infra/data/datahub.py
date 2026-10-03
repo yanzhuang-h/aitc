@@ -175,10 +175,13 @@ class TrafficDataHub(LoggingMixin):
     def query(
         self, intersection_id: str | None, source: TrafficSource | None = None,
         *, transport: DataSource | None = None, kind: DataKind | None = None,
+        include_snapshot: bool = True,
     ) -> TrafficDataView:
         """读取当前事件窗口和完整决策上下文；None 查询未关联事件。"""
         if intersection_id is not None:
             intersection_id = self._validated_id(intersection_id)
+        if type(include_snapshot) is not bool:
+            raise ValueError("include_snapshot must be a boolean")
         source = TypeAdapter(TrafficSource | None).validate_python(source, strict=True)
         if transport is not None:
             transport = DataSource(transport)
@@ -193,11 +196,11 @@ class TrafficDataHub(LoggingMixin):
                       and (transport is None or event.source == transport)
                       and (kind is None or event.kind == kind)]
             history = self._history.get(intersection_id)
-            snapshot = history[-1] if history else None
+            snapshot = history[-1] if history and include_snapshot else None
             missing = []
             if not events:
                 missing.append("events")
-            if snapshot is None:
+            if snapshot is None and include_snapshot:
                 missing.append("snapshot")
             kinds = {event.kind for event in events}
             if source == "video":
