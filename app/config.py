@@ -176,6 +176,7 @@ class RuntimeSettings:
     control_snapshot_dir: Path = Path("logs_data/control_snapshots")  # 控制快照目录
 
     # ── LLM（OpenAI 兼容接入） ──
+    llm_enabled: bool = True                       # 关闭时不创建模型客户端、不检查模型服务
     llm_base_url: str = "http://127.0.0.1:8000/v1"   # 模型服务地址（vLLM/SGLang/DeepSeek）
     llm_model: str = "Qwen3-0.6B"                    # 模型名称
     llm_api_key: str = "EMPTY"                       # API 密钥
@@ -238,6 +239,7 @@ class RuntimeSettings:
             enable_config_sync=_read_bool("AITC_ENABLE_CONFIG_SYNC", mode_defaults["enable_config_sync"]),
             enable_prediction_scheduler=_read_bool("AITC_ENABLE_PREDICTION_SCHEDULER", mode_defaults["enable_prediction_scheduler"]),
             enable_experience_pool_scheduler=_read_bool("AITC_EXPERIENCE_POOL_ENABLED", cls.enable_experience_pool_scheduler),
+            llm_enabled=_read_bool("AITC_LLM_ENABLED", cls.llm_enabled, "LLM_ENABLED"),
             llm_base_url=_read_value("AITC_LLM_BASE_URL", cls.llm_base_url, str, "字符串", "LLM_BASE_URL"),
             llm_model=_read_value("AITC_LLM_MODEL", cls.llm_model, str, "字符串", "LLM_MODEL_ID"),
             llm_api_key=_read_value("AITC_LLM_API_KEY", cls.llm_api_key, str, "字符串", "LLM_API_KEY"),
@@ -262,13 +264,16 @@ class RuntimeSettings:
             raise ValueError("flow_duration_seconds 必须为正数（must be positive）")
         if not 0 <= self.prediction_hour <= 23 or not 0 <= self.prediction_minute <= 59:
             raise ValueError("预测调度时刻超出范围（prediction schedule is out of range）")
-        if not self.llm_base_url.strip():
-            raise ValueError("llm_base_url 不能为空（must not be empty）")
-        if not self.llm_model.strip():
-            raise ValueError("llm_model 不能为空（must not be empty）")
-        if self.llm_timeout_seconds <= 0:
-            raise ValueError("llm_timeout_seconds 必须为正数（must be positive）")
-        if self.llm_max_tokens <= 0:
-            raise ValueError("llm_max_tokens 必须为正数（must be positive）")
+        if not isinstance(self.llm_enabled, bool):
+            raise ValueError("llm_enabled 必须是布尔值（must be a boolean）")
+        if self.llm_enabled:
+            if not self.llm_base_url.strip():
+                raise ValueError("llm_base_url 不能为空（must not be empty）")
+            if not self.llm_model.strip():
+                raise ValueError("llm_model 不能为空（must not be empty）")
+            if self.llm_timeout_seconds <= 0:
+                raise ValueError("llm_timeout_seconds 必须为正数（must be positive）")
+            if self.llm_max_tokens <= 0:
+                raise ValueError("llm_max_tokens 必须为正数（must be positive）")
         return self
     run_mode: RunMode = RunMode.DEVELOPMENT

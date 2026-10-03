@@ -51,7 +51,7 @@ def ingest_observations(hub, now):
 
 
 @contextmanager
-def composed_application():
+def composed_application(*, llm_enabled=False, llm_required=False):
     with tempfile.TemporaryDirectory(prefix="aitc-experts-") as directory:
         root = Path(directory)
         settings = RuntimeSettings(
@@ -59,6 +59,7 @@ def composed_application():
             prediction_data_dir=root / "prediction", control_snapshot_dir=root / "snapshot",
             enable_config_sync=False, enable_prediction_scheduler=False,
             enable_experience_pool_scheduler=False,
+            llm_enabled=llm_enabled, llm_required=llm_required,
             traffic_memory=TrafficMemorySettings(memory_window=2, datahub_event_limit=32),
         )
         app = create_application(settings=settings)
@@ -101,17 +102,25 @@ class ExpertIntegrationTest(unittest.TestCase):
             self.assertIsNone(app.tcp_server._server_socket)
             llm.assert_not_called()
 
-    def test_actual_legacy_pipeline_is_unchanged_when_every_expert_would_fail(self):
-        def run_round(expert_patches):
+    def test_source_graph_preserves_actual_legacy_pipeline_with_missing_observations(self):
+        def run_round(use_graph):
             with isolated_runtime(), ExitStack() as stack:
-                calls = [stack.enter_context(patch.object(
-                    cls, "extract", side_effect=AssertionError("Phase 4 experts are not pipeline nodes"),
-                )) for cls in expert_patches]
+                unused = [stack.enter_context(patch.object(
+                    cls, "extract", side_effect=AssertionError("unimplemented experts must not run"),
+                )) for cls in (InternetExpert, EVExpert)]
                 llm = stack.enter_context(patch(
                     "runtime.application.OpenAICompatibleLLMClient._open_json",
                     side_effect=AssertionError("legacy control must not request an LLM"),
                 ))
                 with composed_application() as app:
+                    if not use_graph:
+                        app.decision_pipeline.decision_graph = None
+                    video = stack.enter_context(patch.object(
+                        app.experts["video"], "extract", wraps=app.experts["video"].extract,
+                    ))
+                    radar = stack.enter_context(patch.object(
+                        app.experts["radar"], "extract", wraps=app.experts["radar"].extract,
+                    ))
                     # Serial selection keeps real legacy random diagnostics reproducible.
                     app.decision_pipeline.worker_count = 1
                     with patch.object(
@@ -127,12 +136,14 @@ class ExpertIntegrationTest(unittest.TestCase):
                         VIDEO_INTERSECTION,
                     ).missing_fields)
                     llm.assert_not_called()
-                    for call in calls:
+                    self.assertEqual(video.call_count, 186 if use_graph else 0)
+                    self.assertEqual(radar.call_count, 186 if use_graph else 0)
+                    for call in unused:
                         call.assert_not_called()
                     return payloads
 
-        expected = run_round(())
-        actual = run_round((VideoExpert, RadarExpert, InternetExpert, EVExpert))
+        expected = run_round(False)
+        actual = run_round(True)
         self.assertEqual(actual, expected)
 
     def test_read_only_expert_extraction_preserves_two_round_control_and_tcp_golden(self):
