@@ -130,3 +130,5 @@ CI 的现有 `unittest discover -s test` 会递归发现 `test/unit/` 和 `test/
 Phase 2 的生产接线与兼容边界见 [Baseline Controller](v2_baseline_controller.md)。
 
 Phase 3 的状态中心、来源查询和最近 N 轮历史见 [Traffic DataHub](v2_datahub.md)。
+
+Phase 4 的 Video/Radar 提取、统一状态及 Internet/EV 接口见 [交通专家](v2_traffic_experts.md)。
