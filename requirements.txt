@@ -16,3 +16,7 @@ chinesecalendar>=1.9
 numpy>=1.26,<3
 pydantic>=2.10,<3
 pydantic-settings>=2.10,<3
+# 1.2 支持专家读取重试耗尽后的节点错误处理与确定性回退。
+# UUID 随机源兼容适配依赖此版本；升级时须通过全局 RNG 与两轮黄金回放。
+langgraph==1.2.12
+langgraph-checkpoint==4.2.0

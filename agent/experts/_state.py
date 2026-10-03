@@ -8,6 +8,10 @@ from infra.data.traffic_schemas import (
 )
 
 
+class ExpertContractError(ValueError):
+    """明确的来源/路口边界故障，编排层可报告并转读其他来源。"""
+
+
 def empty_observation(intersection_id: str) -> TrafficSnapshot:
     return TrafficSnapshot(cross_id=intersection_id, current_time=time.time())
 
@@ -17,11 +21,11 @@ def source_view(hub: TrafficDataHub, observation: TrafficSnapshot, source: Traff
         observation.cross_id, source=source, include_snapshot=False,
     ))
     if view.source != source or view.intersection_id != observation.cross_id:
-        raise ValueError("DataHub view does not match the requested intersection and source")
+        raise ExpertContractError("DataHub view does not match the requested intersection and source")
     if any(event.intersection_id != observation.cross_id for event in view.events):
-        raise ValueError("DataHub event belongs to another intersection")
+        raise ExpertContractError("DataHub event belongs to another intersection")
     if any(event.kind not in SOURCE_KINDS[source] for event in view.events):
-        raise ValueError("DataHub event does not belong to the requested source")
+        raise ExpertContractError("DataHub event does not belong to the requested source")
     return view
 
 
