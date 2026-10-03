@@ -47,6 +47,7 @@ class PeriodicDecisionPipeline(LoggingMixin):
         control_snapshot_dir: str | os.PathLike = "logs_data/control_snapshots",
         control_policy: BaselineController | None = None,
         datahub: TrafficDataHub | None = None,
+        decision_graph: Any | None = None,
     ) -> None:
         if control_policy is not None:
             if dqn_select is not None or coordinate is not None:
@@ -59,6 +60,7 @@ class PeriodicDecisionPipeline(LoggingMixin):
         if datahub is not None and cache is not datahub.cache:
             raise ValueError("pipeline cache must be the DataHub cache")
         self.datahub = datahub
+        self.decision_graph = decision_graph
         self.data_processor = data_processor
         self.lambdas = lambdas_module
         self.writer = writer
@@ -287,9 +289,15 @@ class PeriodicDecisionPipeline(LoggingMixin):
                 radar_map=dict(radar_map[intersection_id]),
                 boyan_map=dict(boyan_map[intersection_id]),
             )
-            if self.datahub is not None:
-                self.datahub.capture(request)
-            result_action, coordinate_map, model_info_list, exp_list = self.dqn_select(request)
+            snapshot = self.datahub.capture(request) if self.datahub is not None else None
+            if self.decision_graph is not None:
+                # 保留完整聚合请求及动态替换的 selector；专家观测不改写旧控制输入。
+                selection = self.decision_graph.execute_legacy(
+                    request, selector=self.dqn_select, snapshot=snapshot,
+                ).selection
+            else:
+                selection = self.dqn_select(request)
+            result_action, coordinate_map, model_info_list, exp_list = selection
             self.writer.write_experience(exp_list, intersection_id)
             result["result_action"] = result_action
             result["traffic_vector"] = traffic_vector

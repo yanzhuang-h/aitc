@@ -47,6 +47,7 @@ from agent.qwen_agent import QwenSignalTimingAgent, QwenToolRouterAgent, Symboli
 from agent.control_agent import ControlProcessAgent
 from agent.harness import AgentHarness
 from agent.experts import EVExpert, InternetExpert, RadarExpert, VideoExpert
+from agent.graph import ControlGraph
 from agent.tools import DataQueryTools
 from app.core.control.synergy.green_wave_service import GreenWaveDataService
 from app.infrastructure.llm import OpenAICompatibleLLMClient
@@ -76,9 +77,11 @@ class AITCApplication(LoggingMixin):
         logger=None,
         datahub=None,
         experts=None,
+        decision_graph=None,
     ):
         self.datahub = datahub
         self.experts = experts if experts is not None else {}
+        self.decision_graph = decision_graph
         self.config_sync_manager = config_sync_manager
         self.http_server = http_server
         self.tcp_server = tcp_server
@@ -206,18 +209,23 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
     # 控制工具并入统一注册中心：Agent 与 MCP 共用同一份工具表
     control_tools.merge_into(data_tools.registry)
     # Qwen 客户端：OpenAI 兼容接口（本地 vLLM / SGLang 或云端 DeepSeek 均可）
-    qwen_client = OpenAICompatibleLLMClient(
-        base_url=settings.llm_base_url,
-        model=settings.llm_model,
-        api_key=settings.llm_api_key,
-        timeout_seconds=settings.llm_timeout_seconds,
-        default_max_tokens=settings.llm_max_tokens,
-        enable_thinking=settings.llm_enable_thinking,
-    )
-    qwen_agent = QwenSignalTimingAgent(qwen_client, data_tools)
-    qwen_tool_router_agent = QwenToolRouterAgent(qwen_client, data_tools)
+    qwen_client = None
+    qwen_agent = None
+    qwen_tool_router_agent = None
+    control_process_agent = None
+    if settings.llm_enabled:
+        qwen_client = OpenAICompatibleLLMClient(
+            base_url=settings.llm_base_url,
+            model=settings.llm_model,
+            api_key=settings.llm_api_key,
+            timeout_seconds=settings.llm_timeout_seconds,
+            default_max_tokens=settings.llm_max_tokens,
+            enable_thinking=settings.llm_enable_thinking,
+        )
+        qwen_agent = QwenSignalTimingAgent(qwen_client, data_tools)
+        qwen_tool_router_agent = QwenToolRouterAgent(qwen_client, data_tools)
+        control_process_agent = ControlProcessAgent(qwen_client, query_service=query_service, logger=logger)
     symbolic_agent = SymbolicDataAgent(data_tools)
-    control_process_agent = ControlProcessAgent(qwen_client, query_service=query_service, logger=logger)
     green_wave_service = GreenWaveDataService(logger=logger)
     agent_harness = AgentHarness(
         signal_timing_tool=signal_timing_tool,
@@ -232,11 +240,15 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
     http_server = HttpRuntimeServer(host=settings.http_host, port=settings.http_port, ingestor=ingestor, config_service=config_service, query_service=query_service, agent_harness=agent_harness, green_wave_service=green_wave_service, logger=logger)
     tcp_server = TcpRuntimeServer(host=settings.tcp_host, port=settings.tcp_port, buffer_size=settings.tcp_buffer_size, ingestor=ingestor, result_warehouse=warehouse, result_sender=sender, send_interval=settings.result_send_interval_seconds, logger=logger)
     control_policy = BaselineController(selector=call_dqn_select, coordinator=coordinate)
-    pipeline = PeriodicDecisionPipeline(cache=cache, data_processor=control_processor, lambdas_module=Lambdas, writer=writer, result_warehouse=warehouse, flow_predictor=flow_predictor, queue_predictor=queue_predictor, control_policy=control_policy, phase_check=phase_check, select_data_to_send=partial(format_result, lambdas_module=Lambdas), is_millisecond_timestamp=is_millisecond_timestamp, overflow_warning_map=overflow_warning_map, radar_event_map=radar_event_map, flow_duration_seconds=settings.flow_duration_seconds, logger=logger, control_snapshot_enabled=settings.control_snapshot_enabled, control_snapshot_dir=settings.control_snapshot_dir, datahub=datahub)
+    decision_graph = ControlGraph(
+        datahub, primary_expert=experts["video"], fallback_expert=experts["radar"],
+        control_policy=control_policy, logger=logger,
+    )
+    pipeline = PeriodicDecisionPipeline(cache=cache, data_processor=control_processor, lambdas_module=Lambdas, writer=writer, result_warehouse=warehouse, flow_predictor=flow_predictor, queue_predictor=queue_predictor, control_policy=control_policy, phase_check=phase_check, select_data_to_send=partial(format_result, lambdas_module=Lambdas), is_millisecond_timestamp=is_millisecond_timestamp, overflow_warning_map=overflow_warning_map, radar_event_map=radar_event_map, flow_duration_seconds=settings.flow_duration_seconds, logger=logger, control_snapshot_enabled=settings.control_snapshot_enabled, control_snapshot_dir=settings.control_snapshot_dir, datahub=datahub, decision_graph=decision_graph)
     prediction_scheduler = PredictionScheduler(flow_job=flow_predictor.daily_prediction_job, queue_job=queue_predictor.daily_queue_prediction, hour=settings.prediction_hour, minute=settings.prediction_minute, logger=logger)
     experience_pool_scheduler = (
         ExperiencePoolScheduler(logger=logger)
         if settings.enable_experience_pool_scheduler
         else None
     )
-    return AITCApplication(config_sync_manager=ConfigSyncManager(), http_server=http_server, tcp_server=tcp_server, decision_pipeline=pipeline, prediction_scheduler=prediction_scheduler, experience_pool_scheduler=experience_pool_scheduler, decision_interval=settings.decision_interval_seconds, enable_config_sync=settings.enable_config_sync, enable_prediction_scheduler=settings.enable_prediction_scheduler, llm_client=qwen_client, llm_required=settings.llm_required, logger=logger, datahub=datahub, experts=experts)
+    return AITCApplication(config_sync_manager=ConfigSyncManager(), http_server=http_server, tcp_server=tcp_server, decision_pipeline=pipeline, prediction_scheduler=prediction_scheduler, experience_pool_scheduler=experience_pool_scheduler, decision_interval=settings.decision_interval_seconds, enable_config_sync=settings.enable_config_sync, enable_prediction_scheduler=settings.enable_prediction_scheduler, llm_client=qwen_client, llm_required=settings.llm_required and settings.llm_enabled, logger=logger, datahub=datahub, experts=experts, decision_graph=decision_graph)
