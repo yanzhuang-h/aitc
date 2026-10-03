@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import copy
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from ..classifier import DataKind
 from ..config import ConfigResource, ConfigService
@@ -11,6 +11,9 @@ from .long_term import LongTermMemory
 from ..quality import DataQualityMonitor
 from ..result_warehouse import ResultWarehouse
 from .short_term import ShortTermMemory
+
+if TYPE_CHECKING:
+    from ..datahub import TrafficDataHub
 
 
 class MemoryQueryLayer:
@@ -23,6 +26,7 @@ class MemoryQueryLayer:
         config_service: ConfigService | None = None,
         long_term_memory: LongTermMemory | None = None,
         quality_monitor: DataQualityMonitor | None = None,
+        datahub: TrafficDataHub | None = None,
     ) -> None:
         self._short_term_memory = short_term_memory
         self._long_term_memory = long_term_memory
@@ -31,6 +35,9 @@ class MemoryQueryLayer:
         self._result_warehouse = result_warehouse
         self._config_service = config_service
         self._quality_monitor = quality_monitor
+        if datahub is not None and short_term_memory is not datahub.cache:
+            raise ValueError("query cache must be the DataHub cache")
+        self.datahub = datahub
 
     def get_data_quality_snapshot(self) -> dict[str, Any]:
         return self._quality_monitor.snapshot() if self._quality_monitor is not None else {

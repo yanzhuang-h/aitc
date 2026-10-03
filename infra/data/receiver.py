@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 from .classifier import ClassifiedData, DataKind, DataSource, classify_data
+from .datahub import TrafficDataHub
 from .contracts import validate_contract
 from .quality import DataQualityMonitor
 from .memory.short_term import ShortTermMemory
@@ -29,13 +30,21 @@ class RuntimeDataReceiver(LoggingMixin):
         radar_event_map: dict[str, Any] | None = None,
         logger: Any | None = None,
         quality_monitor: DataQualityMonitor | None = None,
+        datahub: TrafficDataHub | None = None,
     ) -> None:
-        self.cache = cache or ShortTermMemory()
+        if datahub is not None and cache is not None and cache is not datahub.cache:
+            raise ValueError("receiver cache must be the DataHub cache")
+        self.datahub = datahub if datahub is not None else TrafficDataHub(
+            cache=cache, lambdas_module=lambdas_module,
+            overflow_warning_map=overflow_warning_map, radar_event_map=radar_event_map,
+            logger=logger,
+        )
+        self.cache = self.datahub.cache
         self.writer = writer or RuntimeDataWriter()
         self.repository = repository
-        self.lambdas = lambdas_module
-        self.overflow_warning_map = overflow_warning_map
-        self.radar_event_map = radar_event_map
+        self.lambdas = self.datahub.lambdas
+        self.overflow_warning_map = self.datahub.overflow_warning_map
+        self.radar_event_map = self.datahub.radar_event_map
         self.logger = logger
         self.quality_monitor = quality_monitor or DataQualityMonitor()
 
@@ -88,75 +97,7 @@ class RuntimeDataReceiver(LoggingMixin):
         return classified
 
     def _update_runtime_state(self, classified: ClassifiedData) -> None:
-        data = classified.item
-
-        if classified.kind == DataKind.FLOW:
-            self.cache.add(DataKind.FLOW, data)
-        elif classified.kind == DataKind.QUEUE:
-            self.cache.add(DataKind.QUEUE, data)
-        elif classified.kind == DataKind.STAGE:
-            self.cache.add(DataKind.STAGE, data)
-        elif classified.kind == DataKind.HEARTBEAT:
-            self._debug("Heartbeat data")
-        elif classified.kind == DataKind.ONLINE:
-            if self._contains("online_data_map_lambda", data.get("rid")):
-                self.cache.add(DataKind.ONLINE, data)
-        elif classified.kind == DataKind.LATEST:
-            if self._contains("latest_data_map_lambda", data.get("inter_id")):
-                self.cache.add(DataKind.LATEST, data)
-        elif classified.kind == DataKind.EXTEND:
-            if self._contains("intersection_list", data.get("CrossId")):
-                self.cache.add(DataKind.EXTEND, data)
-        elif classified.kind == DataKind.OVERFLOW_WARNING:
-            self._handle_overflow_warning(data)
-        elif classified.kind == DataKind.RADAR:
-            device_no = data.get("deviceNo")
-            if self._contains("device_to_location", device_no):
-                self.cache.add(DataKind.RADAR, data)
-            self._debug(f"Processed radar data from device: {device_no}")
-        elif classified.kind == DataKind.RADAR_EVENT:
-            self._handle_radar_event(data)
-        elif classified.kind == DataKind.BOYAN:
-            device_id = data.get("deviceId")
-            if self._contains("boyan_device_to_location", device_id):
-                self.cache.add(DataKind.BOYAN, data)
-        elif classified.source == DataSource.HTTP:
-            self._warning("Received non-radar data in radar HTTP handler")
-        else:
-            self._info("Historical data")
-
-    def _handle_overflow_warning(self, data: dict[str, Any]) -> None:
-        self._info("Overflow warning data")
-        try:
-            ddbh = int(data.get("jtll_ddbh"))
-        except (TypeError, ValueError):
-            self._warning(f"Invalid overflow warning ddbh: {data.get('jtll_ddbh')}")
-            return
-
-        self._info(f"Overflow warning for ddbh: {ddbh}")
-        location_map = self._get_lambdas_attr("location_to_intersection_lambda", {})
-        if ddbh not in location_map or self.overflow_warning_map is None:
-            return
-
-        intersection_id, direction = location_map[ddbh]
-        self._info(f"Intersection ID: {intersection_id}, Direction: {direction}")
-        self.overflow_warning_map[intersection_id][direction] = data
-
-    def _handle_radar_event(self, data: dict[str, Any]) -> None:
-        type_value = data.get("eventType")
-        device_no = data.get("deviceNo")
-        radar_event_list = self._get_lambdas_attr("radar_event_list", [])
-        if (
-            type_value in radar_event_list
-            and self._contains("device_to_location", device_no)
-            and self.radar_event_map is not None
-        ):
-            self.radar_event_map[type_value][device_no] = data
-        self._debug(f"Processed radar event from device: {device_no}")
-
-    def _contains(self, attr_name: str, key: Any) -> bool:
-        value = self._get_lambdas_attr(attr_name, None)
-        return value is not None and key in value
+        self.datahub.ingest_classified(classified)
 
     def _resolve_intersection_id(self, data: Mapping[str, Any]) -> str | None:
         for key in ("Cross_id", "CrossId", "cross_id", "intersection_id", "inter_id"):

@@ -2,17 +2,23 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from . import cache_processor
 from .classifier import DataKind
 from .memory.short_term import ShortTermMemory
 
+if TYPE_CHECKING:
+    from .datahub import TrafficDataHub
+
 
 class RuntimeDataProcessor:
     """将运行窗口转换为既有决策算法需要的数据结构。"""
 
-    def __init__(self, cache: ShortTermMemory, lambdas_module: Any) -> None:
+    def __init__(self, cache: ShortTermMemory, lambdas_module: Any, *, datahub: TrafficDataHub | None = None) -> None:
+        if datahub is not None and cache is not datahub.cache:
+            raise ValueError("processor cache must be the DataHub cache")
+        self.datahub = datahub
         self.cache = cache
         self.lambdas = lambdas_module
 

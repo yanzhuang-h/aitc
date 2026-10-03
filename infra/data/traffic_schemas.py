@@ -12,6 +12,8 @@ from lib.control_functions.types import IntersectionControlRequest
 
 from .classifier import DataKind, DataSource
 
+TrafficSource = Literal["video", "radar", "internet", "ev"]
+
 
 class RawTrafficEvent(BaseModel):
     """严格校验事件信封；原始异构报文和已有质量问题均保留。"""
@@ -43,7 +45,22 @@ class ExpertTrafficState(BaseModel):
 
     model_config = CONTRACT_CONFIG
 
-    source: Literal["video", "radar", "internet", "ev"]
+    source: TrafficSource
     observation: TrafficSnapshot
     missing_fields: list[NonEmptyString] = Field(default_factory=list)
     confidence: FiniteNumber = Field(ge=0, le=1)
+
+
+class TrafficDataView(BaseModel):
+    """按路口和来源读取的当前窗口；snapshot 始终是完整算法上下文。"""
+
+    model_config = CONTRACT_CONFIG
+
+    intersection_id: NonEmptyString | None
+    source: TrafficSource | None = None
+    transport: DataSource | None = None
+    events: list[RawTrafficEvent] = Field(default_factory=list)
+    snapshot: TrafficSnapshot | None = None
+    missing_fields: list[NonEmptyString] = Field(default_factory=list)
+    quality_issues: list[NonEmptyString] = Field(default_factory=list)
+    truncated: bool = False

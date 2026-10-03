@@ -128,3 +128,5 @@ CI 的现有 `unittest discover -s test` 会递归发现 `test/unit/` 和 `test/
 这是后续阶段的目标，不表示当前已有在线 RL、LangGraph 或 Qwen Reviewer 装配。
 
 Phase 2 的生产接线与兼容边界见 [Baseline Controller](v2_baseline_controller.md)。
+
+Phase 3 的状态中心、来源查询和最近 N 轮历史见 [Traffic DataHub](v2_datahub.md)。
