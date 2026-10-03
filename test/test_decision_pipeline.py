@@ -2,8 +2,11 @@ import unittest
 import json
 import tempfile
 from pathlib import Path
+from unittest.mock import Mock, patch
 
+from app.core.control.policies import BaselineController
 from infra.data import ResultWarehouse
+from phase_check import phase_check
 from runtime import PeriodicDecisionPipeline
 
 
@@ -74,6 +77,90 @@ class _Predictor:
 
 
 class PeriodicDecisionPipelineTest(unittest.TestCase):
+    def _make_pipeline(self, *, selector=None, coordinator=None, policy=None, writer=None, **kwargs):
+        callbacks = {"control_policy": policy} if policy is not None else {
+            "dqn_select": selector or (lambda _request: ([10] + [0] * 8 + [1], {}, [], {})),
+            "coordinate": coordinator or (lambda action, *_args: action),
+        }
+        return PeriodicDecisionPipeline(
+            cache=_Cache(), data_processor=_LegacyProcessor(), lambdas_module=_Lambdas,
+            writer=writer or _Writer(), result_warehouse=ResultWarehouse(),
+            flow_predictor=_Predictor(), queue_predictor=_Predictor(),
+            phase_check=lambda action: (action, {}),
+            select_data_to_send=lambda intersection_id, action, traffic, model: {
+                "id": intersection_id, "action": action, "traffic": traffic, "model": model,
+            },
+            is_millisecond_timestamp=lambda _value: True,
+            overflow_warning_map={"100": {}}, radar_event_map={}, flow_duration_seconds=150,
+            **callbacks, **kwargs,
+        )
+
+    def test_explicit_policy_and_legacy_constructor_produce_identical_results(self):
+        raw = ([10.5] + [0] * 8 + [1], {"start": 3}, [1] * 8, {"exp": 1})
+        selector = Mock(side_effect=lambda request: raw)
+        coordinator = Mock(side_effect=lambda action, *_args: action)
+        policy = BaselineController(selector=selector, coordinator=coordinator)
+        explicit = self._make_pipeline(policy=policy)
+        compatible = self._make_pipeline(selector=selector, coordinator=coordinator)
+        with patch("runtime.decision_pipeline.time.time", return_value=1700000000):
+            self.assertEqual(explicit.run_once(), compatible.run_once())
+        self.assertIs(explicit.control_policy, policy)
+        self.assertEqual(len(coordinator.call_args.args), 4)
+        self.assertEqual(explicit.last_coordinate_set, compatible.last_coordinate_set)
+        self.assertEqual(explicit.writer.experience, compatible.writer.experience)
+
+    def test_selector_failure_keeps_legacy_default_result(self):
+        pipeline = self._make_pipeline(selector=Mock(side_effect=RuntimeError("selector failed")))
+        result, _, _, _ = pipeline._process_data()
+        self.assertEqual(result["100"], _Lambdas.intersection_result_lambda)
+        self.assertEqual(pipeline.last_coordinate_set, {"100": {}})
+        self.assertEqual(pipeline.writer.experience, [])
+
+    def test_experience_write_failure_keeps_default_result_but_retains_coordinate(self):
+        writer = _Writer()
+        writer.write_experience = Mock(side_effect=OSError("disk full"))
+        pipeline = self._make_pipeline(
+            selector=lambda _request: ([30] + [0] * 9, {"start": 3}, [9] * 8, {"exp": 1}),
+            writer=writer,
+        )
+        result, _, _, _ = pipeline._process_data()
+        self.assertEqual(result["100"], _Lambdas.intersection_result_lambda)
+        self.assertEqual(pipeline.last_coordinate_set, {"100": {"start": 3}})
+        writer.write_experience.assert_called_once_with({"exp": 1}, "100")
+
+    def test_failed_finalization_leaves_previous_warehouse_batch(self):
+        error = RuntimeError("coordination failed")
+        pipeline = self._make_pipeline(coordinator=Mock(side_effect=error))
+        pipeline.result_warehouse.replace([{"id": "previous"}])
+        with self.assertRaises(RuntimeError) as raised:
+            pipeline.run_once()
+        self.assertIs(raised.exception, error)
+        self.assertEqual(pipeline.result_warehouse.snapshot(), [{"id": "previous"}])
+        self.assertEqual(pipeline.writer.phase_reports, [])
+
+    def test_constructor_rejects_ambiguous_policy_and_legacy_callbacks(self):
+        policy = BaselineController(selector=Mock(), coordinator=Mock())
+        with self.assertRaisesRegex(ValueError, "not both"):
+            self._make_pipeline(policy=policy, dqn_select=Mock())
+
+    def test_legacy_callback_attributes_remain_replaceable(self):
+        pipeline = self._make_pipeline()
+        pipeline.dqn_select = Mock(return_value=([25] + [0] * 9, {}, [], {}))
+        pipeline.coordinate = Mock(side_effect=lambda action, *_args: action)
+        self.assertEqual(pipeline.run_once()[0]["action"][0], 25)
+        pipeline.dqn_select.assert_called_once()
+        pipeline.coordinate.assert_called_once()
+
+    def test_legacy_phase_check_still_clamps_reserved_slot(self):
+        original = [10] * 8 + [9, 1]
+        pipeline = self._make_pipeline(selector=lambda _request: (original, {}, [], {}))
+        pipeline.phase_check = phase_check
+        with patch("phase_check.intersection_result_config", {"100": {"1": {"8": [3, 6]}}}):
+            result = pipeline.run_once()
+        self.assertIs(result[0]["action"], original)
+        self.assertEqual(original[8], 6)
+        self.assertEqual(pipeline.writer.phase_reports[0]["100"]["modifications"], ["Phase 8: 9 -> 6"])
+
     def test_runs_full_decision_and_updates_result_warehouse(self):
         cache = _Cache()
         writer = _Writer()

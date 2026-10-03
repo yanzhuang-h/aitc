@@ -2,8 +2,6 @@
 
 from typing import Any
 
-from runtime.result_formatter import format_result
-
 from .schemas import SignalPlan
 
 
@@ -29,6 +27,9 @@ def signal_plan_to_payload(
     *,
     lambdas_module: Any,
 ) -> dict[str, Any]:
+    # runtime 的装配层会导入控制策略，延迟导入以避免包初始化循环。
+    from runtime.result_formatter import format_result
+
     # 复用协议实现，保留零值截断、道路映射和随机诊断信息的原有语义。
     return format_result(
         plan.intersection_id, signal_plan_to_legacy(plan),
