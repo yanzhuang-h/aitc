@@ -1,0 +1,488 @@
+{
+  "baseline_commit": "3e8c7b983466a6e1173bdb40d0d8d6a4bcae28c7",
+  "cases": [
+    {
+      "name": "timetable-1300068-8",
+      "provenance": "time_schedule/schedule_json/Time_schedule_1300068.json",
+      "intersection_id": "1300068",
+      "plan": [
+        67,
+        22,
+        45,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "traffic_vector": [
+        3,
+        4,
+        5,
+        6
+      ],
+      "model_info_list": [
+        90,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "expected_payload": {
+        "additional": {
+          "tlLogic": {
+            "id": "1300068",
+            "type": "NoType",
+            "programID": 0,
+            "phase": [
+              {
+                "duration": 67
+              },
+              {
+                "duration": 22
+              },
+              {
+                "duration": 45
+              }
+            ]
+          }
+        },
+        "traffic_vector": [
+          {
+            "id": 1,
+            "flow": 3
+          },
+          {
+            "id": 2,
+            "flow": 4
+          },
+          {
+            "id": 4,
+            "flow": 5
+          },
+          {
+            "id": 3,
+            "flow": 6
+          }
+        ],
+        "modelInfo": {
+          "crossID": "1300068",
+          "acc": 90,
+          "r": 1,
+          "rt": 2,
+          "score": 3,
+          "pdf": 4,
+          "pdq": 5,
+          "pds": 6,
+          "pd": 7
+        }
+      }
+    },
+    {
+      "name": "timetable-1300047-18",
+      "provenance": "time_schedule/schedule_json/Time_schedule_1300047.json",
+      "intersection_id": "1300047",
+      "plan": [
+        83,
+        47,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "traffic_vector": [
+        3,
+        4,
+        5,
+        6
+      ],
+      "model_info_list": [
+        90,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "expected_payload": {
+        "additional": {
+          "tlLogic": {
+            "id": "1300047",
+            "type": "NoType",
+            "programID": 0,
+            "phase": [
+              {
+                "duration": 83
+              },
+              {
+                "duration": 47
+              }
+            ]
+          }
+        },
+        "traffic_vector": [
+          {
+            "id": 17,
+            "flow": 3
+          },
+          {
+            "id": 37,
+            "flow": 4
+          },
+          {
+            "id": 39,
+            "flow": 5
+          },
+          {
+            "id": 38,
+            "flow": 6
+          }
+        ],
+        "modelInfo": {
+          "crossID": "1300047",
+          "acc": 90,
+          "r": 1,
+          "rt": 2,
+          "score": 3,
+          "pdf": 4,
+          "pdq": 5,
+          "pds": 6,
+          "pd": 7
+        }
+      }
+    },
+    {
+      "name": "timetable-1300103-12",
+      "provenance": "time_schedule/schedule_json/Time_schedule_1300103.json",
+      "intersection_id": "1300103",
+      "plan": [
+        48,
+        23,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "traffic_vector": [
+        3,
+        4,
+        5,
+        6
+      ],
+      "model_info_list": [
+        90,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "expected_payload": {
+        "additional": {
+          "tlLogic": {
+            "id": "1300103",
+            "type": "NoType",
+            "programID": 0,
+            "phase": [
+              {
+                "duration": 48
+              },
+              {
+                "duration": 23
+              }
+            ]
+          }
+        },
+        "traffic_vector": [
+          {
+            "id": 36,
+            "flow": 5
+          },
+          {
+            "id": 16,
+            "flow": 6
+          }
+        ],
+        "modelInfo": {
+          "crossID": "1300103",
+          "acc": 90,
+          "r": 1,
+          "rt": 2,
+          "score": 3,
+          "pdf": 4,
+          "pdq": 5,
+          "pds": 6,
+          "pd": 7
+        }
+      }
+    },
+    {
+      "name": "zero-fallback",
+      "intersection_id": "1300068",
+      "plan": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "traffic_vector": [
+        3,
+        4,
+        5,
+        6
+      ],
+      "model_info_list": [
+        90,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "expected_payload": {
+        "additional": {
+          "tlLogic": {
+            "id": "1300068",
+            "type": "NoType",
+            "programID": 0,
+            "phase": []
+          }
+        },
+        "traffic_vector": [
+          {
+            "id": 1,
+            "flow": 3
+          },
+          {
+            "id": 2,
+            "flow": 4
+          },
+          {
+            "id": 4,
+            "flow": 5
+          },
+          {
+            "id": 3,
+            "flow": 6
+          }
+        ],
+        "modelInfo": {
+          "crossID": "1300068",
+          "acc": 90,
+          "r": 1,
+          "rt": 2,
+          "score": 3,
+          "pdf": 4,
+          "pdq": 5,
+          "pds": 6,
+          "pd": 7
+        }
+      }
+    },
+    {
+      "name": "zero-gap-string-program",
+      "intersection_id": "1300068",
+      "plan": [
+        15.5,
+        20,
+        0,
+        99,
+        99,
+        99,
+        99,
+        99,
+        99,
+        "program-1"
+      ],
+      "traffic_vector": [
+        3,
+        4,
+        5,
+        6
+      ],
+      "model_info_list": [
+        90,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "expected_payload": {
+        "additional": {
+          "tlLogic": {
+            "id": "1300068",
+            "type": "NoType",
+            "programID": "program-1",
+            "phase": [
+              {
+                "duration": 15.5
+              },
+              {
+                "duration": 20
+              }
+            ]
+          }
+        },
+        "traffic_vector": [
+          {
+            "id": 1,
+            "flow": 3
+          },
+          {
+            "id": 2,
+            "flow": 4
+          },
+          {
+            "id": 4,
+            "flow": 5
+          },
+          {
+            "id": 3,
+            "flow": 6
+          }
+        ],
+        "modelInfo": {
+          "crossID": "1300068",
+          "acc": 90,
+          "r": 1,
+          "rt": 2,
+          "score": 3,
+          "pdf": 4,
+          "pdq": 5,
+          "pds": 6,
+          "pd": 7
+        }
+      }
+    },
+    {
+      "name": "all-slots-nonzero",
+      "intersection_id": "1300068",
+      "plan": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        2
+      ],
+      "traffic_vector": [
+        3,
+        4,
+        5,
+        6
+      ],
+      "model_info_list": [
+        90,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "expected_payload": {
+        "additional": {
+          "tlLogic": {
+            "id": "1300068",
+            "type": "NoType",
+            "programID": 2,
+            "phase": [
+              {
+                "duration": 10
+              },
+              {
+                "duration": 11
+              },
+              {
+                "duration": 12
+              },
+              {
+                "duration": 13
+              },
+              {
+                "duration": 14
+              },
+              {
+                "duration": 15
+              },
+              {
+                "duration": 16
+              },
+              {
+                "duration": 17
+              },
+              {
+                "duration": 18
+              },
+              {
+                "duration": 2
+              }
+            ]
+          }
+        },
+        "traffic_vector": [
+          {
+            "id": 1,
+            "flow": 3
+          },
+          {
+            "id": 2,
+            "flow": 4
+          },
+          {
+            "id": 4,
+            "flow": 5
+          },
+          {
+            "id": 3,
+            "flow": 6
+          }
+        ],
+        "modelInfo": {
+          "crossID": "1300068",
+          "acc": 90,
+          "r": 1,
+          "rt": 2,
+          "score": 3,
+          "pdf": 4,
+          "pdq": 5,
+          "pds": 6,
+          "pd": 7
+        }
+      }
+    }
+  ]
+}
