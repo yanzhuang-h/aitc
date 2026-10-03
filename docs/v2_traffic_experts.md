@@ -1,5 +1,8 @@
 # AITC V2 Phase 4：交通数据专家
 
+后续接线见 [Phase 5 LangGraph Harness](v2_langgraph_harness.md)；以下记录 Phase 4
+的实现与当时验证，当前周期管线已通过图按条件读取 Video/Radar。
+
 实施基线：`07014a4`，Phase 3 经 PR #40 合入 main。开始前重新 fetch 并核对
 HEAD 与 origin/main；修改前主测试 210 项全部通过。数据接口见
 [DataHub](v2_datahub.md)，统一输出见 [交通契约](v2_contracts.md)。
