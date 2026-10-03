@@ -1,0 +1,1124 @@
+{
+  "schema_version": 1,
+  "provenance": {
+    "baseline_commit": "f59bb50",
+    "generated_with": "direct original call_dqn_select and coordinate; no BaselineController calls",
+    "local_clock": "2026-09-30 08:30:00 and 08:32:00 Asia/Shanghai",
+    "workday": true,
+    "random_seed": 37,
+    "selector_order": "Lambdas.intersection_list, serial for reproducible random diagnostics",
+    "test_input": "explicit synthetic runtime-shaped flow/extend/stage/online observations; real repository configurations",
+    "pilot_fallback": "new mode with missing external experience file",
+    "state": "empty Internet and green-wave state initially; retained across two rounds; restored after replay",
+    "coordinate_arguments": "action, coordinate_map, online_map, overflow_map (four production arguments)",
+    "scope": "fixed workday morning; not field-performance validation or every event/time branch"
+  },
+  "config_sources": {
+    "lib/wwx.json": "163c286056a69505c5d256a2fcd9b0fc4cc887cbec181e18469accb933696cd3",
+    "lib/experience_pool/new_wwx.json": "ed95c2e2f881b4cacb8de6fac3f9d896d65b57703a9b9f2dc9ba2a979aa07a1a",
+    "lib/cross_info.json": "c56b24a59cead015972fff0bb104cf41de82ff007dcf0aca5534fc6c63ab6173",
+    "lib/road_info.json": "6d6fd91697dd43184fb10909d046bfdd30d40ebf1d57e1058d098a66132c20d2",
+    "lib/road_state.json": "f4fb03afe0928bca4a50b03b92777195eb1fc49c5f0c9c1693f693002feb692e",
+    "lib/floating_value.json": "b90e06492da315a5a9c5f2f50e9be5bc239c12495900ec27566548890e178817",
+    "lib/green_wave_corridors.json": "b727a92be9aae1a7e871af1d8a1d98bba6553e2bf992c054567ed401fa5c4d09",
+    "intersection_result_config.json": "1cd441c8aa91302ade4a14fdb40f817b6eb8c83c7c19c94b3c48eaf338751c38",
+    "time_schedule/schedule_json/FIne_turn.json": "4090879b44379ab391ab96a735e3bb04e091b2831ed86464020d4f1a65fb578d",
+    "workday_schedules": {
+      "count": 180,
+      "sha256": "cbffacd09b24bee04566c41d8e60d8c5945b5787d2d343b6e04f16fab8172396"
+    },
+    "intersection_order_and_groups": "928dc91b3bf9b9d90d81fad6221ce10e1d22df136f401cc757be48856a7caa19"
+  },
+  "selectors": {
+    "timetable_rule": {
+      "cross_id": "1300103",
+      "legacy_result": [
+        [45, 23, 0, 0, 0, 0, 0, 0, 0, 0],
+        {
+          "Start1": 0,
+          "start2": 0
+        },
+        [95, 0, 10, 87, 30, 0, 3, 33],
+        [12, 9, 6, 3, 4, 3, 2, 1, 30, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+      ],
+      "shadow": []
+    },
+    "old_experience": {
+      "cross_id": "1300068",
+      "legacy_result": [
+        [43, 88, 34, 40, 0, 0, 90, 28, 0, 0],
+        {
+          "s1": 0,
+          "s2": 0
+        },
+        [95, 0, 10, 87, 30, 0, 0, 30],
+        [12, 9, 6, 3, 4, 3, 2, 1, 30, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+      ],
+      "shadow": []
+    },
+    "pilot_new": {
+      "cross_id": "1300068",
+      "legacy_result": [
+        [41, 86, 33, 34, 0, 25, 50, 25, 0, 0],
+        {
+          "s1": 0,
+          "s2": 0
+        },
+        [95, 0, 10, 87, 30, 0, 0, 30],
+        [12, 9, 6, 3, 4, 3, 2, 1, 30, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+      ],
+      "shadow": [
+        {
+          "status": "ok",
+          "runtime_mode": "new",
+          "selected_schedule_source": "new",
+          "quality_passed": true,
+          "normalization_mode": "full_10min_window",
+          "new_schedule": [41, 86, 33, 34, 0, 25, 50, 25, 0, 0],
+          "selected_schedule": [41, 86, 33, 34, 0, 25, 50, 25, 0, 0]
+        }
+      ]
+    },
+    "pilot_fallback": {
+      "cross_id": "1300068",
+      "legacy_result": [
+        [43, 88, 34, 40, 0, 0, 90, 28, 0, 0],
+        {
+          "s1": 0,
+          "s2": 0
+        },
+        [95, 0, 10, 87, 30, 0, 0, 30],
+        [12, 9, 6, 3, 4, 3, 2, 1, 30, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+      ],
+      "shadow": [
+        {
+          "status": "error",
+          "runtime_mode": "new",
+          "selected_schedule_source": "legacy",
+          "selection_fallback_reason": "new_evaluation_error",
+          "selected_schedule": [43, 88, 34, 40, 0, 0, 90, 28, 0, 0]
+        }
+      ]
+    }
+  },
+  "rounds": [
+    {
+      "timestamp": 1790728200,
+      "intersection_count": 186,
+      "sha256": {
+        "before_coordinate": "d401c9d3e4cdc8f362abc5cea09ed5d6a92a563aaacb101abcb143eeee52824f",
+        "after_coordinate": "7e3116394f6b9635041959bd33813dd25e9b3fe300f6dd7259cedeb27b3e610e",
+        "after_phase_check": "94ef444d0c98416d70036f75755b7edec79d9928470e717abdc39d5adaf78b1d",
+        "phase_report": "41ab16f81477d2b67900bf8fc5a3eafb43080d55f484014b1b9610067bb722fc",
+        "payloads": "2094c167995bfc238c7e7dd0c3850c575efd1717d61a757fd0a25e189f1b1ca0",
+        "tcp_bytes": "6341f3c790b8aa23bbb580bd1b580a08635a2d7966336d2e40ea25997cea6a73",
+        "green_wave_state": "00dff5975ba031e7e3b3508e134c9229ce8707da212e51e228f96d3b6adb1a7d",
+        "internet_state": "84fb15b77549dac5f26b24ed27d8513fb522cca47852ff42fba11141b96130bc"
+      },
+      "checkpoints": {
+        "1300360": {
+          "before_coordinate": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          "after_coordinate": [53, 54, 40, 11, 0, 0, 0, 0, 0, 16],
+          "after_phase_check": [53, 54, 40, 11, 0, 0, 0, 0, 0, 16],
+          "phase_report": {
+            "check_status": 2,
+            "msg": "Plan 16 not found for this intersection",
+            "modifications": []
+          },
+          "payload": {
+            "additional": {
+              "tlLogic": {
+                "id": "1300360",
+                "type": "NoType",
+                "programID": 16,
+                "phase": [
+                  {
+                    "duration": 53
+                  },
+                  {
+                    "duration": 54
+                  },
+                  {
+                    "duration": 40
+                  },
+                  {
+                    "duration": 11
+                  }
+                ]
+              }
+            },
+            "traffic_vector": [],
+            "modelInfo": {
+              "crossID": "1300360",
+              "acc": 95,
+              "r": 0,
+              "rt": 10,
+              "score": 100,
+              "pdf": 50,
+              "pdq": 50,
+              "pds": 50,
+              "pd": 600
+            }
+          }
+        },
+        "1300068": {
+          "before_coordinate": [43, 88, 34, 40, 0, 0, 90, 28, 0, 0],
+          "after_coordinate": [42, 55, 35, 44, 0, 0, 0, 0, 0, 3],
+          "after_phase_check": [42, 45, 25, 44, 0, 0, 0, 0, 0, 3],
+          "phase_report": {
+            "check_status": 0,
+            "msg": "OK",
+            "modifications": [
+              "Phase 1: 55 -> 45",
+              "Phase 2: 35 -> 25"
+            ]
+          },
+          "payload": {
+            "additional": {
+              "tlLogic": {
+                "id": "1300068",
+                "type": "NoType",
+                "programID": 3,
+                "phase": [
+                  {
+                    "duration": 42
+                  },
+                  {
+                    "duration": 45
+                  },
+                  {
+                    "duration": 25
+                  },
+                  {
+                    "duration": 44
+                  }
+                ]
+              }
+            },
+            "traffic_vector": [
+              {
+                "id": 1,
+                "flow": 12
+              },
+              {
+                "id": 2,
+                "flow": 9
+              },
+              {
+                "id": 4,
+                "flow": 6
+              },
+              {
+                "id": 3,
+                "flow": 3
+              }
+            ],
+            "modelInfo": {
+              "crossID": "1300068",
+              "acc": 95,
+              "r": 0,
+              "rt": 10,
+              "score": 87,
+              "pdf": 30,
+              "pdq": 0,
+              "pds": 0,
+              "pd": 30
+            }
+          }
+        },
+        "1300086": {
+          "before_coordinate": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          "after_coordinate": [66, 29, 68, 52, 0, 0, 0, 0, 0, 0],
+          "after_phase_check": [66, 29, 68, 52, 0, 0, 0, 0, 0, 0],
+          "phase_report": {
+            "check_status": 2,
+            "msg": "Plan 0 not found for this intersection",
+            "modifications": []
+          },
+          "payload": {
+            "additional": {
+              "tlLogic": {
+                "id": "1300086",
+                "type": "NoType",
+                "programID": 0,
+                "phase": [
+                  {
+                    "duration": 66
+                  },
+                  {
+                    "duration": 29
+                  },
+                  {
+                    "duration": 68
+                  },
+                  {
+                    "duration": 52
+                  }
+                ]
+              }
+            },
+            "traffic_vector": [
+              {
+                "id": 500038,
+                "flow": 0
+              },
+              {
+                "id": 500039,
+                "flow": 0
+              },
+              {
+                "id": 500036,
+                "flow": 0
+              },
+              {
+                "id": 500037,
+                "flow": 0
+              }
+            ],
+            "modelInfo": {
+              "crossID": "1300086",
+              "acc": 95,
+              "r": 0,
+              "rt": 10,
+              "score": 91,
+              "pdf": 0,
+              "pdq": 0,
+              "pds": 0,
+              "pd": 0
+            }
+          }
+        },
+        "1300103": {
+          "before_coordinate": [45, 23, 0, 0, 0, 0, 0, 0, 0, 0],
+          "after_coordinate": [45, 23, 0, 0, 0, 0, 0, 0, 0, 0],
+          "after_phase_check": [45, 23, 0, 0, 0, 0, 0, 0, 0, 0],
+          "phase_report": {
+            "check_status": 0,
+            "msg": "OK",
+            "modifications": []
+          },
+          "payload": {
+            "additional": {
+              "tlLogic": {
+                "id": "1300103",
+                "type": "NoType",
+                "programID": 0,
+                "phase": [
+                  {
+                    "duration": 45
+                  },
+                  {
+                    "duration": 23
+                  }
+                ]
+              }
+            },
+            "traffic_vector": [
+              {
+                "id": 36,
+                "flow": 6
+              },
+              {
+                "id": 16,
+                "flow": 3
+              }
+            ],
+            "modelInfo": {
+              "crossID": "1300103",
+              "acc": 95,
+              "r": 0,
+              "rt": 10,
+              "score": 99,
+              "pdf": 30,
+              "pdq": 0,
+              "pds": 3,
+              "pd": 33
+            }
+          }
+        },
+        "2719089": {
+          "before_coordinate": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          "after_coordinate": [42, 55, 35, 44, 0, 0, 0, 0, 0, 3],
+          "after_phase_check": [42, 55, 35, 44, 0, 0, 0, 0, 0, 3],
+          "phase_report": {
+            "check_status": 1,
+            "msg": "Intersection missing in config",
+            "modifications": []
+          },
+          "payload": {
+            "additional": {
+              "tlLogic": {
+                "id": "2719089",
+                "type": "NoType",
+                "programID": 3,
+                "phase": [
+                  {
+                    "duration": 42
+                  },
+                  {
+                    "duration": 55
+                  },
+                  {
+                    "duration": 35
+                  },
+                  {
+                    "duration": 44
+                  }
+                ]
+              }
+            },
+            "traffic_vector": [],
+            "modelInfo": {
+              "crossID": "2719089",
+              "acc": 95,
+              "r": 0,
+              "rt": 10,
+              "score": 85,
+              "pdf": 50,
+              "pdq": 50,
+              "pds": 50,
+              "pd": 600
+            }
+          }
+        },
+        "1300782": {
+          "before_coordinate": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          "after_coordinate": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          "after_phase_check": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          "phase_report": {
+            "check_status": 1,
+            "msg": "Intersection missing in config",
+            "modifications": []
+          },
+          "payload": {
+            "additional": {
+              "tlLogic": {
+                "id": "1300782",
+                "type": "NoType",
+                "programID": 0,
+                "phase": []
+              }
+            },
+            "traffic_vector": [
+              {
+                "id": 45,
+                "flow": 0
+              },
+              {
+                "id": 43,
+                "flow": 0
+              },
+              {
+                "id": 44,
+                "flow": 0
+              },
+              {
+                "id": 42,
+                "flow": 0
+              }
+            ],
+            "modelInfo": {
+              "crossID": "1300782",
+              "acc": 95,
+              "r": 0,
+              "rt": 10,
+              "score": 86,
+              "pdf": 50,
+              "pdq": 50,
+              "pds": 50,
+              "pd": 600
+            }
+          }
+        },
+        "2705050": {
+          "before_coordinate": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          "after_coordinate": [40, 35, 0, 0, 0, 0, 0, 0, 0, 0],
+          "after_phase_check": [40, 35, 0, 0, 0, 0, 0, 0, 0, 0],
+          "phase_report": {
+            "check_status": 0,
+            "msg": "OK",
+            "modifications": []
+          },
+          "payload": {
+            "additional": {
+              "tlLogic": {
+                "id": "2705050",
+                "type": "NoType",
+                "programID": 0,
+                "phase": [
+                  {
+                    "duration": 40
+                  },
+                  {
+                    "duration": 35
+                  }
+                ]
+              }
+            },
+            "traffic_vector": [],
+            "modelInfo": {
+              "crossID": "2705050",
+              "acc": 95,
+              "r": 0,
+              "rt": 10,
+              "score": 94,
+              "pdf": 50,
+              "pdq": 50,
+              "pds": 50,
+              "pd": 600
+            }
+          }
+        },
+        "1300370": {
+          "before_coordinate": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          "after_coordinate": [39, 36, 0, 0, 0, 0, 0, 0, 0, 0],
+          "after_phase_check": [39, 36, 0, 0, 0, 0, 0, 0, 0, 0],
+          "phase_report": {
+            "check_status": 0,
+            "msg": "OK",
+            "modifications": []
+          },
+          "payload": {
+            "additional": {
+              "tlLogic": {
+                "id": "1300370",
+                "type": "NoType",
+                "programID": 0,
+                "phase": [
+                  {
+                    "duration": 39
+                  },
+                  {
+                    "duration": 36
+                  }
+                ]
+              }
+            },
+            "traffic_vector": [],
+            "modelInfo": {
+              "crossID": "1300370",
+              "acc": 95,
+              "r": 0,
+              "rt": 10,
+              "score": 87,
+              "pdf": 50,
+              "pdq": 50,
+              "pds": 50,
+              "pd": 600
+            }
+          }
+        },
+        "1300373": {
+          "before_coordinate": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          "after_coordinate": [27, 43, 0, 0, 0, 0, 0, 0, 0, 0],
+          "after_phase_check": [27, 42, 0, 0, 0, 0, 0, 0, 0, 0],
+          "phase_report": {
+            "check_status": 0,
+            "msg": "OK",
+            "modifications": [
+              "Phase 1: 43 -> 42"
+            ]
+          },
+          "payload": {
+            "additional": {
+              "tlLogic": {
+                "id": "1300373",
+                "type": "NoType",
+                "programID": 0,
+                "phase": [
+                  {
+                    "duration": 27
+                  },
+                  {
+                    "duration": 42
+                  }
+                ]
+              }
+            },
+            "traffic_vector": [],
+            "modelInfo": {
+              "crossID": "1300373",
+              "acc": 95,
+              "r": 0,
+              "rt": 10,
+              "score": 95,
+              "pdf": 50,
+              "pdq": 50,
+              "pds": 50,
+              "pd": 600
+            }
+          }
+        },
+        "1300248": {
+          "before_coordinate": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          "after_coordinate": [32, 37, 0, 0, 0, 0, 0, 0, 0, 0],
+          "after_phase_check": [32, 37, 0, 0, 0, 0, 0, 0, 0, 0],
+          "phase_report": {
+            "check_status": 0,
+            "msg": "OK",
+            "modifications": []
+          },
+          "payload": {
+            "additional": {
+              "tlLogic": {
+                "id": "1300248",
+                "type": "NoType",
+                "programID": 0,
+                "phase": [
+                  {
+                    "duration": 32
+                  },
+                  {
+                    "duration": 37
+                  }
+                ]
+              }
+            },
+            "traffic_vector": [],
+            "modelInfo": {
+              "crossID": "1300248",
+              "acc": 95,
+              "r": 0,
+              "rt": 10,
+              "score": 95,
+              "pdf": 50,
+              "pdq": 50,
+              "pds": 50,
+              "pd": 600
+            }
+          }
+        }
+      },
+      "green_wave_state": {
+        "lvbo_01": {
+          "start": true,
+          "cycle_green": true,
+          "offset_green": false,
+          "cycle_done": false,
+          "offset_done": false,
+          "cnt": 1,
+          "fix_plan": null,
+          "direction": "morning",
+          "green_plan_map": {
+            "2705050": [40, 35, 0, 0, 0, 0, 0, 0, 0, 0],
+            "1300370": [39, 36, 0, 0, 0, 0, 0, 0, 0, 0],
+            "1300373": [27, 43, 0, 0, 0, 0, 0, 0, 0, 0],
+            "1300248": [32, 37, 0, 0, 0, 0, 0, 0, 0, 0]
+          },
+          "last_green_wave_send_time": 1790728200,
+          "simulation_offset_map": {},
+          "simulation_target_start_map": {}
+        }
+      }
+    },
+    {
+      "timestamp": 1790728320,
+      "intersection_count": 186,
+      "sha256": {
+        "before_coordinate": "d401c9d3e4cdc8f362abc5cea09ed5d6a92a563aaacb101abcb143eeee52824f",
+        "after_coordinate": "105d183996c101d4cac8add8501bba57dae0eb938ae1397a3f6878654a6fae1e",
+        "after_phase_check": "199d00f1d5cb388a2b608a573c740368c789780a3fe3b639d35f40f03476be4d",
+        "phase_report": "b9de68148f20201a2a8b25ad644e948f56bba42e1332866f9c6bbdf21e9600ca",
+        "payloads": "8d8201d9502ee2fa6506792212f3f314e3ccbd3eff62a3be35d789f428296413",
+        "tcp_bytes": "77e13c158a0c5ecfed9dbacba69a38b9e33cc176e23ac43f24bcca56512d748a",
+        "green_wave_state": "518ed6b4055a2d8ac33d18c32294be1b9308e3d9599e7d515335b5016cca21bd",
+        "internet_state": "84fb15b77549dac5f26b24ed27d8513fb522cca47852ff42fba11141b96130bc"
+      },
+      "checkpoints": {
+        "1300360": {
+          "before_coordinate": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          "after_coordinate": [53, 54, 40, 11, 0, 0, 0, 0, 0, 16],
+          "after_phase_check": [53, 54, 40, 11, 0, 0, 0, 0, 0, 16],
+          "phase_report": {
+            "check_status": 2,
+            "msg": "Plan 16 not found for this intersection",
+            "modifications": []
+          },
+          "payload": {
+            "additional": {
+              "tlLogic": {
+                "id": "1300360",
+                "type": "NoType",
+                "programID": 16,
+                "phase": [
+                  {
+                    "duration": 53
+                  },
+                  {
+                    "duration": 54
+                  },
+                  {
+                    "duration": 40
+                  },
+                  {
+                    "duration": 11
+                  }
+                ]
+              }
+            },
+            "traffic_vector": [],
+            "modelInfo": {
+              "crossID": "1300360",
+              "acc": 95,
+              "r": 0,
+              "rt": 10,
+              "score": 98,
+              "pdf": 50,
+              "pdq": 50,
+              "pds": 50,
+              "pd": 600
+            }
+          }
+        },
+        "1300068": {
+          "before_coordinate": [43, 88, 34, 40, 0, 0, 90, 28, 0, 0],
+          "after_coordinate": [42, 55, 35, 44, 0, 0, 0, 0, 0, 3],
+          "after_phase_check": [42, 45, 25, 44, 0, 0, 0, 0, 0, 3],
+          "phase_report": {
+            "check_status": 0,
+            "msg": "OK",
+            "modifications": [
+              "Phase 1: 55 -> 45",
+              "Phase 2: 35 -> 25"
+            ]
+          },
+          "payload": {
+            "additional": {
+              "tlLogic": {
+                "id": "1300068",
+                "type": "NoType",
+                "programID": 3,
+                "phase": [
+                  {
+                    "duration": 42
+                  },
+                  {
+                    "duration": 45
+                  },
+                  {
+                    "duration": 25
+                  },
+                  {
+                    "duration": 44
+                  }
+                ]
+              }
+            },
+            "traffic_vector": [
+              {
+                "id": 1,
+                "flow": 12
+              },
+              {
+                "id": 2,
+                "flow": 9
+              },
+              {
+                "id": 4,
+                "flow": 6
+              },
+              {
+                "id": 3,
+                "flow": 3
+              }
+            ],
+            "modelInfo": {
+              "crossID": "1300068",
+              "acc": 95,
+              "r": 0,
+              "rt": 10,
+              "score": 93,
+              "pdf": 30,
+              "pdq": 0,
+              "pds": 0,
+              "pd": 30
+            }
+          }
+        },
+        "1300086": {
+          "before_coordinate": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          "after_coordinate": [66, 29, 68, 52, 0, 0, 0, 0, 0, 0],
+          "after_phase_check": [66, 29, 68, 52, 0, 0, 0, 0, 0, 0],
+          "phase_report": {
+            "check_status": 2,
+            "msg": "Plan 0 not found for this intersection",
+            "modifications": []
+          },
+          "payload": {
+            "additional": {
+              "tlLogic": {
+                "id": "1300086",
+                "type": "NoType",
+                "programID": 0,
+                "phase": [
+                  {
+                    "duration": 66
+                  },
+                  {
+                    "duration": 29
+                  },
+                  {
+                    "duration": 68
+                  },
+                  {
+                    "duration": 52
+                  }
+                ]
+              }
+            },
+            "traffic_vector": [
+              {
+                "id": 500038,
+                "flow": 0
+              },
+              {
+                "id": 500039,
+                "flow": 0
+              },
+              {
+                "id": 500036,
+                "flow": 0
+              },
+              {
+                "id": 500037,
+                "flow": 0
+              }
+            ],
+            "modelInfo": {
+              "crossID": "1300086",
+              "acc": 95,
+              "r": 0,
+              "rt": 10,
+              "score": 93,
+              "pdf": 0,
+              "pdq": 0,
+              "pds": 0,
+              "pd": 0
+            }
+          }
+        },
+        "1300103": {
+          "before_coordinate": [45, 23, 0, 0, 0, 0, 0, 0, 0, 0],
+          "after_coordinate": [45, 23, 0, 0, 0, 0, 0, 0, 0, 0],
+          "after_phase_check": [45, 23, 0, 0, 0, 0, 0, 0, 0, 0],
+          "phase_report": {
+            "check_status": 0,
+            "msg": "OK",
+            "modifications": []
+          },
+          "payload": {
+            "additional": {
+              "tlLogic": {
+                "id": "1300103",
+                "type": "NoType",
+                "programID": 0,
+                "phase": [
+                  {
+                    "duration": 45
+                  },
+                  {
+                    "duration": 23
+                  }
+                ]
+              }
+            },
+            "traffic_vector": [
+              {
+                "id": 36,
+                "flow": 6
+              },
+              {
+                "id": 16,
+                "flow": 3
+              }
+            ],
+            "modelInfo": {
+              "crossID": "1300103",
+              "acc": 95,
+              "r": 0,
+              "rt": 10,
+              "score": 96,
+              "pdf": 30,
+              "pdq": 0,
+              "pds": 3,
+              "pd": 33
+            }
+          }
+        },
+        "2719089": {
+          "before_coordinate": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          "after_coordinate": [42, 55, 35, 44, 0, 0, 0, 0, 0, 3],
+          "after_phase_check": [42, 55, 35, 44, 0, 0, 0, 0, 0, 3],
+          "phase_report": {
+            "check_status": 1,
+            "msg": "Intersection missing in config",
+            "modifications": []
+          },
+          "payload": {
+            "additional": {
+              "tlLogic": {
+                "id": "2719089",
+                "type": "NoType",
+                "programID": 3,
+                "phase": [
+                  {
+                    "duration": 42
+                  },
+                  {
+                    "duration": 55
+                  },
+                  {
+                    "duration": 35
+                  },
+                  {
+                    "duration": 44
+                  }
+                ]
+              }
+            },
+            "traffic_vector": [],
+            "modelInfo": {
+              "crossID": "2719089",
+              "acc": 95,
+              "r": 0,
+              "rt": 10,
+              "score": 86,
+              "pdf": 50,
+              "pdq": 50,
+              "pds": 50,
+              "pd": 600
+            }
+          }
+        },
+        "1300782": {
+          "before_coordinate": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          "after_coordinate": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          "after_phase_check": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          "phase_report": {
+            "check_status": 1,
+            "msg": "Intersection missing in config",
+            "modifications": []
+          },
+          "payload": {
+            "additional": {
+              "tlLogic": {
+                "id": "1300782",
+                "type": "NoType",
+                "programID": 0,
+                "phase": []
+              }
+            },
+            "traffic_vector": [
+              {
+                "id": 45,
+                "flow": 0
+              },
+              {
+                "id": 43,
+                "flow": 0
+              },
+              {
+                "id": 44,
+                "flow": 0
+              },
+              {
+                "id": 42,
+                "flow": 0
+              }
+            ],
+            "modelInfo": {
+              "crossID": "1300782",
+              "acc": 95,
+              "r": 0,
+              "rt": 10,
+              "score": 94,
+              "pdf": 50,
+              "pdq": 50,
+              "pds": 50,
+              "pd": 600
+            }
+          }
+        },
+        "2705050": {
+          "before_coordinate": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          "after_coordinate": [40, 35, 0, 0, 0, 0, 0, 0, 0, 0],
+          "after_phase_check": [40, 35, 0, 0, 0, 0, 0, 0, 0, 0],
+          "phase_report": {
+            "check_status": 0,
+            "msg": "OK",
+            "modifications": []
+          },
+          "payload": {
+            "additional": {
+              "tlLogic": {
+                "id": "2705050",
+                "type": "NoType",
+                "programID": 0,
+                "phase": [
+                  {
+                    "duration": 40
+                  },
+                  {
+                    "duration": 35
+                  }
+                ]
+              }
+            },
+            "traffic_vector": [],
+            "modelInfo": {
+              "crossID": "2705050",
+              "acc": 95,
+              "r": 0,
+              "rt": 10,
+              "score": 99,
+              "pdf": 50,
+              "pdq": 50,
+              "pds": 50,
+              "pd": 600
+            }
+          }
+        },
+        "1300370": {
+          "before_coordinate": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          "after_coordinate": [40, 36, 0, 0, 0, 0, 0, 0, 0, 0],
+          "after_phase_check": [40, 36, 0, 0, 0, 0, 0, 0, 0, 0],
+          "phase_report": {
+            "check_status": 0,
+            "msg": "OK",
+            "modifications": []
+          },
+          "payload": {
+            "additional": {
+              "tlLogic": {
+                "id": "1300370",
+                "type": "NoType",
+                "programID": 0,
+                "phase": [
+                  {
+                    "duration": 40
+                  },
+                  {
+                    "duration": 36
+                  }
+                ]
+              }
+            },
+            "traffic_vector": [],
+            "modelInfo": {
+              "crossID": "1300370",
+              "acc": 95,
+              "r": 0,
+              "rt": 10,
+              "score": 90,
+              "pdf": 50,
+              "pdq": 50,
+              "pds": 50,
+              "pd": 600
+            }
+          }
+        },
+        "1300373": {
+          "before_coordinate": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          "after_coordinate": [30, 48, 0, 0, 0, 0, 0, 0, 0, 0],
+          "after_phase_check": [30, 42, 0, 0, 0, 0, 0, 0, 0, 0],
+          "phase_report": {
+            "check_status": 0,
+            "msg": "OK",
+            "modifications": [
+              "Phase 1: 48 -> 42"
+            ]
+          },
+          "payload": {
+            "additional": {
+              "tlLogic": {
+                "id": "1300373",
+                "type": "NoType",
+                "programID": 0,
+                "phase": [
+                  {
+                    "duration": 30
+                  },
+                  {
+                    "duration": 42
+                  }
+                ]
+              }
+            },
+            "traffic_vector": [],
+            "modelInfo": {
+              "crossID": "1300373",
+              "acc": 95,
+              "r": 0,
+              "rt": 10,
+              "score": 87,
+              "pdf": 50,
+              "pdq": 50,
+              "pds": 50,
+              "pd": 600
+            }
+          }
+        },
+        "1300248": {
+          "before_coordinate": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          "after_coordinate": [34, 40, 0, 0, 0, 0, 0, 0, 0, 0],
+          "after_phase_check": [34, 40, 0, 0, 0, 0, 0, 0, 0, 0],
+          "phase_report": {
+            "check_status": 0,
+            "msg": "OK",
+            "modifications": []
+          },
+          "payload": {
+            "additional": {
+              "tlLogic": {
+                "id": "1300248",
+                "type": "NoType",
+                "programID": 0,
+                "phase": [
+                  {
+                    "duration": 34
+                  },
+                  {
+                    "duration": 40
+                  }
+                ]
+              }
+            },
+            "traffic_vector": [],
+            "modelInfo": {
+              "crossID": "1300248",
+              "acc": 95,
+              "r": 0,
+              "rt": 10,
+              "score": 85,
+              "pdf": 50,
+              "pdq": 50,
+              "pds": 50,
+              "pd": 600
+            }
+          }
+        }
+      },
+      "green_wave_state": {
+        "lvbo_01": {
+          "start": true,
+          "cycle_green": true,
+          "offset_green": false,
+          "cycle_done": false,
+          "offset_done": false,
+          "cnt": 2,
+          "fix_plan": null,
+          "direction": "morning",
+          "green_plan_map": {
+            "2705050": [40, 35, 0, 0, 0, 0, 0, 0, 0, 0],
+            "1300370": [40, 36, 0, 0, 0, 0, 0, 0, 0, 0],
+            "1300373": [30, 48, 0, 0, 0, 0, 0, 0, 0, 0],
+            "1300248": [34, 40, 0, 0, 0, 0, 0, 0, 0, 0]
+          },
+          "last_green_wave_send_time": 1790728320,
+          "simulation_offset_map": {},
+          "simulation_target_start_map": {}
+        }
+      }
+    }
+  ]
+}

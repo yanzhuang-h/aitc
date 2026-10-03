@@ -12,6 +12,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable
 
+from app.core.control.policies import BaselineController
 from infra.data.classifier import DataKind
 from infra.logging import LoggingMixin
 from lib.control_functions.types import IntersectionControlRequest
@@ -30,8 +31,8 @@ class PeriodicDecisionPipeline(LoggingMixin):
         result_warehouse: Any,
         flow_predictor: Any,
         queue_predictor: Any,
-        dqn_select: Callable[[IntersectionControlRequest], tuple[Any, Any, Any, Any]],
-        coordinate: Callable[..., dict[str, Any]],
+        dqn_select: Callable[[IntersectionControlRequest], tuple[Any, Any, Any, Any]] | None = None,
+        coordinate: Callable[..., dict[str, Any]] | None = None,
         phase_check: Callable[[dict[str, Any]], tuple[dict[str, Any], dict[str, Any]]],
         select_data_to_send: Callable[..., dict[str, Any]],
         is_millisecond_timestamp: Callable[[Any], bool],
@@ -43,7 +44,15 @@ class PeriodicDecisionPipeline(LoggingMixin):
         control_snapshot_enabled: bool = False,
         # 占位默认：生产路径由装配层注入 settings.control_snapshot_dir（AITC_CONTROL_SNAPSHOT_DIR）
         control_snapshot_dir: str | os.PathLike = "logs_data/control_snapshots",
+        control_policy: BaselineController | None = None,
     ) -> None:
+        if control_policy is not None:
+            if dqn_select is not None or coordinate is not None:
+                raise ValueError("provide control_policy or legacy callbacks, not both")
+        else:
+            if dqn_select is None or coordinate is None:
+                raise ValueError("legacy callbacks require both dqn_select and coordinate")
+            control_policy = BaselineController(selector=dqn_select, coordinator=coordinate)
         self.cache = cache
         self.data_processor = data_processor
         self.lambdas = lambdas_module
@@ -51,8 +60,9 @@ class PeriodicDecisionPipeline(LoggingMixin):
         self.result_warehouse = result_warehouse
         self.flow_predictor = flow_predictor
         self.queue_predictor = queue_predictor
-        self.dqn_select = dqn_select
-        self.coordinate = coordinate
+        self.control_policy = control_policy
+        self.dqn_select = control_policy.select_legacy
+        self.coordinate = control_policy.coordinate_legacy
         self.phase_check = phase_check
         self.select_data_to_send = select_data_to_send
         self.is_millisecond_timestamp = is_millisecond_timestamp
