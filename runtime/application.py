@@ -50,7 +50,10 @@ from agent.experts import EVExpert, InternetExpert, RadarExpert, VideoExpert
 from agent.graph import ControlGraph
 from agent.tools import DataQueryTools
 from app.core.control.synergy.green_wave_service import GreenWaveDataService
-from app.infrastructure.llm import OpenAICompatibleLLMClient
+from app.infrastructure.llm import (
+    DisabledProvider, MockProvider, ModelGateway, OpenAICompatibleLLMClient, QwenProvider,
+    as_model_gateway,
+)
 from app.core.tools import SingleIntersectionSignalTimingTool
 from app.core.tools.control_function_tools import ControlFunctionTools
 from lib.control_functions.dqn_control import call_dqn_select
@@ -78,10 +81,15 @@ class AITCApplication(LoggingMixin):
         datahub=None,
         experts=None,
         decision_graph=None,
+        model_gateway=None,
     ):
         self.datahub = datahub
         self.experts = experts if experts is not None else {}
         self.decision_graph = decision_graph
+        self.model_gateway = (
+            model_gateway if model_gateway is not None
+            else as_model_gateway(llm_client) if llm_client is not None else None
+        )
         self.config_sync_manager = config_sync_manager
         self.http_server = http_server
         self.tcp_server = tcp_server
@@ -99,7 +107,7 @@ class AITCApplication(LoggingMixin):
 
     def start(self) -> None:
         self._stop_event.clear()
-        if self.llm_client is not None:
+        if self.model_gateway is not None and self.model_gateway.enabled:
             self._check_llm_ready()
         if self.enable_config_sync:
             self.config_sync_manager.start()
@@ -119,11 +127,11 @@ class AITCApplication(LoggingMixin):
         就绪则记录 INFO；不可达时按 llm_required 决定告警降级或直接启动失败。
         """
         try:
-            self.llm_client.list_models()
+            self.model_gateway.check_ready()
             self._info(
                 "LLM 服务已就绪: %s (model=%s)",
-                self.llm_client.base_url,
-                self.llm_client.model,
+                self.model_gateway.base_url,
+                self.model_gateway.model,
             )
         except Exception as error:
             if self.llm_required:
@@ -208,20 +216,26 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
     )
     # 控制工具并入统一注册中心：Agent 与 MCP 共用同一份工具表
     control_tools.merge_into(data_tools.registry)
-    # Qwen 客户端：OpenAI 兼容接口（本地 vLLM / SGLang 或云端 DeepSeek 均可）
-    qwen_client = None
+    model_settings = settings.model_settings
+    if model_settings.effective_provider == "disabled":
+        model_gateway = ModelGateway(DisabledProvider())
+    elif model_settings.effective_provider == "mock":
+        model_gateway = ModelGateway(MockProvider())
+    else:
+        model_gateway = ModelGateway(QwenProvider(OpenAICompatibleLLMClient(
+            base_url=model_settings.base_url,
+            model=model_settings.name,
+            api_key=model_settings.api_key,
+            timeout_seconds=model_settings.timeout_seconds,
+            default_max_tokens=model_settings.max_tokens,
+            enable_thinking=model_settings.enable_thinking,
+        )))
+    # llm_client 是旧装配属性；生产代理与启动检查均使用同一个 gateway。
+    qwen_client = model_gateway if model_gateway.enabled else None
     qwen_agent = None
     qwen_tool_router_agent = None
     control_process_agent = None
-    if settings.llm_enabled:
-        qwen_client = OpenAICompatibleLLMClient(
-            base_url=settings.llm_base_url,
-            model=settings.llm_model,
-            api_key=settings.llm_api_key,
-            timeout_seconds=settings.llm_timeout_seconds,
-            default_max_tokens=settings.llm_max_tokens,
-            enable_thinking=settings.llm_enable_thinking,
-        )
+    if model_gateway.enabled:
         qwen_agent = QwenSignalTimingAgent(qwen_client, data_tools)
         qwen_tool_router_agent = QwenToolRouterAgent(qwen_client, data_tools)
         control_process_agent = ControlProcessAgent(qwen_client, query_service=query_service, logger=logger)
@@ -251,4 +265,4 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
         if settings.enable_experience_pool_scheduler
         else None
     )
-    return AITCApplication(config_sync_manager=ConfigSyncManager(), http_server=http_server, tcp_server=tcp_server, decision_pipeline=pipeline, prediction_scheduler=prediction_scheduler, experience_pool_scheduler=experience_pool_scheduler, decision_interval=settings.decision_interval_seconds, enable_config_sync=settings.enable_config_sync, enable_prediction_scheduler=settings.enable_prediction_scheduler, llm_client=qwen_client, llm_required=settings.llm_required and settings.llm_enabled, logger=logger, datahub=datahub, experts=experts, decision_graph=decision_graph)
+    return AITCApplication(config_sync_manager=ConfigSyncManager(), http_server=http_server, tcp_server=tcp_server, decision_pipeline=pipeline, prediction_scheduler=prediction_scheduler, experience_pool_scheduler=experience_pool_scheduler, decision_interval=settings.decision_interval_seconds, enable_config_sync=settings.enable_config_sync, enable_prediction_scheduler=settings.enable_prediction_scheduler, llm_client=qwen_client, llm_required=settings.llm_required and model_gateway.enabled, logger=logger, datahub=datahub, experts=experts, decision_graph=decision_graph, model_gateway=model_gateway)
