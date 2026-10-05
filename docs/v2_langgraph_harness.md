@@ -1,5 +1,8 @@
 # AITC V2 Phase 5：最小 LangGraph Harness
 
+后续模型接线见 [Phase 6 Model Gateway](v2_model_gateway.md)；以下保留 Phase 5
+的实现与当时验证。当前配置和 HTTP Agent 模型调用已统一经过网关。
+
 实施基线：`8be8047`，Phase 4 经 PR #41 合入 main。修改前主测试 245 项通过。
 本阶段接入真实 LangGraph，不在节点中实现交通算法；接口继续复用
 [交通契约](v2_contracts.md)、[Baseline Controller](v2_baseline_controller.md)、

@@ -1,6 +1,6 @@
 """运行配置基线。
 
-DataHub 配置使用 pydantic-settings，环境读取仍集中在本模块。
+DataHub 与模型配置使用 pydantic-settings，环境读取仍集中在本模块。
 其余字段暂时保留既有加载规则，避免改变部署行为。
 """
 
@@ -10,15 +10,30 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 import os
 from pathlib import Path
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable, Literal, TypeVar
 
-from pydantic import AliasChoices, Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import AliasChoices, Field, field_validator, model_validator
+from pydantic_settings import BaseSettings, EnvSettingsSource, SettingsConfigDict
 
 T = TypeVar("T")
 
 DEFAULT_MEMORY_WINDOW = 20
 DEFAULT_DATAHUB_EVENT_LIMIT = 2048
+
+
+class ExperienceReleaseSettings(BaseSettings):
+    """经验发布与发送日志共用同一个激活清单路径。"""
+
+    model_config = SettingsConfigDict(
+        env_prefix="AITC_EXPERIENCE_", extra="ignore", frozen=True,
+    )
+
+    versions_dir: Path = Path(__file__).resolve().parents[1] / "lib" / "experience_versions"
+    manifest: Path | None = None
+
+    @property
+    def active_manifest_path(self) -> Path:
+        return (self.manifest or self.versions_dir / "active_manifest.json").resolve()
 
 
 class TrafficMemorySettings(BaseSettings):
@@ -40,6 +55,98 @@ class TrafficMemorySettings(BaseSettings):
         if isinstance(value, str):
             return int(value)
         return value
+
+
+class _ModelEnvironmentSource(EnvSettingsSource):
+    """沿用旧配置的空白跳过规则；只在环境边界解析标量。"""
+
+    def _load_env_vars(self) -> dict[str, str]:
+        return {
+            key: value.strip()
+            for key, value in super()._load_env_vars().items()
+            if isinstance(value, str) and value.strip()
+        }
+
+    def prepare_field_value(self, field_name: str, field: Any, value: Any, value_is_complex: bool) -> Any:
+        if isinstance(value, str):
+            if field.annotation is bool:
+                normalized = value.lower()
+                if normalized in {"1", "true", "yes", "on"}:
+                    return True
+                if normalized in {"0", "false", "no", "off"}:
+                    return False
+            elif field.annotation in {int, float}:
+                try:
+                    return field.annotation(value)
+                except ValueError:
+                    pass  # 保留原值，让严格字段校验给出字段级错误。
+        return value
+
+
+class ModelSettings(BaseSettings):
+    """模型网关的唯一配置与默认值来源；构造时验证实际使用的 provider。"""
+
+    model_config = SettingsConfigDict(
+        env_prefix="AITC_", extra="ignore", populate_by_name=True,
+        strict=True, frozen=True, allow_inf_nan=False, hide_input_in_errors=True,
+    )
+
+    enabled: bool = Field(
+        default=True, validation_alias=AliasChoices("AITC_LLM_ENABLED", "LLM_ENABLED"),
+    )
+    provider: Literal["qwen", "mock", "disabled"] = Field(
+        default="qwen", validation_alias=AliasChoices("AITC_MODEL_PROVIDER", "MODEL_PROVIDER"),
+    )
+    name: str = Field(
+        default="Qwen3-0.6B",
+        validation_alias=AliasChoices("AITC_MODEL_NAME", "AITC_LLM_MODEL", "MODEL_NAME", "LLM_MODEL_ID"),
+    )
+    base_url: str = Field(
+        default="http://127.0.0.1:8000/v1",
+        validation_alias=AliasChoices("AITC_MODEL_BASE_URL", "AITC_LLM_BASE_URL", "MODEL_BASE_URL", "LLM_BASE_URL"),
+    )
+    api_key: str = Field(
+        default="EMPTY", repr=False,
+        validation_alias=AliasChoices("AITC_MODEL_API_KEY", "AITC_LLM_API_KEY", "MODEL_API_KEY", "LLM_API_KEY"),
+    )
+    timeout_seconds: float = Field(
+        default=60,
+        validation_alias=AliasChoices("AITC_LLM_TIMEOUT_SECONDS", "LLM_TIMEOUT_SECONDS"),
+    )
+    max_tokens: int = Field(
+        default=1024, validation_alias=AliasChoices("AITC_LLM_MAX_TOKENS", "LLM_MAX_TOKENS"),
+    )
+    enable_thinking: bool = Field(
+        default=False, validation_alias=AliasChoices("AITC_LLM_ENABLE_THINKING", "LLM_ENABLE_THINKING"),
+    )
+    required: bool = Field(
+        default=False, validation_alias=AliasChoices("AITC_LLM_REQUIRED", "LLM_REQUIRED"),
+    )
+
+    @classmethod
+    def settings_customise_sources(
+        cls, settings_cls: type[BaseSettings], init_settings: Any, env_settings: Any,
+        dotenv_settings: Any, file_secret_settings: Any,
+    ) -> tuple[Any, ...]:
+        # .env 仍由本模块的 _load_dotenv 处理，不引入第二套加载优先级。
+        return init_settings, _ModelEnvironmentSource(settings_cls)
+
+    @property
+    def effective_provider(self) -> Literal["qwen", "mock", "disabled"]:
+        return self.provider if self.enabled else "disabled"
+
+    @model_validator(mode="after")
+    def validate_active_provider(self) -> "ModelSettings":
+        if self.effective_provider == "qwen":
+            if not self.base_url.strip():
+                raise ValueError("llm_base_url / base_url must not be empty")
+            if not self.name.strip():
+                raise ValueError("llm_model / name must not be empty")
+            if self.timeout_seconds <= 0:
+                raise ValueError("llm_timeout_seconds / timeout_seconds must be positive")
+            if self.max_tokens <= 0:
+                raise ValueError("llm_max_tokens / max_tokens must be positive")
+        return self
 
 # 中文类型名 → 英文报错文案（报错文案先中文后英文）
 _TYPE_NAME_EN = {"字符串": "a string", "整数": "an integer", "数字": "a number"}
@@ -176,20 +283,24 @@ class RuntimeSettings:
     control_snapshot_dir: Path = Path("logs_data/control_snapshots")  # 控制快照目录
 
     # ── LLM（OpenAI 兼容接入） ──
-    llm_enabled: bool = True                       # 关闭时不创建模型客户端、不检查模型服务
-    llm_base_url: str = "http://127.0.0.1:8000/v1"   # 模型服务地址（vLLM/SGLang/DeepSeek）
-    llm_model: str = "Qwen3-0.6B"                    # 模型名称
-    llm_api_key: str = "EMPTY"                       # API 密钥
-    llm_timeout_seconds: float = 60                  # 单次请求超时（秒）
-    llm_max_tokens: int = 1024                       # 单次生成最大 token 数
-    llm_enable_thinking: bool = False                # 是否开启思考模式
-    llm_required: bool = False                       # LLM 不可达时是否禁止启动
+    llm_enabled: bool = ModelSettings.model_fields["enabled"].default
+    model_provider: str = ModelSettings.model_fields["provider"].default
+    llm_base_url: str = ModelSettings.model_fields["base_url"].default
+    llm_model: str = ModelSettings.model_fields["name"].default
+    llm_api_key: str = field(default=ModelSettings.model_fields["api_key"].default, repr=False)
+    llm_timeout_seconds: float = ModelSettings.model_fields["timeout_seconds"].default
+    llm_max_tokens: int = ModelSettings.model_fields["max_tokens"].default
+    llm_enable_thinking: bool = ModelSettings.model_fields["enable_thinking"].default
+    llm_required: bool = ModelSettings.model_fields["required"].default
 
     # ── 控制快照 ──
     control_snapshot_enabled: bool = False   # 是否落盘每轮决策输入快照
 
     # ── DataHub ──
     traffic_memory: TrafficMemorySettings = field(default_factory=TrafficMemorySettings)
+
+    # ── 经验版本追溯 ──
+    experience_release: ExperienceReleaseSettings = field(default_factory=ExperienceReleaseSettings)
 
     @classmethod
     def from_environment(cls) -> "RuntimeSettings":
@@ -199,6 +310,7 @@ class RuntimeSettings:
         同一配置存在两套变量名时，``AITC_*`` 优先于 ``LLM_*``。
         """
         _load_dotenv()
+        model = ModelSettings()
         run_mode = RunMode(os.getenv("AITC_RUN_MODE", RunMode.DEVELOPMENT))
         # 运行模式只决定以下默认值；显式环境变量仍可覆盖
         mode_defaults = {
@@ -239,14 +351,15 @@ class RuntimeSettings:
             enable_config_sync=_read_bool("AITC_ENABLE_CONFIG_SYNC", mode_defaults["enable_config_sync"]),
             enable_prediction_scheduler=_read_bool("AITC_ENABLE_PREDICTION_SCHEDULER", mode_defaults["enable_prediction_scheduler"]),
             enable_experience_pool_scheduler=_read_bool("AITC_EXPERIENCE_POOL_ENABLED", cls.enable_experience_pool_scheduler),
-            llm_enabled=_read_bool("AITC_LLM_ENABLED", cls.llm_enabled, "LLM_ENABLED"),
-            llm_base_url=_read_value("AITC_LLM_BASE_URL", cls.llm_base_url, str, "字符串", "LLM_BASE_URL"),
-            llm_model=_read_value("AITC_LLM_MODEL", cls.llm_model, str, "字符串", "LLM_MODEL_ID"),
-            llm_api_key=_read_value("AITC_LLM_API_KEY", cls.llm_api_key, str, "字符串", "LLM_API_KEY"),
-            llm_timeout_seconds=_read_value("AITC_LLM_TIMEOUT_SECONDS", cls.llm_timeout_seconds, float, "数字", "LLM_TIMEOUT_SECONDS"),
-            llm_max_tokens=_read_value("AITC_LLM_MAX_TOKENS", cls.llm_max_tokens, int, "整数", "LLM_MAX_TOKENS"),
-            llm_enable_thinking=_read_bool("AITC_LLM_ENABLE_THINKING", cls.llm_enable_thinking, "LLM_ENABLE_THINKING"),
-            llm_required=_read_bool("AITC_LLM_REQUIRED", cls.llm_required, "LLM_REQUIRED"),
+            llm_enabled=model.enabled,
+            model_provider=model.provider,
+            llm_base_url=model.base_url,
+            llm_model=model.name,
+            llm_api_key=model.api_key,
+            llm_timeout_seconds=model.timeout_seconds,
+            llm_max_tokens=model.max_tokens,
+            llm_enable_thinking=model.enable_thinking,
+            llm_required=model.required,
             control_snapshot_enabled=_read_bool("AITC_CONTROL_SNAPSHOT_ENABLED", cls.control_snapshot_enabled),
             control_snapshot_dir=_read_path("AITC_CONTROL_SNAPSHOT_DIR", cls.control_snapshot_dir),
         )
@@ -264,16 +377,21 @@ class RuntimeSettings:
             raise ValueError("flow_duration_seconds 必须为正数（must be positive）")
         if not 0 <= self.prediction_hour <= 23 or not 0 <= self.prediction_minute <= 59:
             raise ValueError("预测调度时刻超出范围（prediction schedule is out of range）")
-        if not isinstance(self.llm_enabled, bool):
-            raise ValueError("llm_enabled 必须是布尔值（must be a boolean）")
-        if self.llm_enabled:
-            if not self.llm_base_url.strip():
-                raise ValueError("llm_base_url 不能为空（must not be empty）")
-            if not self.llm_model.strip():
-                raise ValueError("llm_model 不能为空（must not be empty）")
-            if self.llm_timeout_seconds <= 0:
-                raise ValueError("llm_timeout_seconds 必须为正数（must be positive）")
-            if self.llm_max_tokens <= 0:
-                raise ValueError("llm_max_tokens 必须为正数（must be positive）")
+        self.model_settings
         return self
+
+    @property
+    def model_settings(self) -> ModelSettings:
+        """从已装配字段建立模型配置，环境变化不会改写显式 RuntimeSettings。"""
+        return ModelSettings.model_validate({
+            "enabled": self.llm_enabled,
+            "provider": self.model_provider,
+            "name": self.llm_model,
+            "base_url": self.llm_base_url,
+            "api_key": self.llm_api_key,
+            "timeout_seconds": self.llm_timeout_seconds,
+            "max_tokens": self.llm_max_tokens,
+            "enable_thinking": self.llm_enable_thinking,
+            "required": self.llm_required,
+        })
     run_mode: RunMode = RunMode.DEVELOPMENT

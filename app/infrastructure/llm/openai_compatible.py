@@ -13,6 +13,8 @@ import time
 from typing import Any, Mapping, Sequence
 from urllib import error, request
 
+from .schemas import ChatCompletionEnvelope
+
 
 @dataclass(frozen=True, slots=True)
 class ChatCompletionResult:
@@ -94,15 +96,10 @@ class OpenAICompatibleLLMClient:
                 attempt += 1
                 time.sleep(0.5 * (2 ** (attempt - 1)))
 
-        choices = response.get("choices") or []
-        if not choices:
-            raise RuntimeError("LLM response does not contain choices")
-        message = choices[0].get("message") or {}
-        content = message.get("content") or ""
-        reasoning_content = message.get("reasoning_content")
+        message = ChatCompletionEnvelope.model_validate(response).choices[0].message
         return ChatCompletionResult(
-            content=str(content),
-            reasoning_content=str(reasoning_content) if reasoning_content is not None else None,
+            content=message.content or "",
+            reasoning_content=message.reasoning_content,
             raw=response,
         )
 

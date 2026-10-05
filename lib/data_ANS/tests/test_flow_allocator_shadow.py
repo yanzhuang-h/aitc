@@ -22,6 +22,16 @@ def _vector(**values):
 
 class FlowAllocatorShadowTests(unittest.TestCase):
     def setUp(self):
+        environment = mock.patch.dict(os.environ, {
+            "AITC_FLOW_ALLOCATOR_PILOT_ROADS": "",
+            "AITC_FLOW_ALLOCATOR_SHADOW_ROADS": "",
+            "AITC_FLOW_ALLOCATOR_PILOT_MODE": "new",
+            "AITC_FLOW_ALLOCATOR_SHADOW_ENABLED": "1",
+        })
+        environment.start()
+        self.addCleanup(environment.stop)
+        self.non_target_road_id = "9999999"
+        self.assertNotIn(self.non_target_road_id, SHADOW.DEFAULT_TARGET_ROAD_IDS)
         self.cross_info = {
             "1300069": {
                 "phase": {"3": "LR"},
@@ -129,10 +139,11 @@ class FlowAllocatorShadowTests(unittest.TestCase):
             self.assertIsNone(record)
             self.assertEqual(list(Path(directory).iterdir()), [])
 
-    def test_all_four_configured_roads_are_recorded(self):
+    def test_all_default_target_roads_are_recorded(self):
+        road_ids = sorted(SHADOW.DEFAULT_TARGET_ROAD_IDS)
         with tempfile.TemporaryDirectory() as directory:
             records = []
-            for road_id in ("1300068", "1300070", "1700125"):
+            for road_id in road_ids:
                 cross_info = {
                     road_id: self.cross_info["1300069"],
                 }
@@ -159,7 +170,7 @@ class FlowAllocatorShadowTests(unittest.TestCase):
 
             self.assertEqual(
                 [record["road_id"] for record in records],
-                ["1300068", "1300070", "1700125"],
+                road_ids,
             )
             self.assertTrue(all(record["status"] == "ok" for record in records))
             log_path = Path(directory) / "flow_time_allocator_2026-07-31.jsonl"
@@ -169,13 +180,13 @@ class FlowAllocatorShadowTests(unittest.TestCase):
             ]
             self.assertEqual(
                 [row["road_id"] for row in rows],
-                ["1300068", "1300070", "1700125"],
+                road_ids,
             )
 
     def test_non_target_road_does_not_create_a_log(self):
         with tempfile.TemporaryDirectory() as directory:
             record = record_shadow_comparison(
-                "1300086",
+                self.non_target_road_id,
                 [1] * 10,
                 self.flow,
                 self.extend,
@@ -246,14 +257,18 @@ class FlowAllocatorShadowTests(unittest.TestCase):
     def test_non_pilot_selector_always_returns_legacy(self):
         legacy = [3] * 10
         with mock.patch.object(SHADOW, "record_shadow_comparison") as recorder:
-            selected = select_pilot_schedule(
-                "1300086",
-                legacy,
-                self.flow,
-                self.extend,
-            )
-
-        self.assertEqual(selected, legacy)
+            for mode in ("legacy", "shadow", "new"):
+                with self.subTest(mode=mode), mock.patch.dict(
+                    os.environ,
+                    {"AITC_FLOW_ALLOCATOR_PILOT_MODE": mode},
+                ):
+                    selected = select_pilot_schedule(
+                        self.non_target_road_id,
+                        legacy,
+                        self.flow,
+                        self.extend,
+                    )
+                    self.assertEqual(selected, legacy)
         recorder.assert_not_called()
 
     def test_new_mode_rejects_an_all_zero_schedule(self):

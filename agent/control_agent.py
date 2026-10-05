@@ -14,7 +14,7 @@ from typing import Any, Mapping
 
 from app.core.models import ToolResponse
 from app.core.tools.control_flow import CONTROL_STEPS, build_initial_context, query_data_hub_summary
-from app.infrastructure.llm import OpenAICompatibleLLMClient
+from app.infrastructure.llm import ModelRequest, as_model_gateway
 
 
 class ControlProcessAgent:
@@ -22,11 +22,12 @@ class ControlProcessAgent:
 
     def __init__(
         self,
-        llm_client: OpenAICompatibleLLMClient,
+        llm_client,
         query_service: Any | None = None,
         logger: logging.Logger | None = None,
     ) -> None:
         self.llm_client = llm_client
+        self.model_gateway = as_model_gateway(llm_client)
         self.query_service = query_service
         self.logger = logger or logging.getLogger("aitc.control_process")
 
@@ -92,9 +93,9 @@ class ControlProcessAgent:
         ]
         for attempt in (1, 2):
             try:
-                result = self.llm_client.chat(
-                    messages, temperature=0.4, top_p=0.9, max_tokens=200
-                )
+                result = self.model_gateway.invoke_sync(ModelRequest(
+                    messages=messages, temperature=0.4, top_p=0.9, max_tokens=200,
+                ))
                 if result.content.strip():
                     return result.content.strip()
             except Exception as error:

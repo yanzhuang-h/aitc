@@ -569,6 +569,9 @@ runtime/result_formatter.py
 
 ### 14.1 Phase 0 复核（2026-10-02）
 
+此节保留 Phase 0 当时的验证结果。2026-10-05 已修复下述经验套件三项既存问题；
+最新实现、架构接线与验证结果见 [当前架构总览](v2_current_architecture.md)。
+
 `git fetch origin main` 确认本地与最新 `origin/main` 均为
 `3e8c7b983466a6e1173bdb40d0d8d6a4bcae28c7`。重新核对真实装配、接入、聚合、
 算法、校验和发送代码，主链与无 LLM 结论成立；未修改生产逻辑。

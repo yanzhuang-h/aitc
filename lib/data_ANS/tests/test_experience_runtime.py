@@ -71,7 +71,7 @@ class ExperienceRuntimeTests(unittest.TestCase):
         ) as run_day:
             scheduler.run_for_date(source_date="2026-07-17")
 
-        run_day.assert_called_once_with(dt.date(2026, 7, 17))
+        run_day.assert_called_once_with(dt.date(2026, 7, 17), release_settings=None)
 
     def test_missing_source_files_are_skipped_idempotently(self):
         with tempfile.TemporaryDirectory() as directory:

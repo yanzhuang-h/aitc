@@ -11,7 +11,7 @@ import re
 from typing import Any, Mapping
 
 from app.core.models import ToolResponse
-from app.infrastructure.llm import OpenAICompatibleLLMClient
+from app.infrastructure.llm import ModelRequest, as_model_gateway
 
 from .tools import DataQueryTools
 
@@ -103,8 +103,9 @@ class SymbolicDataAgent:
 class QwenSignalTimingAgent:
     """让 Qwen 先选工具，再调用现有单路口方案工具。"""
 
-    def __init__(self, llm_client: OpenAICompatibleLLMClient, tools: DataQueryTools) -> None:
+    def __init__(self, llm_client, tools: DataQueryTools) -> None:
         self.llm_client = llm_client
+        self.model_gateway = as_model_gateway(llm_client)
         self.tools = tools
         self.symbolic_agent = SymbolicDataAgent(tools)
 
@@ -164,7 +165,9 @@ class QwenSignalTimingAgent:
             },
         ]
         try:
-            result = self.llm_client.chat(messages, temperature=0.2, top_p=0.9, max_tokens=512)
+            result = self.model_gateway.invoke_sync(ModelRequest(
+                messages=messages, temperature=0.2, top_p=0.9, max_tokens=512,
+            ))
             parsed = self._parse_json(result.content)
             if isinstance(parsed, dict):
                 parsed.setdefault("action", "signal.timing.single")
@@ -191,7 +194,9 @@ class QwenSignalTimingAgent:
             },
         ]
         try:
-            result = self.llm_client.chat(messages, temperature=0.4, top_p=0.9, max_tokens=1024)
+            result = self.model_gateway.invoke_sync(ModelRequest(
+                messages=messages, temperature=0.4, top_p=0.9, max_tokens=1024,
+            ))
             if result.content.strip():
                 return result.content.strip()
         except Exception:
@@ -212,8 +217,9 @@ class QwenToolRouterAgent:
     ``cross_id`` 为可选上下文：仅当所选工具声明了 ``cross_id`` 参数时才注入。
     """
 
-    def __init__(self, llm_client: OpenAICompatibleLLMClient, tools: DataQueryTools) -> None:
+    def __init__(self, llm_client, tools: DataQueryTools) -> None:
         self.llm_client = llm_client
+        self.model_gateway = as_model_gateway(llm_client)
         self.tools = tools
 
     @staticmethod
@@ -281,7 +287,9 @@ class QwenToolRouterAgent:
             },
         ]
         try:
-            result = self.llm_client.chat(messages, temperature=0.2, top_p=0.9, max_tokens=1024)
+            result = self.model_gateway.invoke_sync(ModelRequest(
+                messages=messages, temperature=0.2, top_p=0.9, max_tokens=1024,
+            ))
             logger.info("Qwen 工具选择原始返回: %s", result.content[:200])
             parsed = self._parse_json(result.content)
             if isinstance(parsed, dict) and isinstance(parsed.get("tool_name"), str):
@@ -313,7 +321,9 @@ class QwenToolRouterAgent:
             },
         ]
         try:
-            result = self.llm_client.chat(messages, temperature=0.4, top_p=0.9, max_tokens=1024)
+            result = self.model_gateway.invoke_sync(ModelRequest(
+                messages=messages, temperature=0.4, top_p=0.9, max_tokens=1024,
+            ))
             if result.content.strip():
                 return result.content.strip()
         except Exception:
