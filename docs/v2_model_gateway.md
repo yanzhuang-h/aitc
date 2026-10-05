@@ -134,10 +134,13 @@ Qwen 不可达、Mock、Disabled 的实际 186 路口完整输出；单独模型
 .venv/bin/python -m unittest discover -s lib/data_ANS/tests -p 'test_*.py'
 ```
 
-经验模块既有 2 failures / 1 error 继续按 [基线审计](v2_baseline_audit.md) 记录。
+本阶段初次验证时，经验模块既有 2 failures / 1 error 按 [基线审计](v2_baseline_audit.md) 记录。
 模型语义动作和确定性 Safety Gate 分别按 Phase 7、Phase 8 继续实施。
 
 2026-10-04 最终验证：主测试从 288 项增至 346 项全部通过（新增网关 36 项、
 配置 14 项、应用集成 8 项）；控制函数 9 项、全局处理器 23 项通过；经验模块
 111 项仍为原 2 failures / 1 error。compileall、pip check 和 git diff --check 通过。
 模型 HTTP 协议由测试替身验证，本阶段未连接真实 Qwen 部署做推理验收。
+
+2026-10-05 后续修复已消除经验模块三项既存问题，经验套件扩至 118 项全部通过。
+原因、修复边界及当前阶段进度见 [当前架构总览](v2_current_architecture.md)。
