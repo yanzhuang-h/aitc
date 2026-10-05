@@ -13,6 +13,8 @@ import os
 from pathlib import Path
 import threading
 
+from app.config import ExperienceReleaseSettings
+
 from lib.data_ANS.experience_pool import (
     DEFAULT_DENSE_CLUSTER_FRACTION,
     DEFAULT_POOL_SELECTION_METHOD,
@@ -212,7 +214,7 @@ def _existing_terminal_manifest(path):
     return None
 
 
-def run_experience_pool_day(source_date):
+def run_experience_pool_day(source_date, *, release_settings=None):
     """Process one T-2 source date exactly once and conditionally release."""
     if isinstance(source_date, str):
         source_date = dt.date.fromisoformat(source_date)
@@ -366,20 +368,13 @@ def run_experience_pool_day(source_date):
     )
     release_result = None
     if changed_lanes > 0:
-        versions_dir = _configured_path(
-            "AITC_EXPERIENCE_VERSIONS_DIR",
-            LIB_DIR / "experience_versions",
-        )
-        manifest_path = _configured_path(
-            "AITC_EXPERIENCE_MANIFEST",
-            versions_dir / "active_manifest.json",
-        )
+        release_settings = release_settings or ExperienceReleaseSettings()
         release_result = activate_validated_experience_table(
             table=updated_table,
             runtime_path=str(runtime_path),
             cross_info_path=str(cross_info_path),
-            versions_dir=str(versions_dir),
-            manifest_path=str(manifest_path),
+            versions_dir=str(release_settings.versions_dir.resolve()),
+            manifest_path=str(release_settings.active_manifest_path),
             release_kind="daily_experience_pool",
             required_road_ids=update_roads,
             allow_legacy_records=True,
@@ -432,8 +427,9 @@ def run_experience_pool_day(source_date):
 class ExperiencePoolScheduler:
     """Server-owned scheduler with an optional initial run and noon runs."""
 
-    def __init__(self, logger=None):
+    def __init__(self, logger=None, *, release_settings=None):
         self.logger = logger or LOGGER
+        self.release_settings = release_settings
         self._stop_event = threading.Event()
         self._thread = None
         self._run_lock = threading.Lock()
@@ -489,7 +485,7 @@ class ExperiencePoolScheduler:
             self.logger.warning("Experience pool daily task is already running")
             return None
         try:
-            report = run_experience_pool_day(source_date)
+            report = run_experience_pool_day(source_date, release_settings=self.release_settings)
             self.logger.info(
                 "Experience pool daily task finished: source_date=%s status=%s",
                 source_date,

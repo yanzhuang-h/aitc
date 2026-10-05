@@ -175,7 +175,10 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
     # 窗口缓存：各类型窗口时长使用 ShortTermMemory 的默认表（flow 600s / queue 240s / online·latest 1800s …）
     cache = ShortTermMemory()
     # 兼容日志输出（logs_data/<类别>/<日期>_<类别>.txt，保留旧系统格式）
-    writer = RuntimeDataWriter(FileRuntimeOutputStore(settings.runtime_output_dir))
+    writer = RuntimeDataWriter(
+        FileRuntimeOutputStore(settings.runtime_output_dir),
+        experience_manifest_path=settings.experience_release.active_manifest_path,
+    )
     # 长期仓库（infra/data/runtime/runtime/*.jsonl，供历史查询）
     repository = LongTermMemory(root=settings.runtime_data_dir)
     # 溢出告警表：初始结构与 map_lambda 一致，按「路口×方向」记录最新告警
@@ -261,7 +264,7 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
     pipeline = PeriodicDecisionPipeline(cache=cache, data_processor=control_processor, lambdas_module=Lambdas, writer=writer, result_warehouse=warehouse, flow_predictor=flow_predictor, queue_predictor=queue_predictor, control_policy=control_policy, phase_check=phase_check, select_data_to_send=partial(format_result, lambdas_module=Lambdas), is_millisecond_timestamp=is_millisecond_timestamp, overflow_warning_map=overflow_warning_map, radar_event_map=radar_event_map, flow_duration_seconds=settings.flow_duration_seconds, logger=logger, control_snapshot_enabled=settings.control_snapshot_enabled, control_snapshot_dir=settings.control_snapshot_dir, datahub=datahub, decision_graph=decision_graph)
     prediction_scheduler = PredictionScheduler(flow_job=flow_predictor.daily_prediction_job, queue_job=queue_predictor.daily_queue_prediction, hour=settings.prediction_hour, minute=settings.prediction_minute, logger=logger)
     experience_pool_scheduler = (
-        ExperiencePoolScheduler(logger=logger)
+        ExperiencePoolScheduler(logger=logger, release_settings=settings.experience_release)
         if settings.enable_experience_pool_scheduler
         else None
     )

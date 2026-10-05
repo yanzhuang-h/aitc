@@ -21,6 +21,21 @@ DEFAULT_MEMORY_WINDOW = 20
 DEFAULT_DATAHUB_EVENT_LIMIT = 2048
 
 
+class ExperienceReleaseSettings(BaseSettings):
+    """经验发布与发送日志共用同一个激活清单路径。"""
+
+    model_config = SettingsConfigDict(
+        env_prefix="AITC_EXPERIENCE_", extra="ignore", frozen=True,
+    )
+
+    versions_dir: Path = Path(__file__).resolve().parents[1] / "lib" / "experience_versions"
+    manifest: Path | None = None
+
+    @property
+    def active_manifest_path(self) -> Path:
+        return (self.manifest or self.versions_dir / "active_manifest.json").resolve()
+
+
 class TrafficMemorySettings(BaseSettings):
     """最近决策轮数与每路口原始事件容量；非法值在装配时失败。"""
 
@@ -283,6 +298,9 @@ class RuntimeSettings:
 
     # ── DataHub ──
     traffic_memory: TrafficMemorySettings = field(default_factory=TrafficMemorySettings)
+
+    # ── 经验版本追溯 ──
+    experience_release: ExperienceReleaseSettings = field(default_factory=ExperienceReleaseSettings)
 
     @classmethod
     def from_environment(cls) -> "RuntimeSettings":
