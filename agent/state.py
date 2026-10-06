@@ -8,6 +8,8 @@ from app.core.control.schemas import SignalPlan
 from infra.data.traffic_schemas import ExpertTrafficState, TrafficSnapshot
 from lib.control_functions.types import IntersectionControlRequest
 
+from .cognitive import CognitiveSession
+
 
 @dataclass(frozen=True)
 class ControlContext:
@@ -28,6 +30,7 @@ class ControlState(TypedDict, total=False):
     candidate: SignalPlan | None
     quality_issues: tuple[str, ...]
     route: tuple[str, ...]
+    cognition: CognitiveSession | None
 
 
 @dataclass(frozen=True)
@@ -41,3 +44,4 @@ class ControlDecision:
     used_fallback: bool
     quality_issues: tuple[str, ...]
     route: tuple[str, ...]
+    cognition: CognitiveSession | None = None

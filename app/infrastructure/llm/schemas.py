@@ -23,6 +23,7 @@ class ModelRequest(BaseModel):
     max_tokens: StrictInt | None = Field(default=None, gt=0)
     extra_body: dict[str, Any] | None = None
     max_retries: StrictInt | None = Field(default=None, ge=0)
+    timeout_seconds: FiniteNumber | None = Field(default=None, gt=0)
 
 
 class ModelResponse(BaseModel):

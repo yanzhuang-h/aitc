@@ -18,6 +18,7 @@ from infra.data.traffic_schemas import ExpertTrafficState, TrafficSnapshot
 from lib.control_functions.types import IntersectionControlRequest
 
 from ._langgraph_compat import isolate_checkpoint_randomness
+from .cognitive import CognitiveController, CognitiveSession
 from .experts._state import ExpertContractError
 from .state import ControlContext, ControlDecision, ControlState
 
@@ -36,6 +37,7 @@ class ControlGraph:
     def __init__(
         self, datahub: TrafficDataHub, *, primary_expert, fallback_expert,
         control_policy: BaselineController, logger=None,
+        cognitive_controller: CognitiveController | None = None,
     ) -> None:
         isolate_checkpoint_randomness()
         self.datahub = datahub
@@ -43,6 +45,7 @@ class ControlGraph:
         self.fallback_expert = fallback_expert
         self.control_policy = control_policy
         self.logger = logger
+        self.cognitive_controller = cognitive_controller
         builder = StateGraph(ControlState, context_schema=ControlContext)
         builder.add_node("load_context", self._load_context)
         builder.add_node(
@@ -57,10 +60,20 @@ class ControlGraph:
         builder.add_node("validate", self._validate)
         builder.add_edge(START, "load_context")
         builder.add_edge("load_context", "primary_expert")
-        builder.add_conditional_edges("primary_expert", self._enough_data)
+        routes = {"control_policy": "control_policy", "fallback_expert": "fallback_expert"}
+        if cognitive_controller is not None:
+            routes["planner"] = "planner"
+        builder.add_conditional_edges("primary_expert", self._next_after_primary, routes)
         builder.add_edge("fallback_expert", "control_policy")
         builder.add_edge("control_policy", "validate")
-        builder.add_edge("validate", END)
+        if cognitive_controller is None:
+            builder.add_edge("validate", END)
+        else:
+            builder.add_node("planner", self._planner)
+            builder.add_node("review", self._review)
+            builder.add_edge("planner", "fallback_expert")
+            builder.add_conditional_edges("validate", self._next_after_validate)
+            builder.add_edge("review", END)
         self.graph = builder.compile()
 
     def execute_legacy(
@@ -97,6 +110,7 @@ class ControlGraph:
             primary=state["primary"], fallback=state["fallback"],
             used_fallback=state["used_fallback"], quality_issues=state["quality_issues"],
             route=state["route"],
+            cognition=state["cognition"],
         )
 
     @staticmethod
@@ -106,6 +120,7 @@ class ControlGraph:
             "request": runtime.context.request, "snapshot": runtime.context.snapshot,
             "primary": None, "fallback": None, "used_fallback": False,
             "candidate": None, "quality_issues": (), "route": ("load_context",),
+            "cognition": None,
         }
 
     def _primary_expert(self, state: ControlState) -> dict:
@@ -121,8 +136,37 @@ class ControlGraph:
             return "control_policy"
         return "fallback_expert"
 
+    def _next_after_primary(self, state: ControlState) -> Literal["control_policy", "fallback_expert", "planner"]:
+        route = self._enough_data(state)
+        return "planner" if route == "fallback_expert" and self.cognitive_controller is not None else route
+
+    def _planner(self, state: ControlState) -> dict:
+        session = CognitiveSession()
+        self.cognitive_controller.plan(
+            session, intersection_id=state["intersection_id"],
+            snapshot=state["snapshot"], primary=state["primary"],
+        )
+        return {"cognition": session, "route": (*state["route"], "planner")}
+
+    @staticmethod
+    def _next_after_validate(state: ControlState) -> Literal["review", "__end__"]:
+        return "review" if state["cognition"] is not None and state["candidate"] is not None else END
+
+    def _review(self, state: ControlState) -> dict:
+        session = state["cognition"]
+        self.cognitive_controller.review(
+            session, intersection_id=state["intersection_id"], snapshot=state["snapshot"],
+            primary=state["primary"], fallback=state["fallback"], candidate=state["candidate"],
+        )
+        return {"cognition": session, "route": (*state["route"], "review")}
+
     def _fallback_expert(self, state: ControlState) -> dict:
-        fallback = self._read_expert(self.fallback_expert, state["intersection_id"], "radar")
+        session = state["cognition"]
+        cached = session.expert_states.get("radar") if session is not None else None
+        fallback = (
+            self._check_expert(cached, state["intersection_id"], "radar") if cached is not None
+            else self._read_expert(self.fallback_expert, state["intersection_id"], "radar")
+        )
         return {
             "fallback": fallback, "used_fallback": True,
             "route": (*state["route"], "fallback_expert"),
@@ -130,7 +174,11 @@ class ControlGraph:
 
     @staticmethod
     def _read_expert(expert, intersection_id: str, source: str) -> ExpertTrafficState:
-        result = _EXPERT_ADAPTER.validate_python(expert.extract(intersection_id))
+        return ControlGraph._check_expert(expert.extract(intersection_id), intersection_id, source)
+
+    @staticmethod
+    def _check_expert(result, intersection_id: str, source: str) -> ExpertTrafficState:
+        result = _EXPERT_ADAPTER.validate_python(result)
         if result.source != source or result.observation.intersection_id != intersection_id:
             raise ExpertContractError(f"{source} expert returned a different source or intersection")
         return result
@@ -151,7 +199,7 @@ class ControlGraph:
             "route": (*state["route"], error.node),
         }
         if error.node == "primary_expert":
-            return Command(update=update, goto="fallback_expert")
+            return Command(update=update, goto="planner" if self.cognitive_controller is not None else "fallback_expert")
         update["used_fallback"] = True
         return Command(update=update, goto="control_policy")
 

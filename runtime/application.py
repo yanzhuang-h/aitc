@@ -48,6 +48,8 @@ from agent.control_agent import ControlProcessAgent
 from agent.harness import AgentHarness
 from agent.experts import EVExpert, InternetExpert, RadarExpert, VideoExpert
 from agent.graph import ControlGraph
+from agent.cognitive import CognitiveController
+from agent.control_tools import ControlAgentTools
 from agent.tools import DataQueryTools
 from app.core.control.synergy.green_wave_service import GreenWaveDataService
 from app.infrastructure.llm import (
@@ -82,10 +84,14 @@ class AITCApplication(LoggingMixin):
         experts=None,
         decision_graph=None,
         model_gateway=None,
+        cognitive_agent=None,
+        control_agent_tools=None,
     ):
         self.datahub = datahub
         self.experts = experts if experts is not None else {}
         self.decision_graph = decision_graph
+        self.cognitive_agent = cognitive_agent
+        self.control_agent_tools = control_agent_tools
         self.model_gateway = (
             model_gateway if model_gateway is not None
             else as_model_gateway(llm_client) if llm_client is not None else None
@@ -257,9 +263,15 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
     http_server = HttpRuntimeServer(host=settings.http_host, port=settings.http_port, ingestor=ingestor, config_service=config_service, query_service=query_service, agent_harness=agent_harness, green_wave_service=green_wave_service, logger=logger)
     tcp_server = TcpRuntimeServer(host=settings.tcp_host, port=settings.tcp_port, buffer_size=settings.tcp_buffer_size, ingestor=ingestor, result_warehouse=warehouse, result_sender=sender, send_interval=settings.result_send_interval_seconds, logger=logger)
     control_policy = BaselineController(selector=call_dqn_select, coordinator=coordinate)
+    control_agent_tools = ControlAgentTools(datahub, experts["video"], experts["radar"])
+    cognitive_agent = (
+        CognitiveController(model_gateway, control_agent_tools, settings.control_agent, logger=logger)
+        if settings.control_agent.enabled and model_gateway.enabled else None
+    )
     decision_graph = ControlGraph(
         datahub, primary_expert=experts["video"], fallback_expert=experts["radar"],
         control_policy=control_policy, logger=logger,
+        cognitive_controller=cognitive_agent,
     )
     pipeline = PeriodicDecisionPipeline(cache=cache, data_processor=control_processor, lambdas_module=Lambdas, writer=writer, result_warehouse=warehouse, flow_predictor=flow_predictor, queue_predictor=queue_predictor, control_policy=control_policy, phase_check=phase_check, select_data_to_send=partial(format_result, lambdas_module=Lambdas), is_millisecond_timestamp=is_millisecond_timestamp, overflow_warning_map=overflow_warning_map, radar_event_map=radar_event_map, flow_duration_seconds=settings.flow_duration_seconds, logger=logger, control_snapshot_enabled=settings.control_snapshot_enabled, control_snapshot_dir=settings.control_snapshot_dir, datahub=datahub, decision_graph=decision_graph)
     prediction_scheduler = PredictionScheduler(flow_job=flow_predictor.daily_prediction_job, queue_job=queue_predictor.daily_queue_prediction, hour=settings.prediction_hour, minute=settings.prediction_minute, logger=logger)
@@ -268,4 +280,4 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
         if settings.enable_experience_pool_scheduler
         else None
     )
-    return AITCApplication(config_sync_manager=ConfigSyncManager(), http_server=http_server, tcp_server=tcp_server, decision_pipeline=pipeline, prediction_scheduler=prediction_scheduler, experience_pool_scheduler=experience_pool_scheduler, decision_interval=settings.decision_interval_seconds, enable_config_sync=settings.enable_config_sync, enable_prediction_scheduler=settings.enable_prediction_scheduler, llm_client=qwen_client, llm_required=settings.llm_required and model_gateway.enabled, logger=logger, datahub=datahub, experts=experts, decision_graph=decision_graph, model_gateway=model_gateway)
+    return AITCApplication(config_sync_manager=ConfigSyncManager(), http_server=http_server, tcp_server=tcp_server, decision_pipeline=pipeline, prediction_scheduler=prediction_scheduler, experience_pool_scheduler=experience_pool_scheduler, decision_interval=settings.decision_interval_seconds, enable_config_sync=settings.enable_config_sync, enable_prediction_scheduler=settings.enable_prediction_scheduler, llm_client=qwen_client, llm_required=settings.llm_required and model_gateway.enabled, logger=logger, datahub=datahub, experts=experts, decision_graph=decision_graph, model_gateway=model_gateway, cognitive_agent=cognitive_agent, control_agent_tools=control_agent_tools)

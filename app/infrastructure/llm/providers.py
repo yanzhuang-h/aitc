@@ -39,6 +39,7 @@ class QwenProvider:
             max_tokens=request.max_tokens,
             **({"extra_body": request.extra_body} if request.extra_body is not None else {}),
             **({"max_retries": request.max_retries} if request.max_retries is not None else {}),
+            **({"timeout_seconds": request.timeout_seconds} if request.timeout_seconds is not None else {}),
         )
         return ModelResponse(
             content=result.content,

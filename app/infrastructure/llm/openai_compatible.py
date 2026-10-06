@@ -66,6 +66,7 @@ class OpenAICompatibleLLMClient:
         max_tokens: int | None = None,
         extra_body: Mapping[str, Any] | None = None,
         max_retries: int | None = None,
+        timeout_seconds: float | None = None,
     ) -> ChatCompletionResult:
         """发送对话请求；对限流/服务端错误/网络错误做退避重试。"""
         payload: dict[str, Any] = {
@@ -88,7 +89,11 @@ class OpenAICompatibleLLMClient:
         attempt = 0
         while True:
             try:
-                response = self._post_json("/chat/completions", payload)
+                response = (
+                    self._post_json("/chat/completions", payload)
+                    if timeout_seconds is None
+                    else self._post_json("/chat/completions", payload, timeout_seconds=timeout_seconds)
+                )
                 break
             except LLMServiceError as exc:
                 if attempt >= retries or not self._is_retryable(exc.status_code):
@@ -106,7 +111,9 @@ class OpenAICompatibleLLMClient:
     def list_models(self) -> Mapping[str, Any]:
         return self._get_json("/models")
 
-    def _post_json(self, path: str, payload: Mapping[str, Any]) -> Mapping[str, Any]:
+    def _post_json(
+        self, path: str, payload: Mapping[str, Any], *, timeout_seconds: float | None = None,
+    ) -> Mapping[str, Any]:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         req = request.Request(
             self.base_url + path,
@@ -114,7 +121,7 @@ class OpenAICompatibleLLMClient:
             headers=self._headers(),
             method="POST",
         )
-        return self._open_json(req)
+        return self._open_json(req, timeout_seconds=timeout_seconds) if timeout_seconds is not None else self._open_json(req)
 
     def _get_json(self, path: str) -> Mapping[str, Any]:
         req = request.Request(
@@ -124,9 +131,9 @@ class OpenAICompatibleLLMClient:
         )
         return self._open_json(req)
 
-    def _open_json(self, req: request.Request) -> Mapping[str, Any]:
+    def _open_json(self, req: request.Request, *, timeout_seconds: float | None = None) -> Mapping[str, Any]:
         try:
-            with request.urlopen(req, timeout=self.timeout_seconds) as response:
+            with request.urlopen(req, timeout=self.timeout_seconds if timeout_seconds is None else timeout_seconds) as response:
                 return json.loads(response.read().decode("utf-8"))
         except error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")

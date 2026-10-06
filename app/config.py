@@ -12,8 +12,9 @@ import os
 from pathlib import Path
 from typing import Any, Callable, Literal, TypeVar
 
-from pydantic import AliasChoices, Field, field_validator, model_validator
+from pydantic import AliasChoices, Field, StrictBool, StrictInt, field_validator, model_validator
 from pydantic_settings import BaseSettings, EnvSettingsSource, SettingsConfigDict
+
 
 T = TypeVar("T")
 
@@ -147,6 +148,28 @@ class ModelSettings(BaseSettings):
             if self.max_tokens <= 0:
                 raise ValueError("llm_max_tokens / max_tokens must be positive")
         return self
+
+
+class ControlAgentSettings(BaseSettings):
+    """周期模型增强显式启用；预算独立于既有 HTTP Agent。"""
+
+    model_config = SettingsConfigDict(
+        env_prefix="AITC_CONTROL_AGENT_", extra="ignore", frozen=True,
+        strict=True, allow_inf_nan=False,
+    )
+
+    enabled: StrictBool = False
+    max_model_calls: StrictInt = Field(default=3, ge=1, le=6)
+    timeout_seconds: float = Field(default=2.0, gt=0, le=30)
+    max_context_chars: StrictInt = Field(default=16000, ge=2000, le=100000)
+    failure_cooldown_seconds: float = Field(default=30.0, gt=0, le=3600)
+
+    @classmethod
+    def settings_customise_sources(
+        cls, settings_cls: type[BaseSettings], init_settings: Any, env_settings: Any,
+        dotenv_settings: Any, file_secret_settings: Any,
+    ) -> tuple[Any, ...]:
+        return init_settings, _ModelEnvironmentSource(settings_cls)
 
 # 中文类型名 → 英文报错文案（报错文案先中文后英文）
 _TYPE_NAME_EN = {"字符串": "a string", "整数": "an integer", "数字": "a number"}
@@ -301,6 +324,9 @@ class RuntimeSettings:
 
     # ── 经验版本追溯 ──
     experience_release: ExperienceReleaseSettings = field(default_factory=ExperienceReleaseSettings)
+
+    # ── 受约束的周期认知层 ──
+    control_agent: ControlAgentSettings = field(default_factory=ControlAgentSettings, kw_only=True)
 
     @classmethod
     def from_environment(cls) -> "RuntimeSettings":

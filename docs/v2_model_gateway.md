@@ -144,3 +144,6 @@ Qwen 不可达、Mock、Disabled 的实际 186 路口完整输出；单独模型
 
 2026-10-05 后续修复已消除经验模块三项既存问题，经验套件扩至 118 项全部通过。
 原因、修复边界及当前阶段进度见 [当前架构总览](v2_current_architecture.md)。
+
+Phase 7 已将共享 Gateway 接入可选周期 Planner/Reviewer，动作权限、独立开关与
+请求级超时见 [受约束 Qwen Agent](v2_qwen_agent.md)。上文保留 Phase 6 当时的接线记录。
