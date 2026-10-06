@@ -1,15 +1,14 @@
 # AITC V2 当前架构总览
 
-核对日期：2026-10-05。本文描述已实现的 Phase 0–6 代码与本轮经验回归修复。
-核对时 `origin/main` 为 Phase 5 的 `d2f0efe`（PR #42）；Phase 6 在已推送的
-`feature/v2-model-gateway` 分支，尚未创建 PR。本轮修复继续在该分支提交。
-合并状态以 GitHub PR 为准，各阶段文档保留当时的验证记录。
+核对日期：2026-10-06。Phase 6 与经验回归修复已通过 PR #43 合入 main，
+本轮 Phase 7 的实施基线为 `13caac3`。本文描述 Phase 0–7 的实际接线；
+阶段发布状态以 GitHub PR 为准，各阶段文档保留当时的验证记录。
 
 ## 现在是什么系统
 
 目标中的数据中心、统一契约、领域专家、LangGraph 编排和原有控制策略已经接线。
-Qwen 接入已通过统一 Gateway 收口，但目前服务于 HTTP Agent 请求与启动就绪检查；
-周期配时图尚未接入 Qwen Planner/Reviewer。完整目标架构还需要 Phase 7–10。
+统一 Gateway 供 HTTP Agent 与可选周期 Planner/Reviewer 共用。周期认知增强默认
+关闭，启用后在视频证据不足时查询受约束工具、审查原算法候选。完整目标还需要 Phase 8–10。
 
 当前基础控制链独立于模型调用。关闭 LLM 时仍按原算法产生配时；Qwen 不可达时默认
 告警后继续启动，只有显式配置 `AITC_LLM_REQUIRED=true` 才要求模型就绪。
@@ -25,11 +24,17 @@ flowchart TD
     HUB --> VIDEO
     VIDEO --> ENOUGH{"必要视频观测可用?"}
     ENOUGH -->|是| POLICY["Baseline Controller / 原 selector"]
-    ENOUGH -->|否| RADAR["Radar Expert"]
+    ENOUGH -->|否| ENABLED{"周期模型增强启用?"}
+    ENABLED -->|是| PLANNER["受约束 Planner / 有限工具查询"]
+    ENABLED -->|否| RADAR["Radar Expert"]
+    PLANNER --> RADAR
     HUB --> RADAR
     RADAR --> POLICY
     POLICY --> CONTRACT["候选 SignalPlan 契约检查"]
-    CONTRACT --> COORD["原全局协调"]
+    CONTRACT --> REVIEWABLE{"本轮有认知会话且候选合法?"}
+    REVIEWABLE -->|是| REVIEW["受约束 Reviewer / 审查意见"]
+    REVIEWABLE -->|否| COORD["原全局协调"]
+    REVIEW --> COORD
     AGG -->|互联网 online_map| COORD
     COORD --> CHECK["原 phase_check"]
     CHECK --> FORMAT["格式化 / 结果仓库"]
@@ -38,12 +43,14 @@ flowchart TD
     HTTP["HTTP Agent 请求"] --> HARNESS["HTTP AgentHarness / 注册工具"]
     HARNESS --> AGENT["Qwen / ControlProcess Agent"]
     AGENT --> GATEWAY["Model Gateway"]
+    PLANNER -. 共用 .-> GATEWAY
+    REVIEW -. 共用 .-> GATEWAY
     GATEWAY --> PROVIDER["Qwen / Mock / Disabled"]
     HARNESS --> QUERY["数据查询 / 确定性工具"]
     HUB --> QUERY
 ```
 
-图中模型网关与周期控制图没有连线：当前代码没有这条调用关系。
+周期增强通过共享 Model Gateway 调用模型；正常视频快路径没有模型调用。
 Video/Radar 为图的路由提供证据，原策略继续接收完整控制请求，包含预测、
 多源观测及上一轮协调状态；专家摘要不能替换这些业务输入。互联网 `online_map`
 单独保留在后续全局协调输入中。
@@ -59,12 +66,13 @@ Video/Radar 为图的路由提供证据，原策略继续接收完整控制请�
 | 聚合与预测 | `infra/data/runtime_processor.py`、`runtime/prediction_service.py` | 保留原计算与副作用顺序 |
 | 领域专家 | `agent/experts/` | Video/Radar 已实现；Internet/EV 保留明确 TODO |
 | 周期 LangGraph | `agent/graph.py`、`agent/state.py` | 状态、条件路由、只读专家重试、执行上下文 |
+| 受约束认知层 | `agent/actions.py`、`control_tools.py`、`cognitive.py`、`prompts.py` | 七类严格动作、本轮工具证据与候选审查、预算及故障降级 |
 | 原控制策略 | `app/core/control/policies/baseline.py` | 包装既有 selector/coordinator，保留原四元组接口 |
 | 周期运行 | `runtime/decision_pipeline.py` | 全批次协调后调用原 phase_check，再格式化并替换结果 |
 | 输出与广播 | `infra/data/result_warehouse.py`、`result_sender.py`、`writer.py` | 原 TCP 报文和本地日志 |
 | HTTP Agent 执行 | `agent/harness.py`、`agent/qwen_agent.py`、`agent/control_agent.py` | 已有意图与注册工具接口；与周期控制图并列 |
 | 统一模型接入 | `app/infrastructure/llm/` | Qwen、Mock、Disabled；同步与异步调用、严格请求/响应边界 |
-| 配置 | `app/config.py` | 模型、DataHub、经验发布路径用 pydantic-settings；其余运行字段保留原配置机制 |
+| 配置 | `app/config.py` | 模型、周期认知预算、DataHub、经验发布路径用 pydantic-settings；其余运行字段保留原配置机制 |
 
 `DQN_Select.py` 的名称不能证明当前运行了在线神经网络 RL 推理。当前生产 selector
 主要使用经验、时刻表和规则；V2 包装保留它实际执行的逻辑，没有另造学习算法。
@@ -79,8 +87,8 @@ Video/Radar 为图的路由提供证据，原策略继续接收完整控制请�
 |---|---|---|
 | Phase 0–2 | 审计、核心契约、Baseline Controller 已完成 | 持续以回归样例守住原配时行为 |
 | Phase 3–4 | DataHub、Video/Radar 专家已完成 | Internet/EV 按真实数据补齐，目前无伪造实现 |
-| Phase 5–6 | 最小真实 LangGraph 与统一模型网关已完成 | 模型网关尚未作为周期控制的认知层使用 |
-| Phase 7 | 待开始 | 严格工具动作、查询/调用策略、Planner/Reviewer 与异常解释 |
+| Phase 5–6 | 最小真实 LangGraph 与统一模型网关已完成 | HTTP Agent 和周期增强共用 Gateway |
+| Phase 7 | 最小受约束认知增强已完成 | 显式开关、工具查询、Planner/Reviewer 与模型异常解释；意见不改写配时，真实 Qwen 推理验收待完成 |
 | Phase 8 | 待开始 | 独立确定性 Safety Gate：相位、时长上下界、静态配置与业务约束、可靠 fallback |
 | Phase 9 | 待开始 | 每次决策关联输入、专家/工具、策略、候选/最终方案、fallback、耗时与错误 |
 | Phase 10 | 已有逐阶段测试，最终验收待完成 | 完整闭环场景与集成验收；真实 Qwen 推理和现场运行尚未验证 |
@@ -137,7 +145,7 @@ Phase 9 实施。TCP 报文和结果对象不增加这些字段，配时算法�
 更新/原子替换、删除/损坏清单、I/O 错误恢复与输出错误传播验证。GitHub CI 新增
 经验模块测试步骤，后续 PR 会同时检查主套件与经验套件。
 
-## 本轮最终验证
+## 经验回归修复验证（2026-10-05）
 
 | 检查 | 结果 |
 |---|---|
@@ -148,3 +156,5 @@ Phase 9 实施。TCP 报文和结果对象不增加这些字段，配时算法�
 | compileall、pip check、git diff --check | 通过 |
 
 测试替身验证模型 HTTP 协议与故障行为；这些结果不等同于真实 Qwen 部署或现场交通验收。
+
+Phase 7 的接线、权限、配置与最新验证见 [受约束 Qwen Agent](v2_qwen_agent.md)。

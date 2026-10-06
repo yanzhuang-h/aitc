@@ -1,5 +1,8 @@
 # AITC V2 Phase 5：最小 LangGraph Harness
 
+后续的可选周期规划与审查接线见 [Phase 7 Qwen Agent](v2_qwen_agent.md)；
+以下保留 Phase 5 的实现与验证记录。
+
 后续模型接线见 [Phase 6 Model Gateway](v2_model_gateway.md)；以下保留 Phase 5
 的实现与当时验证。当前配置和 HTTP Agent 模型调用已统一经过网关。
 
