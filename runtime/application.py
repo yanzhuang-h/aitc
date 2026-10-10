@@ -12,10 +12,11 @@ import Flow_predict
 import Queue_predict
 import Lambdas
 from lib.Global_intersection_coordinate import coordinate
-from phase_check import phase_check
+from phase_check import get_intersection_result_config, phase_check
 
 from app.config import RuntimeSettings
 from app.core.control.policies import BaselineController
+from app.core.control.safety_engine import ControlSafetyEngine
 
 from infra.data import (
     ConfigService,
@@ -275,7 +276,11 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
         control_policy=control_policy, logger=logger,
         cognitive_controller=cognitive_agent,
     )
-    pipeline = PeriodicDecisionPipeline(cache=cache, data_processor=control_processor, lambdas_module=Lambdas, writer=writer, result_warehouse=warehouse, flow_predictor=flow_predictor, queue_predictor=queue_predictor, control_policy=control_policy, phase_check=phase_check, select_data_to_send=partial(format_result, lambdas_module=Lambdas), is_millisecond_timestamp=is_millisecond_timestamp, overflow_warning_map=overflow_warning_map, radar_event_map=radar_event_map, flow_duration_seconds=settings.flow_duration_seconds, logger=logger, control_snapshot_enabled=settings.control_snapshot_enabled, control_snapshot_dir=settings.control_snapshot_dir, datahub=datahub, decision_graph=decision_graph)
+    safety_engine = ControlSafetyEngine(
+        config_supplier=get_intersection_result_config, phase_check=phase_check,
+        fallback_loader=control_policy.fallback_legacy, logger=logger,
+    )
+    pipeline = PeriodicDecisionPipeline(cache=cache, data_processor=control_processor, lambdas_module=Lambdas, writer=writer, result_warehouse=warehouse, flow_predictor=flow_predictor, queue_predictor=queue_predictor, control_policy=control_policy, phase_check=phase_check, select_data_to_send=partial(format_result, lambdas_module=Lambdas), is_millisecond_timestamp=is_millisecond_timestamp, overflow_warning_map=overflow_warning_map, radar_event_map=radar_event_map, flow_duration_seconds=settings.flow_duration_seconds, logger=logger, control_snapshot_enabled=settings.control_snapshot_enabled, control_snapshot_dir=settings.control_snapshot_dir, datahub=datahub, decision_graph=decision_graph, safety_engine=safety_engine)
     prediction_scheduler = PredictionScheduler(flow_job=flow_predictor.daily_prediction_job, queue_job=queue_predictor.daily_queue_prediction, hour=settings.prediction_hour, minute=settings.prediction_minute, logger=logger)
     experience_pool_scheduler = (
         ExperiencePoolScheduler(logger=logger, release_settings=settings.experience_release)

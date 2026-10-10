@@ -45,6 +45,15 @@ class BaselineController:
         """生产兼容入口：保留原始方案、诊断、对象引用及异常传播。"""
         return self._selector(request)
 
+    def fallback_legacy(self, intersection_id: str, current_time: float) -> Any:
+        """复用原工作日/周末时刻表；由 Safety Gate 校验，不能直接发送。"""
+        import copy
+        import time
+        from lib.AITC_tool import Get_time_map
+
+        schedule = Get_time_map(intersection_id)
+        return copy.deepcopy(schedule.get(str(time.localtime(current_time).tm_hour))) if schedule else None
+
     def coordinate_legacy(
         self,
         action: dict[str, Any],
