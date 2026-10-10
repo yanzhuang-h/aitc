@@ -53,7 +53,7 @@ from agent.control_tools import ControlAgentTools
 from agent.tools import DataQueryTools
 from app.core.control.synergy.green_wave_service import GreenWaveDataService
 from app.infrastructure.llm import (
-    DisabledProvider, MockProvider, ModelGateway, OpenAICompatibleLLMClient, QwenProvider,
+    DeepSeekProvider, DisabledProvider, MockProvider, ModelGateway, OpenAICompatibleLLMClient, QwenProvider,
     as_model_gateway,
 )
 from app.core.tools import SingleIntersectionSignalTimingTool
@@ -231,13 +231,15 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
     elif model_settings.effective_provider == "mock":
         model_gateway = ModelGateway(MockProvider())
     else:
-        model_gateway = ModelGateway(QwenProvider(OpenAICompatibleLLMClient(
+        provider_type = DeepSeekProvider if model_settings.effective_provider == "deepseek" else QwenProvider
+        model_gateway = ModelGateway(provider_type(OpenAICompatibleLLMClient(
             base_url=model_settings.base_url,
             model=model_settings.name,
             api_key=model_settings.api_key,
             timeout_seconds=model_settings.timeout_seconds,
             default_max_tokens=model_settings.max_tokens,
             enable_thinking=model_settings.enable_thinking,
+            api_style=model_settings.effective_provider,
         )))
     # llm_client 是旧装配属性；生产代理与启动检查均使用同一个 gateway。
     qwen_client = model_gateway if model_gateway.enabled else None
