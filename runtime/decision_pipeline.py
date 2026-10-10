@@ -48,6 +48,7 @@ class PeriodicDecisionPipeline(LoggingMixin):
         control_policy: BaselineController | None = None,
         datahub: TrafficDataHub | None = None,
         decision_graph: Any | None = None,
+        safety_engine: Any | None = None,
     ) -> None:
         if control_policy is not None:
             if dqn_select is not None or coordinate is not None:
@@ -61,6 +62,7 @@ class PeriodicDecisionPipeline(LoggingMixin):
             raise ValueError("pipeline cache must be the DataHub cache")
         self.datahub = datahub
         self.decision_graph = decision_graph
+        self.safety_engine = safety_engine
         self.data_processor = data_processor
         self.lambdas = lambdas_module
         self.writer = writer
@@ -89,6 +91,7 @@ class PeriodicDecisionPipeline(LoggingMixin):
             intersection_id: result["result_action"]
             for intersection_id, result in current_result.items()
         }
+        fallback_action = copy.deepcopy(action) if self.safety_engine is not None else None
         if len(current_result) == len(self.lambdas.intersection_list):
             self._save_control_input_snapshot(
                 action, self.last_coordinate_set, online_map, overflow_map, extend_map
@@ -99,7 +102,12 @@ class PeriodicDecisionPipeline(LoggingMixin):
                 online_map,
                 overflow_map,
             )
-        action, result_check_report = self.phase_check(action)
+        if self.safety_engine is not None:
+            # 协调遗漏的路口也必须进入安全门，不能沿用未检查的候选或旧仓库数据。
+            action = {road: action.get(road) for road in current_result}
+            action, result_check_report = self.safety_engine.finalize(action, fallback_plans=fallback_action)
+        else:
+            action, result_check_report = self.phase_check(action)
         self.writer.write_phase_check(result_check_report)
 
         results_to_send = []

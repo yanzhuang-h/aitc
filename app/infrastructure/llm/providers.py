@@ -1,4 +1,4 @@
-"""三个实际模型实现；只有 Qwen provider 可调用模型传输层。"""
+"""真实 API provider 共用传输和错误转换；Mock/Disabled 无网络调用。"""
 
 from collections import deque
 import json
@@ -74,6 +74,12 @@ class QwenProvider:
             raise ModelUnavailableError(str(error)) from error
         except (ValidationError, json.JSONDecodeError, UnicodeDecodeError) as error:
             raise ModelResponseError(f"Invalid model response: {error}") from error
+
+
+class DeepSeekProvider(QwenProvider):
+    """复用 OpenAI 兼容传输；请求参数由客户端的 deepseek 模式适配。"""
+
+    name = "deepseek"
 
 
 class MockProvider:

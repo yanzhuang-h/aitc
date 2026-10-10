@@ -55,6 +55,7 @@ Qwen 继续使用原 `/chat/completions` 请求、鉴权、思考开关和默认
 | Provider | 调用与健康检查 |
 |---|---|
 | qwen | 原 OpenAI 兼容 HTTP client；健康检查验证 `/models` 的 data 列表与字符串 id |
+| deepseek | 复用 OpenAI 兼容传输；使用远程 Bearer API key，并发送 DeepSeek 的 thinking 参数 |
 | mock | 默认返回空模型文本；可注入有限 ModelResponse 脚本，线程安全逐个消费 |
 | disabled | 调用抛 ModelDisabledError；装配时跳过模型客户端、三个模型 Agent 和健康检查 |
 
@@ -147,3 +148,25 @@ Qwen 不可达、Mock、Disabled 的实际 186 路口完整输出；单独模型
 
 Phase 7 已将共享 Gateway 接入可选周期 Planner/Reviewer，动作权限、独立开关与
 请求级超时见 [受约束 Qwen Agent](v2_qwen_agent.md)。上文保留 Phase 6 当时的接线记录。
+
+## DeepSeek API 适配（2026-10-10）
+
+`provider=deepseek` 使用同一 `ModelGateway`、请求契约、Planner/Reviewer 和故障降级路径。
+传输仍是 `/chat/completions` 与 `/models`；DeepSeek 模式不会发送 Qwen 专用的
+`chat_template_kwargs`，而是在请求顶层发送 `thinking.type=enabled/disabled`。
+当前受约束动作依赖最终 content 中的严格 JSON，因此建议保持 thinking=false。
+
+```bash
+AITC_LLM_ENABLED=true
+AITC_MODEL_PROVIDER=deepseek
+AITC_MODEL_NAME=deepseek-flash
+AITC_MODEL_BASE_URL=https://api.deepseek.com
+AITC_MODEL_API_KEY='仅保存在本机的 API key'
+AITC_LLM_ENABLE_THINKING=false
+AITC_CONTROL_AGENT_ENABLED=true
+.venv/bin/python Server_AITC.py
+```
+
+DeepSeek 启用时必须显式配置 API key、模型名和 API 地址，防止误用本地 Qwen 默认值。
+密钥由既有敏感配置字段隐藏，不应提交 `.env`。远程 API 超时、鉴权失败或不可达时，
+周期控制继续执行原算法，后续路口在冷却窗口内跳过模型。

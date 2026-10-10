@@ -73,7 +73,7 @@ REQUEST_MORE_DATA 执行一次该来源查询并结束审查；已有本轮专�
 不保证重新提取新观测，不再次运行算法或循环请求模型。
 所有意见均为 advisory：ACCEPT 不是安全批准，WARN/SUGGEST_ADJUSTMENT 只记录建议，
 FALLBACK 结束审查并保留原策略结果。本阶段没有开放替换、拒绝或直接修改最终方案的模型权限。
-独立确定性 Safety Gate 按 Phase 8 实施。
+独立确定性 Safety Gate 已在 Phase 8 接入，见 [确定性 Safety Gate](v2_safety_gate.md)。
 
 Internet/EV Expert 仍是明确 TODO；`query_traffic_state` 可以读取 DataHub 已有的互联网
 来源事件摘要，EV 缺失会明确报告，不生成虚构观测。
@@ -124,6 +124,9 @@ AITC_CONTROL_AGENT_ENABLED=true .venv/bin/python Server_AITC.py
 AITC_LLM_ENABLED=true AITC_MODEL_PROVIDER=mock \
 AITC_CONTROL_AGENT_ENABLED=true .venv/bin/python Server_AITC.py
 ```
+
+同一 Planner/Reviewer 也可通过 `AITC_MODEL_PROVIDER=deepseek` 使用 DeepSeek API；
+动作权限和故障降级不随 provider 改变，配置见 [模型网关](v2_model_gateway.md)。
 
 周期认知请求统一经过共享 Gateway，固定 max_retries=0、max_tokens=512、temperature=0。
 请求级 timeout 通过 Gateway/Provider 传给原 urllib 传输，不改变客户端默认 timeout，

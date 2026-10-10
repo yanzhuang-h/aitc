@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import json
 import time
-from typing import Any, Mapping, Sequence
+from typing import Any, Literal, Mapping, Sequence
 from urllib import error, request
 
 from .schemas import ChatCompletionEnvelope
@@ -49,6 +49,7 @@ class OpenAICompatibleLLMClient:
         default_max_tokens: int = 1024,
         enable_thinking: bool = False,
         max_retries: int = 2,
+        api_style: Literal["qwen", "deepseek"] = "qwen",
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
@@ -57,6 +58,9 @@ class OpenAICompatibleLLMClient:
         self.default_max_tokens = default_max_tokens
         self.enable_thinking = enable_thinking
         self.max_retries = max_retries
+        if api_style not in {"qwen", "deepseek"}:
+            raise ValueError("unsupported model API style")
+        self.api_style = api_style
 
     def chat(
         self,
@@ -76,14 +80,18 @@ class OpenAICompatibleLLMClient:
             "top_p": top_p,
             "max_tokens": max_tokens or self.default_max_tokens,
         }
-        if self.enable_thinking:
-            payload["extra_body"] = {"enable_thinking": True}
-        # 显式控制 Qwen3 思考模式（vLLM 走 chat_template_kwargs）：
-        # 关闭时若不显式声明，vLLM 端 Qwen3 默认会输出 <think> 思考块，
-        # 挤占输出预算导致工具选择 JSON 被截断。
-        payload["chat_template_kwargs"] = {"enable_thinking": self.enable_thinking}
-        if extra_body:
-            payload.setdefault("extra_body", {}).update(dict(extra_body))
+        if self.api_style == "deepseek":
+            # urllib 直接发送 JSON，SDK 的 extra_body 内容应放在请求顶层。
+            payload["thinking"] = {"type": "enabled" if self.enable_thinking else "disabled"}
+            if extra_body:
+                payload.update(dict(extra_body))
+        else:
+            if self.enable_thinking:
+                payload["extra_body"] = {"enable_thinking": True}
+            # 显式关闭 Qwen3 思考块，防止工具 JSON 的输出预算被占用。
+            payload["chat_template_kwargs"] = {"enable_thinking": self.enable_thinking}
+            if extra_body:
+                payload.setdefault("extra_body", {}).update(dict(extra_body))
 
         retries = self.max_retries if max_retries is None else max_retries
         attempt = 0

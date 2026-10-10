@@ -95,7 +95,7 @@ class ModelSettings(BaseSettings):
     enabled: bool = Field(
         default=True, validation_alias=AliasChoices("AITC_LLM_ENABLED", "LLM_ENABLED"),
     )
-    provider: Literal["qwen", "mock", "disabled"] = Field(
+    provider: Literal["qwen", "deepseek", "mock", "disabled"] = Field(
         default="qwen", validation_alias=AliasChoices("AITC_MODEL_PROVIDER", "MODEL_PROVIDER"),
     )
     name: str = Field(
@@ -133,12 +133,12 @@ class ModelSettings(BaseSettings):
         return init_settings, _ModelEnvironmentSource(settings_cls)
 
     @property
-    def effective_provider(self) -> Literal["qwen", "mock", "disabled"]:
+    def effective_provider(self) -> Literal["qwen", "deepseek", "mock", "disabled"]:
         return self.provider if self.enabled else "disabled"
 
     @model_validator(mode="after")
     def validate_active_provider(self) -> "ModelSettings":
-        if self.effective_provider == "qwen":
+        if self.effective_provider in {"qwen", "deepseek"}:
             if not self.base_url.strip():
                 raise ValueError("llm_base_url / base_url must not be empty")
             if not self.name.strip():
@@ -147,6 +147,13 @@ class ModelSettings(BaseSettings):
                 raise ValueError("llm_timeout_seconds / timeout_seconds must be positive")
             if self.max_tokens <= 0:
                 raise ValueError("llm_max_tokens / max_tokens must be positive")
+            if self.effective_provider == "deepseek":
+                if not self.api_key.strip() or self.api_key == "EMPTY":
+                    raise ValueError("DeepSeek requires an API key")
+                if self.name == type(self).model_fields["name"].default:
+                    raise ValueError("DeepSeek requires an explicit model name")
+                if self.base_url == type(self).model_fields["base_url"].default:
+                    raise ValueError("DeepSeek requires an explicit API base URL")
         return self
 
 

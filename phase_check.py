@@ -118,13 +118,14 @@ def replace_intersection_result_config(data, path=INTERSECTION_CONFIG_PATH):
 
 intersection_result_config = load_intersection_result_config()
 
-def phase_check(current_result):
+def phase_check(current_result, *, config_snapshot=None):
     """
     适配平铺字典格式的数据校验
     输入格式: { "路口ID": [相位1, 相位2, ..., 相位9, 方案号] }
     """
     report = {}
-    config_snapshot = get_intersection_result_config()
+    if config_snapshot is None:
+        config_snapshot = get_intersection_result_config()
 
     for inter_id, phase_list in current_result.items():
         # 初始化当前路口的报告状态
