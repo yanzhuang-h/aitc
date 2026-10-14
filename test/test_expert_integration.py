@@ -22,25 +22,7 @@ from runtime.application import create_application
 from test.fixtures.v2_baseline_controller import (
     FIXED_TIME, FIXTURE, compact_round, full_replay, isolated_runtime, sensor_request,
 )
-
-
-VIDEO_INTERSECTION = "1300068"
-RADAR_INTERSECTION = "1300271"
-RADAR_DEVICE = "radar-ximenzi-333-01"
-
-
-def source_payloads(now):
-    """Actual wire formats, using the configured detector and radar device IDs."""
-    return (
-        (DataKind.FLOW, DataSource.TCP, {
-            "ycsb_xsfx": "L", "jtll_ddbh": "1", "ycsb_cdbh": "0", "ts": now * 1000,
-        }),
-        (DataKind.QUEUE, DataSource.TCP, {
-            "jtll_ddbh": "1", "start_time": now * 1000,
-            "car_nums": [{"ycsb_cdbh": "0", "queue": 12, "all": 18}],
-        }),
-        (DataKind.RADAR, DataSource.HTTP, {"deviceNo": RADAR_DEVICE, "speed": 32}),
-    )
+from test.fixtures.v2_acceptance import RADAR_DEVICE, RADAR_INTERSECTION, VIDEO_INTERSECTION, source_payloads
 
 
 def ingest_observations(hub, now):
