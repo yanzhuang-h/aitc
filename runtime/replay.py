@@ -37,17 +37,19 @@ class ReplayError(ValueError):
 
 
 def _timestamp(value):
-    if isinstance(value, str) and not value.replace('.', '', 1).isdigit():
+    iso_timestamp = isinstance(value, str) and not value.replace('.', '', 1).isdigit()
+    if iso_timestamp:
         parsed = datetime.fromisoformat(value.replace('Z', '+00:00'))
         if parsed.tzinfo is None:
             raise ValueError('ISO received_at requires a timezone')
-        return parsed.timestamp()
-    if isinstance(value, bool):
-        raise ValueError('invalid timestamp')
-    result = float(value)
+        result = parsed.timestamp()
+    else:
+        if isinstance(value, bool):
+            raise ValueError('invalid timestamp')
+        result = float(value)
     if not math.isfinite(result) or result < 0:
         raise ValueError('invalid timestamp')
-    return result / 1000 if result >= 100_000_000_000 else result
+    return result / 1000 if not iso_timestamp and result >= 100_000_000_000 else result
 
 
 def load_capture(path, source, *, limit=10000, skip_invalid=False):
@@ -241,7 +243,9 @@ def run_worker(options, mode):
                 stack.enter_context(patch(target, ReplayDate))
             for target in ('lib.Global_intersection_coordinate.datetime', 'lib.lvbotest.datetime',
                            'lib.green_wave_functions.datetime', 'lib.data_ANS.flow_allocator_shadow.datetime',
-                           'Flow_predict.datetime', 'Queue_predict.datetime'):
+                           'Flow_predict.datetime', 'Queue_predict.datetime',
+                           'infra.data.schemas.datetime', 'infra.data.output_store.datetime',
+                           'infra.data.quality.datetime'):
                 stack.enter_context(patch(target, ReplayDatetime))
             for index in range(options['rounds']):
                 decision_time = initial_time + (index + 1) * options['interval']
@@ -259,6 +263,13 @@ def run_worker(options, mode):
                 with (root / 'results.jsonl').open('a', encoding='utf-8') as file:
                     file.write(json.dumps(result, ensure_ascii=True, allow_nan=False) + '\n')
                 traced, sink.records = sink.records, []
+                expected = set(app.decision_pipeline.lambdas.intersection_list)
+                result_ids = [item['additional']['tlLogic']['id'] for item in result]
+                trace_ids = [trace['intersection_id'] for trace in traced]
+                if (len(result_ids) != len(expected) or set(result_ids) != expected
+                        or len(trace_ids) != len(expected) or set(trace_ids) != expected
+                        or any(trace['status'] != 'published' for trace in traced)):
+                    raise ReplayError('Incomplete, duplicate, or unpublished intersection batch')
                 published += sum(trace['status'] == 'published' for trace in traced)
                 gaps.update((trace['intersection_id'], str(trace['final_signal_plan']['program_id']), rule)
                             for trace in traced if trace['safety_report']
@@ -297,16 +308,23 @@ def run_worker(options, mode):
 
 def compare_results(baseline, v2):
     differences = []
+    order_differences = []
     for number, (left, right) in enumerate(zip_longest(baseline, v2), 1):
         if left is None or right is None:
             raise ReplayError('Replay round counts differ')
         def keyed(batch):
-            return {item['additional']['tlLogic']['id']: item for item in batch}
+            indexed = {item['additional']['tlLogic']['id']: item for item in batch}
+            if len(indexed) != len(batch):
+                raise ReplayError(f'Duplicate intersection IDs in round {number}')
+            return indexed
         a, b = keyed(left), keyed(right)
+        if list(a) != list(b):
+            order_differences.append({'round': number, 'baseline_order': list(a), 'v2_order': list(b)})
         for road in sorted(a.keys() | b.keys()):
             if a.get(road) != b.get(road):
                 differences.append({'round': number, 'intersection_id': road})
-    return {'outputs_equal': not differences, 'differences': differences}
+    return {'outputs_equal': not differences and not order_differences,
+            'differences': differences, 'order_differences': order_differences}
 
 
 def main():

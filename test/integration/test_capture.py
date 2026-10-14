@@ -12,6 +12,28 @@ from runtime.replay import load_capture
 
 
 class CaptureIntegrationTest(unittest.TestCase):
+    def test_http_body_shorter_than_content_length_is_not_saved(self):
+        with tempfile.TemporaryDirectory() as directory:
+            tcp, http_server = create_capture_servers(CaptureWriter(directory), tcp_port=0, http_port=0)
+            thread = threading.Thread(target=http_server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                body = b'{"deviceNo":"radar-ximenzi-333-01"}'
+                headers = (f'POST / HTTP/1.0\r\nHost: localhost\r\nContent-Length: {len(body)+20}\r\n\r\n').encode()
+                with socket.create_connection(http_server.server_address, timeout=3) as client:
+                    client.sendall(headers+body)
+                    client.shutdown(socket.SHUT_WR)
+                    response = http.client.HTTPResponse(client)
+                    response.begin()
+                    self.assertEqual(response.status, 400)
+                    response.read()
+                self.assertFalse((Path(directory)/'http.jsonl').exists())
+            finally:
+                http_server.shutdown()
+                http_server.server_close()
+                tcp.server_close()
+                thread.join(timeout=3)
+
     def test_fragmented_tcp_and_http_save_raw_payloads_without_control_responses(self):
         with tempfile.TemporaryDirectory() as directory:
             writer = CaptureWriter(directory)

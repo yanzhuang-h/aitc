@@ -79,7 +79,10 @@ def create_capture_servers(writer, host='127.0.0.1', tcp_port=65433, http_port=8
                 if not 0 < size <= MAX_FRAME_BYTES:
                     raise ValueError('Invalid content length')
                 self.connection.settimeout(5)
-                received = writer.append('http', self.rfile.read(size))
+                raw = self.rfile.read(size)
+                if len(raw) != size:
+                    raise ValueError('Truncated HTTP body')
+                received = writer.append('http', raw)
                 status, body = 200, {'received': received}
             except (ValueError, UnicodeError, TimeoutError):
                 status, body = 400, {'error': 'Invalid capture JSON frame'}

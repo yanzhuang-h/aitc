@@ -51,6 +51,10 @@ class CaptureReplayTest(unittest.TestCase):
             with self.subTest(record=record), self.assertRaises(ValueError):
                 self.load([record])
 
+    def test_pre_epoch_iso_receive_time_is_rejected_like_numeric_time(self):
+        with self.assertRaises(ValueError):
+            self.load([{'received_at': '1969-12-31T23:59:59+00:00', 'payload': {}}])
+
     def test_metrics_distinguish_invalid_actions_errors_missing_usage_and_prices(self):
         attempts = [{'status': 'valid_action', 'latency_ms': 100,
                      'usage': {'prompt_tokens': 100, 'completion_tokens': 10,
@@ -75,6 +79,18 @@ class CaptureReplayTest(unittest.TestCase):
         result = compare_results([[payload('1', 1), payload('2', 1)]], [[payload('1', 2)]])
         self.assertFalse(result['outputs_equal'])
         self.assertEqual([item['intersection_id'] for item in result['differences']], ['1', '2'])
+
+    def test_compare_rejects_duplicate_ids_and_detects_wire_order_changes(self):
+        def payload(road):
+            return {'additional': {'tlLogic': {'id': road}}}
+        for left, right in [([payload('1'), payload('1')], [payload('1')]),
+                            ([payload('1')], [payload('1'), payload('1')])]:
+            with self.subTest(left=left, right=right), self.assertRaisesRegex(ValueError, 'Duplicate'):
+                compare_results([left], [right])
+        result = compare_results([[payload('1'), payload('2')]], [[payload('2'), payload('1')]])
+        self.assertFalse(result['outputs_equal'])
+        self.assertEqual(result['differences'], [])
+        self.assertEqual(result['order_differences'][0]['round'], 1)
 
     def test_schedule_inventory_records_real_gaps_without_inventing_bounds(self):
         config = {'1': {'2': {'0': [10, 30]}}}

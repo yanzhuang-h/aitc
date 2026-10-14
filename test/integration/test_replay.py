@@ -1,5 +1,6 @@
 import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 import subprocess
 import sys
@@ -57,6 +58,19 @@ class ReplayIntegrationTest(unittest.TestCase):
             self.assertEqual(len(traces), 372)
             self.assertTrue(any(trace['model_reason'] == 'not_allowlisted' for trace in traces))
             self.assertTrue(all(request['body']['thinking'] == {'type': 'disabled'} for request in requests))
+
+    def test_persisted_capture_history_and_output_dates_use_original_receive_clock(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.run_replay(root)
+            expected = datetime.fromtimestamp(FIXED_TIME, timezone.utc).isoformat()
+            for mode in ('baseline', 'v2'):
+                for kind in ('flow', 'radar'):
+                    path = root/'report'/mode/'history/runtime'/f'{kind}.jsonl'
+                    stored = [json.loads(line) for line in path.read_text().splitlines()]
+                    self.assertEqual(stored[0]['received_at'], expected)
+                    self.assertEqual(stored[0]['payload']['AITC_SYS_TS'], FIXED_TIME)
+                    self.assertTrue((root/'report'/mode/'output'/kind/f'2026-09-30_{kind}.txt').exists())
 
 
 if __name__ == '__main__':
