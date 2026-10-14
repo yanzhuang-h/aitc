@@ -130,11 +130,12 @@ class ExpertIntegrationTest(unittest.TestCase):
                     self.assertEqual(selector.call_count, 186)
                     self.assertEqual(len(payloads), 186)
                     self.assertEqual(payloads, app.decision_pipeline.result_warehouse.snapshot())
-                    # Empty prediction storage preserves legacy None values. The
-                    # strict sidecar reports those values without blocking control.
-                    self.assertIn("snapshot_current_round", app.datahub.query(
-                        VIDEO_INTERSECTION,
-                    ).missing_fields)
+                    # 冷启动预测仍是 None，契约准确保留它，历史不再因正常缺文件而丢失。
+                    snapshot = app.datahub.latest(VIDEO_INTERSECTION)
+                    self.assertIsNotNone(snapshot)
+                    self.assertIsNone(snapshot.predicted_flow)
+                    self.assertIsNone(snapshot.predicted_queue)
+                    self.assertNotIn("snapshot_current_round", app.datahub.query(VIDEO_INTERSECTION).missing_fields)
                     llm.assert_not_called()
                     self.assertEqual(video.call_count, 186 if use_graph else 0)
                     self.assertEqual(radar.call_count, 186 if use_graph else 0)
