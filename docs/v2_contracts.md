@@ -132,3 +132,7 @@ Phase 2 的生产接线与兼容边界见 [Baseline Controller](v2_baseline_cont
 Phase 3 的状态中心、来源查询和最近 N 轮历史见 [Traffic DataHub](v2_datahub.md)。
 
 Phase 4 的 Video/Radar 提取、统一状态及 Internet/EV 接口见 [交通专家](v2_traffic_experts.md)。
+
+Phase 10 根据真实冷启动返回值修正了两个预测字段：`predicted_flow`、`predicted_queue`
+允许 `dict | None`，None 表示当前预测文件不存在。默认值仍为 {}，原算法输入不做替换，
+其他非法形状继续拒绝。原因和回归证据见 [最终验收](v2_final_acceptance.md#冷启动契约修复)。

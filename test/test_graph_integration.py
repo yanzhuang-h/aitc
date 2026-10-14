@@ -112,7 +112,7 @@ class GraphIntegrationTest(unittest.TestCase):
         self.assertEqual(captured[0].previous_coordinate, {"100": {"phase": [3]}})
         self.assertEqual(hub.latest("100"), captured[0])
 
-    def test_graph_preserves_missing_prediction_values_after_capture_failure(self):
+    def test_graph_preserves_missing_predictions_in_captured_snapshot(self):
         selector = Mock(return_value=([25] + [0] * 8 + [1], {}, [], {}))
         pipeline, hub, _graph = self.make_pipeline(selector)
         pipeline.flow_predictor.get_current_flow_prediction = lambda: None
@@ -123,6 +123,21 @@ class GraphIntegrationTest(unittest.TestCase):
         request = selector.call_args.args[0]
         self.assertIsNone(request.predicted_flow)
         self.assertIsNone(request.predicted_queue)
+        self.assertEqual(result[0]["action"][0], 25)
+        snapshot = hub.latest("100")
+        self.assertIsNotNone(snapshot)
+        self.assertIsNone(snapshot.predicted_flow)
+        self.assertIsNone(snapshot.predicted_queue)
+        self.assertFalse(any("snapshot_validation_failed" in issue for issue in hub.query("100").quality_issues))
+
+    def test_invalid_prediction_shape_still_reports_capture_failure_without_rewriting_selector_input(self):
+        selector = Mock(return_value=([25] + [0] * 8 + [1], {}, [], {}))
+        pipeline, hub, _graph = self.make_pipeline(selector)
+        pipeline.flow_predictor.get_current_flow_prediction = lambda: "invalid prediction mapping"
+        with patch("time.time", return_value=FIXED_TIME):
+            result = pipeline.run_once()
+        selector.assert_called_once()
+        self.assertEqual(selector.call_args.args[0].predicted_flow, "invalid prediction mapping")
         self.assertEqual(result[0]["action"][0], 25)
         self.assertIsNone(hub.latest("100"))
         self.assertTrue(any("snapshot_validation_failed" in issue

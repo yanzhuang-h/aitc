@@ -49,6 +49,22 @@ class SignalPlanContractTest(unittest.TestCase):
 
 
 class TrafficStateContractTest(unittest.TestCase):
+    def test_absent_prediction_files_preserve_none_through_snapshot_roundtrip(self):
+        for flow, queue in ((None, None), (None, {}), ({}, None)):
+            with self.subTest(flow=flow, queue=queue):
+                request = IntersectionControlRequest(cross_id="1300068", current_time=1, predicted_flow=flow, predicted_queue=queue)
+                snapshot = snapshot_from_legacy(request)
+                restored = snapshot_to_legacy(snapshot)
+                self.assertEqual(restored.predicted_flow, flow)
+                self.assertEqual(restored.predicted_queue, queue)
+                self.assertEqual(snapshot.predicted_flow, flow)
+
+    def test_nullable_predictions_still_reject_non_mapping_values(self):
+        for field in ("predicted_flow", "predicted_queue"):
+            for value in ([], "missing", True, 0):
+                with self.subTest(field=field, value=value), self.assertRaises(ValidationError):
+                    TrafficSnapshot(cross_id="1300068", current_time=1, **{field: value})
+
     def test_reuses_all_legacy_fields_without_mutating_requests(self):
         request = IntersectionControlRequest(
             cross_id="1300068", current_time=1700000000,

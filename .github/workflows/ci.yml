@@ -26,8 +26,17 @@ jobs:
       - name: 编译检查
         run: python -m compileall -q infra runtime agent app
 
+      - name: 依赖一致性检查
+        run: python -m pip check
+
       - name: 单元测试
         run: python -m unittest discover -s test -p "test_*.py"
 
       - name: 经验模块回归测试
         run: python -m unittest discover -s lib/data_ANS/tests -p "test_*.py"
+
+      - name: 控制函数回归测试
+        run: python -m unittest discover -s lib/control_functions/tests -p "test_*.py"
+
+      - name: 全局处理器回归测试
+        run: python -m unittest discover -s lib/control_functions/global_processors/tests -p "test_*.py"

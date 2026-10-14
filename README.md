@@ -3,9 +3,16 @@
 AITC 接收视频、雷达等多源交通数据，通过既有经验、时刻表和规则策略生成路口配时，
 完成协调、确定性安全校验和 TCP 下发。V2 已加入统一数据状态、专家、LangGraph 和可选模型增强。
 
-当前代码完成 Phase 0–9：基础控制链、统一模型网关、受约束 Planner/Reviewer、Safety Gate 和决策追踪。
+当前代码完成 Phase 0–10 的仓库内重构与离线验收：基础控制链、统一模型网关、受约束 Planner/Reviewer、Safety Gate 和决策追踪。
 周期模型增强默认关闭，启用后在视频证据不足时查询工具、审查原算法候选。
 最终方案在全局协调后经过不依赖模型的安全门；每路口每轮输出可关联输入、候选、最终方案和错误的 JSON 日志。
+
+AITC uses an optional LLM agent as the cognitive layer and a constrained harness as the execution layer.
+Existing baseline traffic control policies remain independently executable, while the LLM provides planning,
+tool routing, anomaly reasoning, and policy review under deterministic safety constraints.
+
+现有安全规则尚未覆盖全部路口，缺规则方案按已确认的兼容策略标记 `partial / safe=null`。
+Internet/EV Expert、真实模型推理和现场运行验收仍需后续补齐，离线测试不代表这些能力已完成。
 
 - [当前架构总览与阶段进度](docs/v2_current_architecture.md)
 - [原始业务链路审计](docs/v2_baseline_audit.md)
@@ -15,6 +22,7 @@ AITC 接收视频、雷达等多源交通数据，通过既有经验、时刻表
 - [受约束的 Qwen Planner / Reviewer](docs/v2_qwen_agent.md)
 - [确定性 Safety Gate](docs/v2_safety_gate.md)
 - [逐决策 tracing](docs/v2_decision_tracing.md)
+- [Phase 10 最终验收、运行与待补齐项](docs/v2_final_acceptance.md)
 
 生产入口为 `Server_AITC.py`，应用装配在 `runtime/application.py`。
 依赖由 `requirements.txt` 维护，Python 版本见 `.python-version`。
@@ -26,8 +34,11 @@ AITC_LLM_ENABLED=false .venv/bin/python Server_AITC.py
 # 显式开启周期 Qwen 规划与审查
 AITC_LLM_ENABLED=true AITC_MODEL_PROVIDER=qwen \
 AITC_CONTROL_AGENT_ENABLED=true .venv/bin/python Server_AITC.py
+```
 
-# 在已被 Git 忽略的 .env 中配置 DeepSeek，避免密钥进入命令历史
+使用 DeepSeek 时，在现有且已被 Git 忽略的 `.env` 中设置下列字段：
+
+```dotenv
 AITC_LLM_ENABLED=true
 AITC_MODEL_PROVIDER=deepseek
 AITC_MODEL_NAME=deepseek-flash
@@ -35,13 +46,19 @@ AITC_MODEL_BASE_URL=https://api.deepseek.com
 AITC_MODEL_API_KEY=你的密钥
 AITC_LLM_ENABLE_THINKING=false
 AITC_CONTROL_AGENT_ENABLED=true
+```
 
+然后启动服务：
+
+```bash
 .venv/bin/python Server_AITC.py
 ```
 
 本项目负责算法系统；本轮 V2 工作不包含前端可视化平台。
 
 ```bash
+.venv/bin/python -m compileall -q infra runtime agent app test
+.venv/bin/python -m pip check
 .venv/bin/python -m unittest discover -s test -p 'test_*.py'
 .venv/bin/python -m unittest discover -s lib/data_ANS/tests -p 'test_*.py'
 .venv/bin/python -m unittest discover -s lib/control_functions/tests -p 'test_*.py'

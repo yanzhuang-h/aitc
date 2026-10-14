@@ -58,6 +58,8 @@ def snapshot_summary(snapshot: TrafficSnapshot | None) -> dict[str, Any] | None:
     omitted_not_scoped = []
     for name in _GLOBAL_FIELDS:
         mapping = values[name]
+        if mapping is None:
+            continue
         if snapshot.cross_id in mapping:
             values[name] = {snapshot.cross_id: mapping[snapshot.cross_id]}
         else:
@@ -71,6 +73,7 @@ def snapshot_summary(snapshot: TrafficSnapshot | None) -> dict[str, Any] | None:
                              if name not in ("cross_id", "current_time") and value],
         "scoped_fields": list(_GLOBAL_FIELDS),
         "omitted_not_scoped": omitted_not_scoped,
+        "missing_prediction_fields": [name for name in ("predicted_flow", "predicted_queue") if values[name] is None],
     }
     for name in (*_VECTOR_FIELDS, *_MAP_FIELDS):
         value = values[name]

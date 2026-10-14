@@ -13,6 +13,8 @@ class IntersectionControlRequest:
     Map fields retain the Server_AITC runtime dictionaries; their keys are
     normally observation timestamps and their values are sensor records.
     Empty dictionaries/lists mean that the corresponding source has no data.
+    Predictions may be None before a prediction file exists; keep that value
+    distinct from an available but empty prediction mapping.
     """
 
     cross_id: str
@@ -24,8 +26,8 @@ class IntersectionControlRequest:
     queue_map: dict[Any, Any] = field(default_factory=dict)
     stage_map: dict[Any, Any] = field(default_factory=dict)
     previous_coordinate: dict[str, Any] = field(default_factory=dict)
-    predicted_flow: dict[Any, Any] = field(default_factory=dict)
-    predicted_queue: dict[Any, Any] = field(default_factory=dict)
+    predicted_flow: dict[Any, Any] | None = field(default_factory=dict)
+    predicted_queue: dict[Any, Any] | None = field(default_factory=dict)
     extend_map: dict[Any, Any] = field(default_factory=dict)
     overflow_map: dict[Any, Any] = field(default_factory=dict)
     radar_map: dict[Any, Any] = field(default_factory=dict)
