@@ -80,12 +80,16 @@ class ControlGraph:
         self, request: IntersectionControlRequest, *,
         selector: Callable[[IntersectionControlRequest], LegacySelection] | None = None,
         snapshot: TrafficSnapshot | None = None,
+        trace_id: str | None = None,
+        expert_calls: list[dict] | None = None,
     ) -> ControlDecision:
         """兼容生产的原四元组；契约问题不能提前阻断后续协调。"""
         return self._execute(ControlContext(
             request=request,
             selector=selector if selector is not None else self.control_policy.select_legacy,
             snapshot=snapshot,
+            trace_id=trace_id,
+            expert_calls=expert_calls,
         ))
 
     def select_legacy(self, request: IntersectionControlRequest) -> LegacySelection:
@@ -121,10 +125,11 @@ class ControlGraph:
             "primary": None, "fallback": None, "used_fallback": False,
             "candidate": None, "quality_issues": (), "route": ("load_context",),
             "cognition": None,
+            "trace_id": runtime.context.trace_id,
         }
 
-    def _primary_expert(self, state: ControlState) -> dict:
-        primary = self._read_expert(self.primary_expert, state["intersection_id"], "video")
+    def _primary_expert(self, state: ControlState, runtime: Runtime[ControlContext]) -> dict:
+        primary = self._read_expert(self.primary_expert, state["intersection_id"], "video", runtime.context.expert_calls)
         return {"primary": primary, "route": (*state["route"], "primary_expert")}
 
     @staticmethod
@@ -141,7 +146,7 @@ class ControlGraph:
         return "planner" if route == "fallback_expert" and self.cognitive_controller is not None else route
 
     def _planner(self, state: ControlState) -> dict:
-        session = CognitiveSession()
+        session = CognitiveSession(trace_id=state.get("trace_id"))
         self.cognitive_controller.plan(
             session, intersection_id=state["intersection_id"],
             snapshot=state["snapshot"], primary=state["primary"],
@@ -160,21 +165,33 @@ class ControlGraph:
         )
         return {"cognition": session, "route": (*state["route"], "review")}
 
-    def _fallback_expert(self, state: ControlState) -> dict:
+    def _fallback_expert(self, state: ControlState, runtime: Runtime[ControlContext]) -> dict:
         session = state["cognition"]
         cached = session.expert_states.get("radar") if session is not None else None
         fallback = (
             self._check_expert(cached, state["intersection_id"], "radar") if cached is not None
-            else self._read_expert(self.fallback_expert, state["intersection_id"], "radar")
+            else self._read_expert(self.fallback_expert, state["intersection_id"], "radar", runtime.context.expert_calls)
         )
+        if cached is not None and runtime.context.expert_calls is not None:
+            runtime.context.expert_calls.append({"source": "radar", "status": "ok", "cached": True,
+                                                "confidence": fallback.confidence, "missing_fields": list(fallback.missing_fields)})
         return {
             "fallback": fallback, "used_fallback": True,
             "route": (*state["route"], "fallback_expert"),
         }
 
     @staticmethod
-    def _read_expert(expert, intersection_id: str, source: str) -> ExpertTrafficState:
-        return ControlGraph._check_expert(expert.extract(intersection_id), intersection_id, source)
+    def _read_expert(expert, intersection_id: str, source: str, calls=None) -> ExpertTrafficState:
+        call = {"source": source, "status": "started", "cached": False}
+        if calls is not None:
+            calls.append(call)
+        try:
+            result = ControlGraph._check_expert(expert.extract(intersection_id), intersection_id, source)
+        except Exception as error:
+            call.update(status="failed", error_type=type(error).__name__, message=str(error)[:1000])
+            raise
+        call.update(status="ok", confidence=result.confidence, missing_fields=list(result.missing_fields))
+        return result
 
     @staticmethod
     def _check_expert(result, intersection_id: str, source: str) -> ExpertTrafficState:
@@ -191,7 +208,7 @@ class ControlGraph:
         issue = f"{error.node}: {type(failure).__name__}: {failure}"
         if self.logger is not None:
             self.logger.warning(
-                "Control graph %s expert failed: %s", state["intersection_id"], issue,
+                "Control graph %s trace_id=%s expert failed: %s", state["intersection_id"], state.get("trace_id"), issue,
                 exc_info=(type(failure), failure, failure.__traceback__),
             )
         update = {

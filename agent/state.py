@@ -17,6 +17,8 @@ class ControlContext:
     selector: Callable[[IntersectionControlRequest], LegacySelection]
     strict: bool = False
     snapshot: TrafficSnapshot | None = None
+    trace_id: str | None = None
+    expert_calls: list[dict] | None = None
 
 
 class ControlState(TypedDict, total=False):
@@ -31,11 +33,12 @@ class ControlState(TypedDict, total=False):
     quality_issues: tuple[str, ...]
     route: tuple[str, ...]
     cognition: CognitiveSession | None
+    trace_id: str | None
 
 
 @dataclass(frozen=True)
 class ControlDecision:
-    """候选及本轮路由证据；最终方案仍由批次协调和 phase_check 产生。"""
+    """候选及本轮路由证据；最终方案仍由批次协调和 Safety Gate 产生。"""
 
     selection: LegacySelection
     candidate: SignalPlan | None
