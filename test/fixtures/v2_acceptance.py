@@ -9,6 +9,7 @@ from pathlib import Path
 import socket
 import tempfile
 import threading
+import Lambdas
 from unittest.mock import Mock, patch
 
 from app.config import ControlAgentSettings, RuntimeSettings, TrafficMemorySettings
@@ -36,7 +37,7 @@ def source_payloads(now):
 
 
 @contextmanager
-def acceptance_application(*, provider="disabled", base_url="", timeout=1.0):
+def acceptance_application(*, provider="disabled", base_url="", timeout=1.0, model_roads=None):
     with tempfile.TemporaryDirectory(prefix="aitc-acceptance-") as directory:
         root = Path(directory)
         logger = Mock()
@@ -47,7 +48,8 @@ def acceptance_application(*, provider="disabled", base_url="", timeout=1.0):
             prediction_data_dir=root / "prediction", control_snapshot_dir=root / "snapshot",
             enable_config_sync=False, enable_prediction_scheduler=False, enable_experience_pool_scheduler=False,
             traffic_memory=TrafficMemorySettings(memory_window=2),
-            control_agent=ControlAgentSettings(enabled=provider != "disabled", timeout_seconds=timeout),
+            control_agent=ControlAgentSettings(enabled=provider != "disabled", timeout_seconds=timeout,
+                                               roads=tuple(Lambdas.intersection_list) if model_roads is None else model_roads),
         ))
         app.decision_pipeline.worker_count = 1
         try:

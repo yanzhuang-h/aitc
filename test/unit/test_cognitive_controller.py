@@ -62,6 +62,46 @@ class _RecordingMockProvider(MockProvider):
 
 
 class CognitiveControllerTest(unittest.TestCase):
+    def test_empty_or_other_road_allowlist_never_calls_model_or_tools(self):
+        for roads in ((), (RADAR_ROAD,)):
+            with self.subTest(roads=roads):
+                controller, provider = self.controller([_action("run_control_policy")], roads=roads)
+                session = CognitiveSession()
+                with patch.object(self.tools, "execute", side_effect=AssertionError("outside allowlist")):
+                    self.plan(controller, session)
+                    self.review(controller, session)
+                self.assertEqual(provider.requests, [])
+                self.assertEqual(session.model_attempts, [])
+                self.assertEqual(session.reason, "not_allowlisted")
+
+    def test_model_attempts_capture_only_usage_status_and_latency(self):
+        response = _action("run_control_policy")
+        response.raw = {"usage": {"prompt_tokens": 30, "completion_tokens": 10,
+                                  "prompt_cache_hit_tokens": 20, "prompt_cache_miss_tokens": 10,
+                                  "total_tokens": 40, "unexpected_secret": "do-not-log"},
+                        "untrusted": "do-not-log"}
+        controller, _ = self.controller([response])
+        session = CognitiveSession()
+        with patch("agent.cognitive.perf_counter", side_effect=[1.0, 1.25]):
+            self.plan(controller, session)
+        attempt, = session.model_attempts
+        self.assertEqual(attempt["status"], "valid_action")
+        self.assertEqual(attempt["latency_ms"], 250)
+        self.assertEqual(attempt["usage"]["prompt_tokens"], 30)
+        self.assertNotIn("do-not-log", json.dumps(session.model_attempts))
+
+    def test_invalid_action_and_timeout_are_counted_separately(self):
+        for response, failures, expected in (
+            (ModelResponse(content='{"tool":"set_green","arguments":{}}'), (), "invalid_action"),
+            (_action("run_control_policy"), (ModelTimeoutError("timeout"),), "error"),
+        ):
+            with self.subTest(status=expected):
+                controller, _ = self.controller([response], failures=failures)
+                session = CognitiveSession()
+                self.plan(controller, session)
+                self.assertEqual(session.model_attempts[0]["status"], expected)
+                self.assertGreaterEqual(session.model_attempts[0]["latency_ms"], 0)
+
     def setUp(self):
         self.clock = patch("time.time", return_value=NOW)
         self.clock.start()
@@ -84,6 +124,7 @@ class CognitiveControllerTest(unittest.TestCase):
 
     def controller(self, responses, *, failures=(), **settings):
         provider = _RecordingMockProvider(responses, failures=failures)
+        settings.setdefault("roads", (ROAD, RADAR_ROAD))
         configured = ControlAgentSettings(_env_file=None, enabled=True, **settings)
         return CognitiveController(ModelGateway(provider), self.tools, configured), provider
 

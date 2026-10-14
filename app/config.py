@@ -70,6 +70,8 @@ class _ModelEnvironmentSource(EnvSettingsSource):
 
     def prepare_field_value(self, field_name: str, field: Any, value: Any, value_is_complex: bool) -> Any:
         if isinstance(value, str):
+            if field_name == "roads":
+                return value
             if field.annotation is bool:
                 normalized = value.lower()
                 if normalized in {"1", "true", "yes", "on"}:
@@ -166,10 +168,23 @@ class ControlAgentSettings(BaseSettings):
     )
 
     enabled: StrictBool = False
+    roads: tuple[str, ...] = ()
     max_model_calls: StrictInt = Field(default=3, ge=1, le=6)
     timeout_seconds: float = Field(default=2.0, gt=0, le=30)
     max_context_chars: StrictInt = Field(default=16000, ge=2000, le=100000)
     failure_cooldown_seconds: float = Field(default=30.0, gt=0, le=3600)
+
+    @field_validator("roads", mode="before")
+    @classmethod
+    def road_allowlist(cls, value: Any) -> tuple[str, ...]:
+        if isinstance(value, str):
+            value = tuple(part.strip() for part in value.split(",")) if value.strip() else ()
+        if not isinstance(value, tuple) or any(
+            not isinstance(road, str) or not road or not road.isascii() or not road.isdigit()
+            for road in value
+        ):
+            raise ValueError("roads must be a tuple of numeric intersection IDs or comma-separated IDs")
+        return tuple(dict.fromkeys(value))
 
     @classmethod
     def settings_customise_sources(

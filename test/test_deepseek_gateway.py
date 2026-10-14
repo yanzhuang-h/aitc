@@ -5,6 +5,7 @@ from dataclasses import replace
 import json
 import os
 import unittest
+import Lambdas
 from unittest.mock import patch
 
 from pydantic import ValidationError
@@ -22,7 +23,7 @@ def deepseek_application(*, control_enabled=False):
     def create(**kwargs):
         kwargs["settings"] = replace(
             kwargs["settings"], llm_model="deepseek-flash", llm_base_url="https://api.deepseek.com",
-            llm_api_key="test-key", control_agent=ControlAgentSettings(enabled=control_enabled),
+            llm_api_key="test-key", control_agent=ControlAgentSettings(enabled=control_enabled, roads=tuple(Lambdas.intersection_list)),
         )
         return create_application(**kwargs)
 
