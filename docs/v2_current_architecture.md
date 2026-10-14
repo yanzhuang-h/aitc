@@ -1,14 +1,14 @@
 # AITC V2 当前架构总览
 
-核对日期：2026-10-10。Phase 7 已通过 PR #44 合入 main，
-本轮 Phase 8 的实施基线为 `afc6368`。本文描述 Phase 0–8 的实际接线；
+核对日期：2026-10-14。Phase 8 已通过 PR #45 合入 main，
+本轮 Phase 9 的实施基线为 `1841a67`。本文描述 Phase 0–9 的实际接线；
 阶段发布状态以 GitHub PR 为准，各阶段文档保留当时的验证记录。
 
 ## 现在是什么系统
 
 目标中的数据中心、统一契约、领域专家、LangGraph 编排和原有控制策略已经接线。
 统一 Gateway 供 HTTP Agent 与可选周期 Planner/Reviewer 共用，可选择本地 Qwen 或
-DeepSeek API。周期认知增强默认关闭。确定性 Safety Gate 已接入，完整目标还需要 Phase 9–10。
+DeepSeek API。周期认知增强默认关闭。确定性 Safety Gate 和逐决策追踪已接入，最终验收留待 Phase 10。
 
 当前基础控制链独立于模型调用。关闭 LLM 时仍按原算法产生配时；Qwen 或 DeepSeek 不可达时默认
 告警后继续启动，只有显式配置 `AITC_LLM_REQUIRED=true` 才要求模型就绪。
@@ -70,6 +70,7 @@ Video/Radar 为图的路由提供证据，原策略继续接收完整控制请�
 | 原控制策略 | `app/core/control/policies/baseline.py` | 包装既有 selector/coordinator，保留原四元组接口 |
 | 最终安全门 | `app/core/control/safety_engine.py`、`safety_schemas.py` | 协调后严格结构、已有静态规则、上下界和 fallback 校验 |
 | 周期运行 | `runtime/decision_pipeline.py` | 全批次协调后通过 Safety Gate，再格式化并替换结果 |
+| 决策追踪 | `runtime/tracing.py` | 每路口每轮一条严格 JSON 记录，关联快照、调用、候选、最终方案、安全与错误 |
 | 输出与广播 | `infra/data/result_warehouse.py`、`result_sender.py`、`writer.py` | 原 TCP 报文和本地日志 |
 | HTTP Agent 执行 | `agent/harness.py`、`agent/qwen_agent.py`、`agent/control_agent.py` | 已有意图与注册工具接口；与周期控制图并列 |
 | 统一模型接入 | `app/infrastructure/llm/` | Qwen、DeepSeek、Mock、Disabled；同步与异步调用、严格边界 |
@@ -91,13 +92,13 @@ Video/Radar 为图的路由提供证据，原策略继续接收完整控制请�
 | Phase 5–6 | 最小真实 LangGraph 与统一模型网关已完成 | HTTP Agent 和周期增强共用 Gateway |
 | Phase 7 | 最小受约束认知增强已完成 | 显式开关、工具查询、Planner/Reviewer 与模型异常解释；意见不改写配时，真实 Qwen 推理验收待完成 |
 | Phase 8 | 已完成 | 独立确定性 Safety Gate；缺规则明确 partial，已有规则强制执行，fallback 重验 |
-| Phase 9 | 待开始 | 每次决策关联输入、专家/工具、策略、候选/最终方案、fallback、耗时与错误 |
+| Phase 9 | 已完成 | 结构化日志关联输入、专家/工具、模型、候选/最终方案、fallback、耗时与错误 |
 | Phase 10 | 已有逐阶段测试，最终验收待完成 | 完整闭环场景与集成验收；真实 Qwen 推理和现场运行尚未验证 |
 
 原 `phase_check.py` 继续承担已知上下界修正；Safety Gate 在它前后检查严格结构、
 相位连续性、方案号、保留位和修正结果。静态规则尚未完整覆盖 48 个非空基线方案，
 这些路口明确标记 partial，不宣称安全通过。详情见 [Phase 8 文档](v2_safety_gate.md)。
-已有日志和历史存储仍不能替代 Phase 9 的完整决策 trace。
+Phase 9 已补齐逐决策 trace，说明和查询方式见 [决策追踪](v2_decision_tracing.md)。
 
 `app/core/control/safety_engine.py` 的旧骨架已替换并接入真实周期链；早期
 `output/dispatcher.py` 仍不是生产发送入口，输出继续由现有结果仓库和 TCP sender 负责。
@@ -139,8 +140,9 @@ Video/Radar 为图的路由提供证据，原策略继续接收完整控制请�
 读取/解析/字段校验失败告警并清旧缓存，恢复后可重新读取。
 
 这两个字段表示**记录发送日志时清单声明的激活版本**，不能证明单个方案计算时实际
-使用了该版本；决策与发送异步，旧算法还有自己的经验缓存。精确决策版本关联应在
-Phase 9 实施。TCP 报文和结果对象不增加这些字段，配时算法、试点白名单保持原样。
+使用了该版本；决策与发送异步，旧算法还有自己的经验缓存。Phase 9 没有把这些字段
+伪装成单次算法版本证据；精确版本关联仍需算法读取入口提供消费证据。
+TCP 报文和结果对象不增加这些字段，配时算法、试点白名单保持原样。
 
 经验套件修复后 **118 项全部通过**，新增真实日志写入、双客户端协议不变、缓存
 更新/原子替换、删除/损坏清单、I/O 错误恢复与输出错误传播验证。GitHub CI 新增

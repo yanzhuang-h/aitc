@@ -37,6 +37,9 @@ class CognitiveSession:
     errors: list[str] = field(default_factory=list)
     model_participated: bool = False
     context_truncated: bool = False
+    trace_id: str | None = None
+    tool_calls: list[dict[str, Any]] = field(default_factory=list)
+    error_details: list[dict[str, str]] = field(default_factory=list)
 
 
 _PLANNER_TOOLS = frozenset({
@@ -206,6 +209,7 @@ class CognitiveController:
                         log("Cognitive review %s", json.dumps({
                             "intersection_id": intersection_id, "reported_by": "model",
                             "advisory_only": True,
+                            "trace_id": session.trace_id,
                             **session.review.model_dump(exclude_none=True),
                         }, ensure_ascii=True))
                     if session.review.decision == "REQUEST_MORE_DATA":
@@ -231,6 +235,21 @@ class CognitiveController:
         snapshot: TrafficSnapshot | None, primary: ExpertTrafficState | None,
         fallback: ExpertTrafficState | None, candidate: SignalPlan | None,
     ) -> ToolObservation:
+        call = {"tool": action.tool, "arguments": action.arguments.model_dump(), "status": "started"}
+        session.tool_calls.append(call)
+        try:
+            return self._execute_recorded(
+                session, action, call, intersection_id=intersection_id, snapshot=snapshot,
+                primary=primary, fallback=fallback, candidate=candidate,
+            )
+        except Exception as error:
+            # 记录失败尝试后原样传播；未知程序错误仍由原调用方处理。
+            call.update(status="failed", error_type=type(error).__name__)
+            raise
+
+    def _execute_recorded(
+        self, session, action, call, *, intersection_id, snapshot, primary, fallback, candidate,
+    ) -> ToolObservation:
         observation = ToolObservation.model_validate(self.tools.execute(
             action, intersection_id=intersection_id, snapshot=snapshot,
             primary=session.expert_states.get("video", primary),
@@ -242,12 +261,14 @@ class CognitiveController:
                 and observation.expert_state.source != action.arguments.source):
             raise ExpertContractError("tool expert does not match the requested traffic source")
         session.observations.append(observation)
+        call["status"] = observation.status
         if observation.expert_state is not None:
             session.expert_states[observation.expert_state.source] = observation.expert_state
         if action.tool == "report_anomaly" and observation.status == "ok" and self.logger is not None:
             self.logger.warning("Cognitive anomaly %s", json.dumps({
                 "intersection_id": intersection_id, "reported_by": "model",
                 "advisory_only": True, "observation_verified": False,
+                "trace_id": session.trace_id,
                 **action.arguments.model_dump(),
             }, ensure_ascii=True))
         return observation
@@ -263,8 +284,9 @@ class CognitiveController:
         detail = f"{type(error).__name__}: {error}"[:1000]
         session.reason = reason
         session.errors.append(detail)
+        session.error_details.append({"stage": reason, "type": type(error).__name__, "message": str(error)[:1000]})
         if self.logger is not None:
-            self.logger.warning("Cognitive control %s: %s: %s", intersection_id, reason, detail)
+            self.logger.warning("Cognitive control %s trace_id=%s: %s: %s", intersection_id, session.trace_id, reason, detail)
 
     def _messages(
         self, session: CognitiveSession, *, phase: str, intersection_id: str,

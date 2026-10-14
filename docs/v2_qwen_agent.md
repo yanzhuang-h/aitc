@@ -142,7 +142,7 @@ AITC_CONTROL_AGENT_ENABLED=true .venv/bin/python Server_AITC.py
 `ControlGraph.execute_legacy(...).cognition` 返回本轮 CognitiveSession，包含审查和
 工具证据；`selection` 仍为原四元组。周期管线沿用 selection，不增加 TCP 字段。
 成功审查与模型异常报告通过现有 logger 记录单行 JSON，明确模型来源与 advisory 性质；
-已知错误和降级也会记录。完整跨节点、候选到最终方案的决策 tracing 仍按 Phase 9 实施。
+已知错误和降级也会记录。Phase 9 已将这些证据串入逐路口决策日志，见 [决策追踪](v2_decision_tracing.md)。
 
 本轮沿现有 `agent/` 新增 actions、control_tools、cognitive、prompts 四个职责明确的
 模块；没有为了参考目录机械迁移生产算法或建立第二套模型网关。

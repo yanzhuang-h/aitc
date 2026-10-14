@@ -7,16 +7,19 @@ from __future__ import annotations
 
 import copy
 import json
+import logging
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable
+from uuid import uuid4
 
 from app.core.control.policies import BaselineController
 from infra.data.classifier import DataKind
 from infra.data.datahub import TrafficDataHub
 from infra.logging import LoggingMixin
 from lib.control_functions.types import IntersectionControlRequest
+from .tracing import DecisionTrace, trace_stage, trace_value
 
 
 class PeriodicDecisionPipeline(LoggingMixin):
@@ -86,42 +89,77 @@ class PeriodicDecisionPipeline(LoggingMixin):
 
     def run_once(self) -> list[dict[str, Any]]:
         """聚合当前窗口数据，执行路口决策并更新结果仓库。"""
-        current_result, online_map, overflow_map, extend_map = self._process_data()
+        batch_id = uuid4().hex
+        traces = {
+            road: DecisionTrace(batch_id=batch_id, intersection_id=road,
+                                control_policy=type(self.control_policy).__name__)
+            for road in self.lambdas.intersection_list
+        }
+        try:
+            with trace_stage(traces.values(), "aggregation_and_workers"):
+                current_result, online_map, overflow_map, extend_map = self._process_data(traces=traces)
+            return self._finalize_batch(current_result, online_map, overflow_map, extend_map, traces)
+        except Exception as error:
+            for trace in traces.values():
+                trace.status = "batch_failed"
+                trace.record_error(trace.failed_stage, error)
+            raise
+        finally:
+            logger = self.logger if self.logger is not None else logging.getLogger("aitc.decision.trace")
+            finished_ns = time.perf_counter_ns()
+            for trace in traces.values():
+                trace.emit(logger, finished_ns=finished_ns)
+
+    def _finalize_batch(self, current_result, online_map, overflow_map, extend_map, traces):
         action = {
             intersection_id: result["result_action"]
             for intersection_id, result in current_result.items()
         }
         fallback_action = copy.deepcopy(action) if self.safety_engine is not None else None
         if len(current_result) == len(self.lambdas.intersection_list):
-            self._save_control_input_snapshot(
-                action, self.last_coordinate_set, online_map, overflow_map, extend_map
-            )
-            action = self.coordinate(
-                action,
-                self.last_coordinate_set,
-                online_map,
-                overflow_map,
-            )
-        if self.safety_engine is not None:
-            # 协调遗漏的路口也必须进入安全门，不能沿用未检查的候选或旧仓库数据。
-            action = {road: action.get(road) for road in current_result}
-            action, result_check_report = self.safety_engine.finalize(action, fallback_plans=fallback_action)
-        else:
-            action, result_check_report = self.phase_check(action)
-        self.writer.write_phase_check(result_check_report)
+            with trace_stage(traces.values(), "control_snapshot_write"):
+                self._save_control_input_snapshot(
+                    action, self.last_coordinate_set, online_map, overflow_map, extend_map
+                )
+            with trace_stage(traces.values(), "coordination"):
+                action = self.coordinate(
+                    action,
+                    self.last_coordinate_set,
+                    online_map,
+                    overflow_map,
+                )
+        with trace_stage(traces.values(), "safety"):
+            if self.safety_engine is not None:
+                # 协调遗漏的路口也必须进入安全门，不能沿用未检查的候选或旧仓库数据。
+                action = {road: action.get(road) for road in current_result}
+                action, result_check_report = self.safety_engine.finalize(action, fallback_plans=fallback_action)
+            else:
+                action, result_check_report = self.phase_check(action)
+        for road, trace in traces.items():
+            trace.capture_plan(action.get(road), final=True)
+            report = result_check_report.get(road)
+            trace.safety_report = trace_value(report) if report is not None else None
+            if report is not None and report.get("fallback_source") is not None:
+                trace.fallback_reason.extend(f"safety:{reason}" for reason in report.get("fallback_reason") or [])
+        with trace_stage(traces.values(), "phase_report_write"):
+            self.writer.write_phase_check(result_check_report)
 
         results_to_send = []
-        for intersection_id, result in current_result.items():
-            result["result_action"] = action[intersection_id]
-            results_to_send.append(
-                self.select_data_to_send(
-                    intersection_id,
-                    action[intersection_id],
-                    result["traffic_vector"],
-                    result["model_info_list"],
+        with trace_stage(traces.values(), "format"):
+            for intersection_id, result in current_result.items():
+                result["result_action"] = action[intersection_id]
+                results_to_send.append(
+                    self.select_data_to_send(
+                        intersection_id,
+                        action[intersection_id],
+                        result["traffic_vector"],
+                        result["model_info_list"],
+                    )
                 )
-            )
-        self.result_warehouse.replace(results_to_send)
+        with trace_stage(traces.values(), "publish"):
+            self.result_warehouse.replace(results_to_send)
+        for trace in traces.values():
+            trace.status = "published"
         return results_to_send
 
     def _save_control_input_snapshot(self, action, coordinate_set, online_map, overflow_map, extend_map):
@@ -146,7 +184,7 @@ class PeriodicDecisionPipeline(LoggingMixin):
         self._info("Saved control input snapshot: %s", target)
         return target
 
-    def _process_data(self) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
+    def _process_data(self, *, traces=None) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
         if self.datahub is not None:
             self.datahub.clear_expired()
         else:
@@ -181,7 +219,7 @@ class PeriodicDecisionPipeline(LoggingMixin):
         new_coordinate_set = copy.deepcopy(self.lambdas.map_lambda)
         with ThreadPoolExecutor(max_workers=self.worker_count) as executor:
             futures = [
-                executor.submit(
+                (intersection_id, executor.submit(
                     self._process_single_intersection,
                     intersection_id,
                     intersection_flow,
@@ -197,15 +235,19 @@ class PeriodicDecisionPipeline(LoggingMixin):
                     overflow_map,
                     radar_map,
                     boyan_map,
-                )
+                    trace=traces[intersection_id] if traces is not None else None,
+                ))
                 for intersection_id in self.lambdas.intersection_list
             ]
-            for future in futures:
+            for submitted_id, future in futures:
                 try:
                     intersection_id, result, coordinate_map = future.result()
                     result_map[intersection_id] = result
                     new_coordinate_set[intersection_id] = coordinate_map
                 except Exception as error:
+                    if traces is not None:
+                        traces[submitted_id].record_error("worker", error)
+                        traces[submitted_id].fallback_reason.append("legacy:worker_failed")
                     self._error("Error processing intersection data: %s", error, exc_info=True)
 
         self.last_coordinate_set = new_coordinate_set
@@ -275,10 +317,12 @@ class PeriodicDecisionPipeline(LoggingMixin):
         overflow_map: dict[str, Any],
         radar_map: dict[str, Any],
         boyan_map: dict[str, Any],
+        *, trace: DecisionTrace | None = None,
     ) -> tuple[str, dict[str, Any], dict[str, Any]]:
         result = copy.deepcopy(self.lambdas.intersection_result_lambda)
         traffic_vector = intersection_flow[intersection_id]
         coordinate_map: dict[str, Any] = {}
+        stage = "input"
         try:
             request = IntersectionControlRequest(
                 cross_id=intersection_id,
@@ -298,19 +342,39 @@ class PeriodicDecisionPipeline(LoggingMixin):
                 boyan_map=dict(boyan_map[intersection_id]),
             )
             snapshot = self.datahub.capture(request) if self.datahub is not None else None
+            if trace is not None:
+                trace.capture_input(request, snapshot, has_datahub=self.datahub is not None)
+            stage = "control"
             if self.decision_graph is not None:
                 # 保留完整聚合请求及动态替换的 selector；专家观测不改写旧控制输入。
-                selection = self.decision_graph.execute_legacy(
-                    request, selector=self.dqn_select, snapshot=snapshot,
-                ).selection
+                with trace_stage([trace] if trace is not None else [], "control"):
+                    decision = self.decision_graph.execute_legacy(
+                        request, selector=self.dqn_select, snapshot=snapshot,
+                        **({"trace_id": trace.trace_id, "expert_calls": trace.expert_calls} if trace is not None else {}),
+                    )
+                selection = decision.selection
+                if trace is not None:
+                    cognitive = self.decision_graph.cognitive_controller
+                    trace.capture_graph(decision, provider=cognitive.gateway.provider_name if cognitive is not None else None)
             else:
-                selection = self.dqn_select(request)
+                with trace_stage([trace] if trace is not None else [], "control"):
+                    selection = self.dqn_select(request)
             result_action, coordinate_map, model_info_list, exp_list = selection
-            self.writer.write_experience(exp_list, intersection_id)
+            if trace is not None:
+                trace.capture_plan(result_action)
+            stage = "experience_write"
+            with trace_stage([trace] if trace is not None else [], "experience_write"):
+                self.writer.write_experience(exp_list, intersection_id)
             result["result_action"] = result_action
             result["traffic_vector"] = traffic_vector
             result["model_info_list"] = model_info_list
             self._info("Intersection %s process result: %s", intersection_id, result)
         except Exception as error:
+            if trace is not None:
+                trace.record_error(stage, error)
+                trace.fallback_reason.append(f"legacy:{stage}_failed")
+                if (stage == "control" and self.decision_graph is not None
+                        and self.decision_graph.cognitive_controller is not None):
+                    trace.llm_participated, trace.model_calls = None, None
             self._error("Error getting dqn_%s result: %s", intersection_id, error, exc_info=True)
         return intersection_id, result, coordinate_map
