@@ -3,9 +3,9 @@
 AITC 接收视频、雷达等多源交通数据，通过既有经验、时刻表和规则策略生成路口配时，
 完成协调、确定性安全校验和 TCP 下发。V2 已加入统一数据状态、专家、LangGraph 和可选模型增强。
 
-当前代码完成 Phase 0–8：基础控制链、统一模型网关、受约束 Planner/Reviewer 和 Safety Gate。
+当前代码完成 Phase 0–9：基础控制链、统一模型网关、受约束 Planner/Reviewer、Safety Gate 和决策追踪。
 周期模型增强默认关闭，启用后在视频证据不足时查询工具、审查原算法候选。
-最终方案在全局协调后经过不依赖模型的安全门；逐决策 tracing 留待 Phase 9。
+最终方案在全局协调后经过不依赖模型的安全门；每路口每轮输出可关联输入、候选、最终方案和错误的 JSON 日志。
 
 - [当前架构总览与阶段进度](docs/v2_current_architecture.md)
 - [原始业务链路审计](docs/v2_baseline_audit.md)
@@ -14,6 +14,7 @@ AITC 接收视频、雷达等多源交通数据，通过既有经验、时刻表
 - [Qwen / DeepSeek / Mock / Disabled 模型网关](docs/v2_model_gateway.md)
 - [受约束的 Qwen Planner / Reviewer](docs/v2_qwen_agent.md)
 - [确定性 Safety Gate](docs/v2_safety_gate.md)
+- [逐决策 tracing](docs/v2_decision_tracing.md)
 
 生产入口为 `Server_AITC.py`，应用装配在 `runtime/application.py`。
 依赖由 `requirements.txt` 维护，Python 版本见 `.python-version`。
