@@ -55,7 +55,7 @@ def cognitive_application(provider="mock", *, llm_enabled=True, control_enabled=
             runtime_data_dir=root / "history", runtime_output_dir=root / "output",
             prediction_data_dir=root / "prediction", enable_config_sync=False,
             enable_prediction_scheduler=False, enable_experience_pool_scheduler=False,
-            control_agent=ControlAgentSettings(enabled=control_enabled, timeout_seconds=0.1),
+            control_agent=ControlAgentSettings(enabled=control_enabled, timeout_seconds=0.1, roads=tuple(Lambdas.intersection_list)),
         )
         app = create_application(settings=settings)
         try:
@@ -73,7 +73,7 @@ class CognitiveGraphIntegrationTest(unittest.TestCase):
         radar.extract.side_effect = lambda road: radar_state(road)
         gateway = ModelGateway(MockProvider(responses))
         tools = ControlAgentTools(hub, video, radar)
-        cognitive = CognitiveController(gateway, tools, ControlAgentSettings(enabled=True))
+        cognitive = CognitiveController(gateway, tools, ControlAgentSettings(enabled=True, roads=tuple(Lambdas.intersection_list)))
         selector = Mock(return_value=candidate if candidate is not None else selection())
         graph = ControlGraph(
             hub, primary_expert=video, fallback_expert=radar,
@@ -226,7 +226,7 @@ class CognitiveGraphIntegrationTest(unittest.TestCase):
         provider = _ReviewerProvider()
         cognitive = CognitiveController(
             ModelGateway(provider), ControlAgentTools(hub, video, radar),
-            ControlAgentSettings(enabled=True),
+            ControlAgentSettings(enabled=True, roads=tuple(Lambdas.intersection_list)),
         )
         graph = ControlGraph(
             hub, primary_expert=video, fallback_expert=radar,

@@ -156,16 +156,20 @@ Phase 7 已将共享 Gateway 接入可选周期 Planner/Reviewer，动作权限�
 `chat_template_kwargs`，而是在请求顶层发送 `thinking.type=enabled/disabled`。
 当前受约束动作依赖最终 content 中的严格 JSON，因此建议保持 thinking=false。
 
-```bash
+```dotenv
 AITC_LLM_ENABLED=true
 AITC_MODEL_PROVIDER=deepseek
 AITC_MODEL_NAME=deepseek-flash
 AITC_MODEL_BASE_URL=https://api.deepseek.com
 AITC_MODEL_API_KEY='仅保存在本机的 API key'
 AITC_LLM_ENABLE_THINKING=false
-AITC_CONTROL_AGENT_ENABLED=true
-.venv/bin/python Server_AITC.py
+AITC_CONTROL_AGENT_ENABLED=false
+AITC_CONTROL_AGENT_ROADS=1300068
 ```
+
+上述字段写入本机 `.env`，保存后重新启动进程。周期增强显式开启还需要非空路口白名单；
+名单只限制周期 Planner/Reviewer，不改变既有 HTTP Agent 接口。真实回放与按次 token/时延统计
+见 [联调交接](v2_replay_rollout.md)。
 
 DeepSeek 启用时必须显式配置 API key、模型名和 API 地址，防止误用本地 Qwen 默认值。
 密钥由既有敏感配置字段隐藏，不应提交 `.env`。远程 API 超时、鉴权失败或不可达时，

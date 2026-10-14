@@ -177,6 +177,9 @@ class AITCApplication(LoggingMixin):
 def create_application(logger=None, settings: RuntimeSettings | None = None) -> AITCApplication:
     """装配完整运行应用：数据底座 → 决策管线 → Agent → 协议服务与调度。"""
     settings = (settings or RuntimeSettings.from_environment()).validate()
+    unknown_roads = set(settings.control_agent.roads).difference(Lambdas.intersection_list)
+    if unknown_roads:
+        raise ValueError(f"Unknown control agent roads: {sorted(unknown_roads)}")
 
     # ── ① 数据底座：接收、缓存、长期仓库、聚合、查询、配置与结果收发 ──
     # 窗口缓存：各类型窗口时长使用 ShortTermMemory 的默认表（flow 600s / queue 240s / online·latest 1800s …）

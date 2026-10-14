@@ -57,7 +57,7 @@ class DecisionTracingIntegrationTest(unittest.TestCase):
         if responses is not None:
             cognitive = CognitiveController(
                 ModelGateway(MockProvider(responses)), ControlAgentTools(hub, video, radar),
-                ControlAgentSettings(enabled=True), logger=logger,
+                ControlAgentSettings(enabled=True, roads=("100",)), logger=logger,
             )
         pipeline.decision_graph = ControlGraph(
             hub, primary_expert=video, fallback_expert=radar,

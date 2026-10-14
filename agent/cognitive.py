@@ -5,7 +5,7 @@ from itertools import islice
 import json
 import math
 from threading import Lock
-from time import monotonic
+from time import monotonic, perf_counter
 from typing import Any
 
 from pydantic import ValidationError
@@ -40,6 +40,7 @@ class CognitiveSession:
     trace_id: str | None = None
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
     error_details: list[dict[str, str]] = field(default_factory=list)
+    model_attempts: list[dict[str, Any]] = field(default_factory=list)
 
 
 _PLANNER_TOOLS = frozenset({
@@ -154,6 +155,10 @@ class CognitiveController:
         fallback: ExpertTrafficState | None, candidate: SignalPlan | None,
         call_limit: int,
     ) -> None:
+        if (self.settings.enabled and self.gateway.enabled
+                and intersection_id not in self.settings.roads):
+            session.reason = "not_allowlisted"
+            return
         allowed = _PLANNER_TOOLS if phase == "planner" else _REVIEWER_TOOLS
         while session.model_calls < call_limit:
             if not self._available(session):
@@ -170,25 +175,37 @@ class CognitiveController:
                 return
             session.model_calls += 1
             session.model_participated = True
+            attempt = {"phase": phase, "status": "error", "usage": {}}
+            session.model_attempts.append(attempt)
+            started = perf_counter()
             try:
                 response = self.gateway.invoke_sync(ModelRequest(
                     messages=messages, temperature=0, top_p=1, max_tokens=512,
                     max_retries=0, timeout_seconds=self.settings.timeout_seconds,
                 ))
+                usage = response.raw.get("usage")
+                if isinstance(usage, dict):
+                    attempt["usage"] = {
+                        key: value for key, value in usage.items()
+                        if key in {"prompt_tokens", "completion_tokens", "total_tokens",
+                                   "prompt_cache_hit_tokens", "prompt_cache_miss_tokens"}
+                        and type(value) is int and value >= 0
+                    }
+                attempt["status"] = "invalid_action"
+                try:
+                    action = ACTION_ADAPTER.validate_json(response.content)
+                    if action.tool not in allowed:
+                        raise ExpertContractError(f"{action.tool} is forbidden during {phase}")
+                except (ValidationError, ExpertContractError) as error:
+                    self._failure(session, error, "invalid_action", intersection_id)
+                    return
+                attempt.update(status="valid_action", tool=action.tool)
             except _EXPECTED_ERRORS as error:
+                attempt.update(error_type=type(error).__name__, http_status=getattr(error, "status_code", None))
                 self._failure(session, error, "model_error", intersection_id)
                 return
-            try:
-                action = ACTION_ADAPTER.validate_json(response.content)
-            except ValidationError as error:
-                self._failure(session, error, "invalid_action", intersection_id)
-                return
-            if action.tool not in allowed:
-                self._failure(
-                    session, ExpertContractError(f"{action.tool} is forbidden during {phase}"),
-                    "invalid_action", intersection_id,
-                )
-                return
+            finally:
+                attempt["latency_ms"] = (perf_counter() - started) * 1000
             try:
                 observation = self._execute(
                     session, action, intersection_id=intersection_id, snapshot=snapshot,

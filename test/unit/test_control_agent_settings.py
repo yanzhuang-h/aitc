@@ -12,6 +12,7 @@ class ControlAgentSettingsTest(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=True):
             settings = RuntimeSettings().control_agent
         self.assertFalse(settings.enabled)
+        self.assertEqual(settings.roads, ())
         self.assertEqual(settings.max_model_calls, 3)
         self.assertEqual(settings.timeout_seconds, 2)
         self.assertEqual(settings.failure_cooldown_seconds, 30)
@@ -19,6 +20,7 @@ class ControlAgentSettingsTest(unittest.TestCase):
     def test_environment_budget_is_loaded_centrally(self):
         with patch.dict(os.environ, {
             "AITC_CONTROL_AGENT_ENABLED": "true",
+            "AITC_CONTROL_AGENT_ROADS": "1300068, 1300271,1300068",
             "AITC_CONTROL_AGENT_MAX_MODEL_CALLS": "4",
             "AITC_CONTROL_AGENT_TIMEOUT_SECONDS": "1.5",
             "AITC_CONTROL_AGENT_MAX_CONTEXT_CHARS": "8000",
@@ -26,6 +28,7 @@ class ControlAgentSettingsTest(unittest.TestCase):
         }, clear=True), patch("app.config._load_dotenv"):
             settings = RuntimeSettings.from_environment().control_agent
         self.assertTrue(settings.enabled)
+        self.assertEqual(settings.roads, ("1300068", "1300271"))
         self.assertEqual(settings.max_model_calls, 4)
         self.assertEqual(settings.timeout_seconds, 1.5)
         self.assertEqual(settings.max_context_chars, 8000)
@@ -42,6 +45,8 @@ class ControlAgentSettingsTest(unittest.TestCase):
     def test_invalid_types_and_unbounded_budgets_are_rejected(self):
         cases = (
             {"enabled": "true"}, {"enabled": 1},
+            {"roads": ("*",)}, {"roads": ("",)}, {"roads": (123,)},
+            {"roads": "1300068,,1300271"}, {"roads": ("１２３",)},
             {"max_model_calls": True}, {"max_model_calls": 0}, {"max_model_calls": 7},
             {"timeout_seconds": True}, {"timeout_seconds": 0},
             {"timeout_seconds": float("inf")}, {"timeout_seconds": 31},
@@ -52,3 +57,9 @@ class ControlAgentSettingsTest(unittest.TestCase):
             with self.subTest(values=values), patch.dict(os.environ, {}, clear=True):
                 with self.assertRaises(ValidationError):
                     ControlAgentSettings(**values)
+
+    def test_unknown_road_fails_before_application_writes_files(self):
+        from runtime.application import create_application
+        settings = RuntimeSettings(control_agent=ControlAgentSettings(roads=("9999999",)))
+        with self.assertRaisesRegex(ValueError, "Unknown control agent roads"):
+            create_application(settings=settings)

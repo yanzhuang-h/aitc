@@ -85,6 +85,7 @@ class DecisionTrace(BaseModel):
     model_calls: int | None = Field(default=0, ge=0)
     model_provider: str | None = None
     model_reason: str | None = None
+    model_attempts: list[dict[str, Any]] = Field(default_factory=list)
     review: dict[str, Any] | None = None
     candidate_signal_plan: SignalPlan | None = None
     candidate_legacy: Any = None
@@ -131,6 +132,7 @@ class DecisionTrace(BaseModel):
         self.model_calls = session.model_calls
         self.model_provider = provider
         self.model_reason = session.reason
+        self.model_attempts = trace_value(session.model_attempts)
         self.tool_calls = trace_value(session.tool_calls)
         self.review = trace_value(session.review.model_dump()) if session.review is not None else None
         for error in session.error_details:
