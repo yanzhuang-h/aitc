@@ -1,9 +1,18 @@
-# AITC workspace notes for DSH agents
+# AITC workspace notes for agents
 
 本仓库位于 WSL：`/home/finn/projects/aitc`；Windows 侧 DSH 通过
 `\\wsl.localhost\Ubuntu\home\finn\projects\aitc` 访问（9p 共享）。
 
-## 1. 写文件必须走 WSL
+本文件会被 DSH / Codex / Claude Code 等读取为工作区指令。
+
+## 0. 适用范围
+
+- **Windows 上的 DSH**：按第 1 节走 WSL 写文件。
+- **WSL/Linux 内原生运行的 agent**（Codex CLI、Claude Code 等）：直接按常规读写即可，
+  第 1 节的限制与你无关；命令和 git 在 WSL 内执行即可。
+- 人用 VS Code Remote/WSL 编辑无需遵守第 1 节。
+
+## 1. 写文件必须走 WSL（仅 Windows DSH）
 
 DSH 的 `write` / `edit` 工具在这个共享上不可用：
 
