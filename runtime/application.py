@@ -15,8 +15,8 @@ from lib.Global_intersection_coordinate import coordinate
 from phase_check import get_intersection_result_config, phase_check
 
 from app.config import RuntimeSettings
-from app.core.control.policies import BaselineController
-from app.core.control.safety_engine import ControlSafetyEngine
+from control.policies import BaselineController
+from safety.service import ControlSafetyEngine
 
 from datahub import (
     ConfigService,
@@ -52,7 +52,7 @@ from agents.graph import ControlGraph
 from agents.cognitive import CognitiveController
 from agents.control_tools import ControlAgentTools
 from agents.tools import DataQueryTools
-from app.core.control.synergy.green_wave_service import GreenWaveDataService
+from control.synergy.green_wave_service import GreenWaveDataService
 from models import (
     DeepSeekProvider, DisabledProvider, MockProvider, ModelGateway, OpenAICompatibleLLMClient, QwenProvider,
     as_model_gateway,

@@ -12,7 +12,7 @@ from agents.experts import RadarExpert, VideoExpert
 from agents.actions import ToolObservation
 from agents.prompts import REVIEWER_PROMPT
 from app.config import ControlAgentSettings
-from app.core.control.schemas import SignalPlan
+from control.schemas import SignalPlan
 from models import (
     DisabledProvider,
     ModelGateway,

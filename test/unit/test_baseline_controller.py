@@ -6,8 +6,8 @@ from unittest.mock import Mock
 
 from pydantic import ValidationError
 
-from app.core.control.adapters import signal_plan_to_legacy
-from app.core.control.policies import BaselineController
+from control.adapters import signal_plan_to_legacy
+from control.policies import BaselineController
 from datahub.traffic_schemas import TrafficSnapshot
 from lib.control_functions.types import IntersectionControlRequest
 
@@ -95,8 +95,8 @@ class BaselineControllerTest(unittest.TestCase):
             self.assertEqual(experience["id"], request.cross_id)
 
     def test_controller_and_runtime_can_be_imported_in_either_order(self):
-        for imports in ("from app.core.control.policies import BaselineController; import runtime",
-                        "import runtime; from app.core.control.policies import BaselineController"):
+        for imports in ("from control.policies import BaselineController; import runtime",
+                        "import runtime; from control.policies import BaselineController"):
             with self.subTest(imports=imports):
                 result = subprocess.run([sys.executable, "-c", imports], capture_output=True,
                                         text=True, timeout=20)

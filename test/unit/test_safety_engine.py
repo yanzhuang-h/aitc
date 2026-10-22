@@ -6,8 +6,8 @@ import math
 import unittest
 from unittest.mock import Mock
 
-from app.core.control.adapters import signal_plan_from_legacy
-from app.core.control.safety_engine import ControlSafetyEngine
+from control.adapters import signal_plan_from_legacy
+from safety.service import ControlSafetyEngine
 from phase_check import phase_check
 
 

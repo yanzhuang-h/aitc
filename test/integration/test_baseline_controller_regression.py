@@ -6,8 +6,8 @@ import random
 import unittest
 from unittest.mock import patch
 
-from app.core.control.adapters import signal_plan_to_legacy
-from app.core.control.policies.baseline import BaselineController
+from control.adapters import signal_plan_to_legacy
+from control.policies.baseline import BaselineController
 from datahub.traffic_adapters import snapshot_from_legacy
 from test.fixtures.v2_baseline_controller import (
     FIXTURE, SELECTOR_CASES, compact_round, config_sources, full_replay,

@@ -11,7 +11,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from app.config import ControlAgentSettings
-from app.core.control.schemas import SignalPlan
+from control.schemas import SignalPlan
 from models import ModelGateway, ModelMessage, ModelRequest
 from models.errors import ModelGatewayError, ModelUnavailableError
 from datahub.traffic_schemas import ExpertTrafficState, TrafficSnapshot

@@ -10,8 +10,8 @@ from pydantic import ValidationError
 
 from agents.graph import ControlGraph
 from agents.experts._state import ExpertContractError
-from app.core.control.adapters import signal_plan_to_legacy
-from app.core.control.policies import BaselineController
+from control.adapters import signal_plan_to_legacy
+from control.policies import BaselineController
 from datahub.traffic_schemas import ExpertTrafficState, TrafficSnapshot
 from lib.control_functions.types import IntersectionControlRequest
 

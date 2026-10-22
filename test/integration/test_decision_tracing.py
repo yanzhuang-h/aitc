@@ -16,7 +16,7 @@ from agents.experts import RadarExpert, VideoExpert
 from agents.experts._state import ExpertContractError
 from agents.graph import ControlGraph
 from app.config import ControlAgentSettings
-from app.core.control.policies import BaselineController
+from control.policies import BaselineController
 from models import ModelGateway, MockProvider
 from models.errors import ModelTimeoutError
 from datahub import TrafficDataHub

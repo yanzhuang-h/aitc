@@ -8,10 +8,10 @@ from langgraph.runtime import Runtime
 from langgraph.types import Command, RetryPolicy
 from pydantic import TypeAdapter, ValidationError
 
-from app.core.control.adapters import signal_plan_from_legacy
-from app.core.control.policies import BaselineController
-from app.core.control.policies.baseline import LegacySelection
-from app.core.control.schemas import SignalPlan
+from control.adapters import signal_plan_from_legacy
+from control.policies import BaselineController
+from control.policies.baseline import LegacySelection
+from control.schemas import SignalPlan
 from datahub.service import TrafficDataHub
 from datahub.traffic_adapters import snapshot_to_legacy
 from datahub.traffic_schemas import ExpertTrafficState, TrafficSnapshot

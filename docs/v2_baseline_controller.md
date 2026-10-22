@@ -6,7 +6,7 @@
 
 ## 封装范围
 
-`app/core/control/policies/baseline.py::BaselineController` 组合现有单路口选择器
+`control/policies/baseline.py::BaselineController` 组合现有单路口选择器
 和全局协调函数。默认实现仍是 `call_dqn_select` 与 `coordinate`，不引入 LLM，
 不新增规则、工厂或抽象基类。
 
@@ -18,7 +18,7 @@
 ## 类型化入口与生产兼容入口
 
 ```python
-from app.core.control.policies import BaselineController
+from control.policies import BaselineController
 from datahub.traffic_adapters import snapshot_from_legacy
 
 controller = BaselineController()
@@ -62,7 +62,7 @@ Harness 提供可独立执行的单点候选接口；它不等于整个批次的
 传入时自动包装为控制器。新 `control_policy` 与旧回调同时提供时明确报配置错误，
 缺少任一旧回调也报错。原实例回调属性仍可替换，默认绑定控制器的兼容方法。
 
-`app/core/control/adapters.py` 的 formatter 导入改为函数内延迟导入，避免
+`control/adapters.py` 的 formatter 导入改为函数内延迟导入，避免
 `runtime.__init__ → application → policy → adapters → runtime` 的初始化循环。
 
 ## 保持的行为

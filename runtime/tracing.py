@@ -11,8 +11,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field, PrivateAttr
 
-from app.core.control.adapters import signal_plan_from_legacy
-from app.core.control.schemas import SignalPlan
+from control.adapters import signal_plan_from_legacy
+from control.schemas import SignalPlan
 from app.core.models.contract_types import CONTRACT_CONFIG, FiniteNumber, NonEmptyString
 
 
