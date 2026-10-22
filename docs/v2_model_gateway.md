@@ -1,7 +1,7 @@
 # AITC V2 Phase 6：统一 Model Gateway
 
 实施基线：`d2f0efe`，Phase 5 经 PR #42 合入 main，修改前 288 项主测试通过。
-本阶段将既有模型调用集中到 `app/infrastructure/llm/ModelGateway`，支持 Qwen、
+本阶段将既有模型调用集中到 `models/ModelGateway`，支持 Qwen、
 Mock 和 Disabled 三种实际实现，并保留原 HTTP 意图接口和周期控制行为。
 
 ## 装配与调用
@@ -30,7 +30,7 @@ invoke_sync。启动健康检查使用 check_ready，只有 QwenProvider 调用�
 chat/list_models。模型响应没有加入周期图，Qwen 不可达或调用超时仍可独立配时。
 
 ```python
-from app.infrastructure.llm import ModelRequest
+from models import ModelRequest
 
 request = ModelRequest(
     messages=[{"role": "user", "content": "描述当前交通状态"}],

@@ -17,8 +17,8 @@ from agents.experts._state import ExpertContractError
 from agents.graph import ControlGraph
 from app.config import ControlAgentSettings
 from app.core.control.policies import BaselineController
-from app.infrastructure.llm import ModelGateway, MockProvider
-from app.infrastructure.llm.errors import ModelTimeoutError
+from models import ModelGateway, MockProvider
+from models.errors import ModelTimeoutError
 from datahub import TrafficDataHub
 from runtime.tracing import DecisionTrace
 from test import test_datahub_integration as hub_tests

@@ -11,7 +11,7 @@ from urllib.error import HTTPError, URLError
 
 from pydantic import ValidationError
 
-from app.infrastructure.llm import (
+from models import (
     ChatCompletionResult,
     DisabledProvider,
     ModelDisabledError,
@@ -167,7 +167,7 @@ class QwenModelGatewayTest(unittest.TestCase):
             temperature=0.25, top_p=0.9, max_tokens=23,
             extra_body={"seed": 17}, max_retries=0,
         )
-        with patch("app.infrastructure.llm.openai_compatible.request.urlopen", urlopen):
+        with patch("models.openai_compatible.request.urlopen", urlopen):
             response = gateway.invoke_sync(request)
 
         self.assertIsInstance(response, ModelResponse)
@@ -199,7 +199,7 @@ class QwenModelGatewayTest(unittest.TestCase):
             return _Response({"choices": [{"message": {"content": "answer"}}]})
 
         gateway = ModelGateway(QwenProvider(OpenAICompatibleLLMClient(default_max_tokens=42)))
-        with patch("app.infrastructure.llm.openai_compatible.request.urlopen", urlopen):
+        with patch("models.openai_compatible.request.urlopen", urlopen):
             gateway.invoke_sync(_request())
         self.assertEqual(captured["max_tokens"], 42)
         self.assertEqual(captured["chat_template_kwargs"], {"enable_thinking": False})
@@ -231,13 +231,13 @@ class QwenModelGatewayTest(unittest.TestCase):
             captured["headers"] = dict(request.header_items())
             return _Response({"data": [{"id": "Qwen3-0.6B"}]})
 
-        with patch("app.infrastructure.llm.openai_compatible.request.urlopen", urlopen):
+        with patch("models.openai_compatible.request.urlopen", urlopen):
             models = gateway.check_ready()
         self.assertEqual(models["data"][0]["id"], "Qwen3-0.6B")
         self.assertEqual(captured["url"], "http://127.0.0.1:8000/v1/models")
         self.assertEqual(captured["method"], "GET")
         self.assertEqual(captured["headers"]["Authorization"], "Bearer health-key")
-        with patch("app.infrastructure.llm.openai_compatible.request.urlopen",
+        with patch("models.openai_compatible.request.urlopen",
                    side_effect=_http_error(503)) as urlopen_mock, \
              self.assertRaises(ModelUnavailableError) as raised:
             gateway.check_ready()
@@ -255,7 +255,7 @@ class QwenModelGatewayTest(unittest.TestCase):
         for payload in payloads:
             gateway = ModelGateway(QwenProvider(OpenAICompatibleLLMClient(max_retries=2)))
             with self.subTest(payload=payload), \
-                 patch("app.infrastructure.llm.openai_compatible.request.urlopen",
+                 patch("models.openai_compatible.request.urlopen",
                        return_value=_Response(payload)) as urlopen, \
                  self.assertRaises(ModelResponseError) as raised:
                 gateway.check_ready()
@@ -271,7 +271,7 @@ class QwenModelGatewayTest(unittest.TestCase):
         for payload in payloads:
             gateway = ModelGateway(QwenProvider(OpenAICompatibleLLMClient(model="configured-model")))
             with self.subTest(payload=payload), \
-                 patch("app.infrastructure.llm.openai_compatible.request.urlopen",
+                 patch("models.openai_compatible.request.urlopen",
                        return_value=_Response(payload)) as urlopen:
                 response = gateway.check_ready()
             self.assertEqual(response["data"], payload["data"])
@@ -289,15 +289,15 @@ class QwenModelGatewayTest(unittest.TestCase):
 
             gateway = ModelGateway(QwenProvider(OpenAICompatibleLLMClient(max_retries=2)))
             with self.subTest(status_code=status_code), \
-                 patch("app.infrastructure.llm.openai_compatible.request.urlopen", urlopen), \
-                 patch("app.infrastructure.llm.openai_compatible.time.sleep"):
+                 patch("models.openai_compatible.request.urlopen", urlopen), \
+                 patch("models.openai_compatible.time.sleep"):
                 response = gateway.invoke_sync(_request())
             self.assertEqual(response.content, "recovered")
             self.assertEqual(len(attempts), 3)
 
     def test_request_zero_retry_preserves_http_status_and_exception_chain(self):
         gateway = ModelGateway(QwenProvider(OpenAICompatibleLLMClient(max_retries=2)))
-        with patch("app.infrastructure.llm.openai_compatible.request.urlopen",
+        with patch("models.openai_compatible.request.urlopen",
                    side_effect=_http_error(503)) as urlopen, \
              self.assertRaises(ModelUnavailableError) as raised:
             gateway.invoke_sync(_request(max_retries=0))
@@ -308,7 +308,7 @@ class QwenModelGatewayTest(unittest.TestCase):
 
     def test_http_client_error_is_not_retried(self):
         gateway = ModelGateway(QwenProvider(OpenAICompatibleLLMClient(max_retries=2)))
-        with patch("app.infrastructure.llm.openai_compatible.request.urlopen",
+        with patch("models.openai_compatible.request.urlopen",
                    side_effect=_http_error(400)) as urlopen, \
              self.assertRaises(ModelGatewayError) as raised:
             gateway.invoke_sync(_request())
@@ -317,9 +317,9 @@ class QwenModelGatewayTest(unittest.TestCase):
 
     def test_network_failure_is_classified_after_transport_retry_budget(self):
         gateway = ModelGateway(QwenProvider(OpenAICompatibleLLMClient(max_retries=1)))
-        with patch("app.infrastructure.llm.openai_compatible.request.urlopen",
+        with patch("models.openai_compatible.request.urlopen",
                    side_effect=URLError("connection refused")) as urlopen, \
-             patch("app.infrastructure.llm.openai_compatible.time.sleep"), \
+             patch("models.openai_compatible.time.sleep"), \
              self.assertRaises(ModelUnavailableError) as raised:
             gateway.invoke_sync(_request())
         self.assertEqual(urlopen.call_count, 2)
@@ -330,7 +330,7 @@ class QwenModelGatewayTest(unittest.TestCase):
         for error in (TimeoutError("socket deadline"), URLError(TimeoutError("socket deadline"))):
             gateway = ModelGateway(QwenProvider(OpenAICompatibleLLMClient(max_retries=0)))
             with self.subTest(error=error), \
-                 patch("app.infrastructure.llm.openai_compatible.request.urlopen", side_effect=error), \
+                 patch("models.openai_compatible.request.urlopen", side_effect=error), \
                  self.assertRaises(ModelTimeoutError) as raised:
                 gateway.invoke_sync(_request())
             self.assertIsNotNone(raised.exception.__cause__)
@@ -346,7 +346,7 @@ class QwenModelGatewayTest(unittest.TestCase):
         for payload in payloads:
             gateway = ModelGateway(QwenProvider(OpenAICompatibleLLMClient(max_retries=2)))
             with self.subTest(payload=payload), \
-                 patch("app.infrastructure.llm.openai_compatible.request.urlopen",
+                 patch("models.openai_compatible.request.urlopen",
                        return_value=_Response(payload)) as urlopen, \
                  self.assertRaises(ModelResponseError) as raised:
                 gateway.invoke_sync(_request())
@@ -357,7 +357,7 @@ class QwenModelGatewayTest(unittest.TestCase):
         for body in (b"not-json", b"\xff"):
             gateway = ModelGateway(QwenProvider(OpenAICompatibleLLMClient()))
             with self.subTest(body=body), \
-                 patch("app.infrastructure.llm.openai_compatible.request.urlopen",
+                 patch("models.openai_compatible.request.urlopen",
                        return_value=_Response(body, encoded=True)), \
                  self.assertRaises(ModelResponseError) as raised:
                 gateway.invoke_sync(_request())
@@ -428,7 +428,7 @@ class QwenModelGatewayTest(unittest.TestCase):
 
 class DisabledAndMockGatewayTest(unittest.TestCase):
     def test_disabled_mode_never_constructs_or_contacts_a_client(self):
-        with patch("app.infrastructure.llm.openai_compatible.request.urlopen") as urlopen, \
+        with patch("models.openai_compatible.request.urlopen") as urlopen, \
              patch.object(OpenAICompatibleLLMClient, "__init__", side_effect=AssertionError("client created")):
             gateway = ModelGateway(DisabledProvider())
             self.assertFalse(gateway.enabled)
@@ -439,7 +439,7 @@ class DisabledAndMockGatewayTest(unittest.TestCase):
         urlopen.assert_not_called()
 
     def test_default_mock_returns_empty_content_without_network(self):
-        with patch("app.infrastructure.llm.openai_compatible.request.urlopen") as urlopen:
+        with patch("models.openai_compatible.request.urlopen") as urlopen:
             gateway = ModelGateway(MockProvider())
             gateway.check_ready()
             self.assertEqual(gateway.provider_name, "mock")
@@ -562,7 +562,7 @@ class AsyncModelGatewayTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_disabled_async_mode_raises_without_network(self):
         gateway = ModelGateway(DisabledProvider())
-        with patch("app.infrastructure.llm.openai_compatible.request.urlopen") as urlopen:
+        with patch("models.openai_compatible.request.urlopen") as urlopen:
             with self.assertRaises(ModelDisabledError):
                 await gateway.invoke(_request())
         urlopen.assert_not_called()

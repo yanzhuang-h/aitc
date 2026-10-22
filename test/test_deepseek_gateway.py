@@ -11,7 +11,7 @@ from unittest.mock import patch
 from pydantic import ValidationError
 
 from app.config import ControlAgentSettings, ModelSettings, RuntimeSettings
-from app.infrastructure.llm import DeepSeekProvider, ModelGateway, ModelRequest, OpenAICompatibleLLMClient
+from models import DeepSeekProvider, ModelGateway, ModelRequest, OpenAICompatibleLLMClient
 from runtime.application import create_application
 from test.fixtures.v2_baseline_controller import isolated_runtime
 from test.test_model_gateway import _Response, _http_error
@@ -42,7 +42,7 @@ class DeepSeekGatewayTest(unittest.TestCase):
                     api_key="test-key", api_style="deepseek", enable_thinking=thinking,
                 )
                 gateway = ModelGateway(DeepSeekProvider(client))
-                with patch("app.infrastructure.llm.openai_compatible.request.urlopen", return_value=_Response({
+                with patch("models.openai_compatible.request.urlopen", return_value=_Response({
                     "choices": [{"message": {"content": '{"tool":"run_control_policy","arguments":{}}'}}],
                 })) as network:
                     response = gateway.invoke_sync(ModelRequest(
@@ -99,7 +99,7 @@ class DeepSeekGatewayTest(unittest.TestCase):
 
     def test_health_check_uses_deepseek_models_endpoint(self):
         with deepseek_application() as app, patch(
-            "app.infrastructure.llm.openai_compatible.request.urlopen",
+            "models.openai_compatible.request.urlopen",
             return_value=_Response({"data": [{"id": "deepseek-flash"}]}),
         ) as network:
             self.assertEqual(app.model_gateway.check_ready()["data"][0]["id"], "deepseek-flash")
@@ -113,7 +113,7 @@ class DeepSeekGatewayTest(unittest.TestCase):
             expected = app.decision_pipeline.run_once()
         for failure in (_http_error(401), TimeoutError("remote timed out")):
             with self.subTest(failure=failure), isolated_runtime(), deepseek_application(control_enabled=True) as app, patch(
-                "app.infrastructure.llm.openai_compatible.request.urlopen", side_effect=failure,
+                "models.openai_compatible.request.urlopen", side_effect=failure,
             ) as network:
                 app.decision_pipeline.worker_count = 1
                 actual = app.decision_pipeline.run_once()

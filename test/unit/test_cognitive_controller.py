@@ -13,7 +13,7 @@ from agents.actions import ToolObservation
 from agents.prompts import REVIEWER_PROMPT
 from app.config import ControlAgentSettings
 from app.core.control.schemas import SignalPlan
-from app.infrastructure.llm import (
+from models import (
     DisabledProvider,
     ModelGateway,
     ModelResponse,
@@ -595,7 +595,7 @@ class CognitiveControllerTest(unittest.TestCase):
             "choices": [{"message": {"content": _action("run_control_policy").content}}],
         }).encode("utf-8")
         session = CognitiveSession()
-        with patch("app.infrastructure.llm.openai_compatible.request.urlopen", return_value=response) as network:
+        with patch("models.openai_compatible.request.urlopen", return_value=response) as network:
             self.plan(controller, session, snapshot=snapshot)
         self.assertEqual(session.reason, "planner_complete")
         self.assertEqual(session.model_calls, 1)

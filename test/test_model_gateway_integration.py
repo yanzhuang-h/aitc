@@ -9,7 +9,7 @@ from unittest.mock import patch
 from urllib.error import URLError
 
 from app.config import RuntimeSettings
-from app.infrastructure.llm import (
+from models import (
     DisabledProvider, ModelDisabledError, ModelGateway, ModelRequest, ModelResponse,
     ModelResponseError, ModelTimeoutError, ModelUnavailableError, MockProvider, QwenProvider,
 )
@@ -82,7 +82,7 @@ class ModelGatewayIntegrationTest(unittest.TestCase):
 
     def test_mock_startup_and_symbolic_queries_need_no_model_service(self):
         with patch("runtime.application.OpenAICompatibleLLMClient") as client, patch(
-            "app.infrastructure.llm.openai_compatible.request.urlopen",
+            "models.openai_compatible.request.urlopen",
             side_effect=AssertionError("mock must not use a model service"),
         ) as network, model_application("mock", required=True) as app:
             self.assertIsInstance(app.model_gateway.provider, MockProvider)
@@ -139,7 +139,7 @@ class ModelGatewayIntegrationTest(unittest.TestCase):
         outputs = []
         for provider in ("disabled", "mock", "qwen"):
             with self.subTest(provider=provider), isolated_runtime(), patch(
-                "app.infrastructure.llm.openai_compatible.request.urlopen",
+                "models.openai_compatible.request.urlopen",
                 side_effect=URLError("no model server"),
             ) as network, model_application(provider) as app, startup_without_servers(app):
                 app.start()
