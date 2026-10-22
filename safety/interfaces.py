@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from typing import Any, Protocol
-from app.core.control.safety_schemas import PlanSafetyResult
+from .schemas import PlanSafetyResult
 
 
 class SafetyEngine(Protocol):

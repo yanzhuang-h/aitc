@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable
 from uuid import uuid4
 
-from app.core.control.policies import BaselineController
+from control.policies import BaselineController
 from datahub.classifier import DataKind
 from datahub.service import TrafficDataHub
 from infra.logging import LoggingMixin

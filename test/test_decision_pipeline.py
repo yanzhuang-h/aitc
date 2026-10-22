@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from app.core.control.policies import BaselineController
+from control.policies import BaselineController
 from datahub import ResultWarehouse
 from phase_check import phase_check
 from runtime import PeriodicDecisionPipeline

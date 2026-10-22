@@ -3,8 +3,8 @@ from dataclasses import asdict, fields
 
 from pydantic import TypeAdapter, ValidationError
 
-from app.core.control.adapters import signal_plan_from_legacy, signal_plan_to_legacy
-from app.core.control.schemas import SignalPlan
+from control.adapters import signal_plan_from_legacy, signal_plan_to_legacy
+from control.schemas import SignalPlan
 from datahub.classifier import DataKind, DataSource
 from datahub.traffic_adapters import (
     raw_event_from_legacy, raw_event_to_legacy, snapshot_from_legacy, snapshot_to_legacy,

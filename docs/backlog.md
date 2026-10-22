@@ -38,7 +38,7 @@
 
 | # | 事项 | 现状 | 建议 | 优先级 |
 | --- | --- | --- | --- | --- |
-| C1（#4） | 配置文件路径硬编码 | `app/core/control/synergy/green_wave_api_adapter.py`、`phase_check.py`、`time_schedule/get_sch_for_cross.py` 写死路径 | ✅ 已落地：`app/paths.py` 集中路径 + 环境变量覆盖（`AITC_*_PATH`）；后续可继续收敛其余散落路径 | 低 |
+| C1（#4） | 配置文件路径硬编码 | `control/synergy/green_wave_api_adapter.py`、`phase_check.py`、`time_schedule/get_sch_for_cross.py` 写死路径 | ✅ 已落地：`app/paths.py` 集中路径 + 环境变量覆盖（`AITC_*_PATH`）；后续可继续收敛其余散落路径 | 低 |
 | C2（#10） | 流动窗口默认值易误解 | `DEFAULT_FLOW_DURATION_SECONDS=300` 与运行配置 150 不一致（运行时会被注入覆盖） | 去默认值（必填）或注明"仅占位" | 低 |
 | C3（#9） | 两套 JSON 存储实现 | `lib/_local_json_store.py` 与 `datahub/storage.py::JsonFileStore` 功能重复 | 只记录不合并（跨 lib 边界风险高） | 低 |
 | C4（#8） | 遗留路径与服务 | `path_config.py`（62）+ 根目录 `time_schedule.py`（688，Flask）仅旧服务引用 | 确认无外部调用后移 `legacy/` | 中 |

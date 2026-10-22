@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import Lambdas
 
-from app.core.control.adapters import (
+from control.adapters import (
     signal_plan_from_legacy, signal_plan_to_legacy, signal_plan_to_payload,
 )
 from datahub import ResultSender, ResultWarehouse

@@ -11,7 +11,7 @@ import Lambdas
 from agents.experts import RadarExpert, VideoExpert
 from agents.graph import ControlGraph
 from app.config import RuntimeSettings
-from app.core.control.policies import BaselineController
+from control.policies import BaselineController
 from datahub import TrafficDataHub
 from phase_check import phase_check
 from test.fixtures.v2_baseline_controller import (

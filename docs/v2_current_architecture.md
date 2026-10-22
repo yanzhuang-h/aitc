@@ -60,15 +60,15 @@ Video/Radar 为图的路由提供证据，原策略继续接收完整控制请�
 | 职责 | 当前实现 | 状态 |
 |---|---|---|
 | 服务入口与装配 | `Server_AITC.py`、`runtime/application.py` | TCP、HTTP、周期决策与调度共用运行组件 |
-| 严格核心契约 | `datahub/traffic_schemas.py`、`traffic_adapters.py`；`app/core/control/schemas.py`、`adapters.py` | RawTrafficEvent、TrafficSnapshot、ExpertTrafficState、SignalPlan |
+| 严格核心契约 | `datahub/traffic_schemas.py`、`traffic_adapters.py`；`control/schemas.py`、`adapters.py` | RawTrafficEvent、TrafficSnapshot、ExpertTrafficState、SignalPlan |
 | 交通数据中心 | `datahub/service.py` | 按路口隔离当前事件、来源查询、最近 N 轮严格快照与质量信息 |
 | 短期与长期记忆 | `datahub/memory/` | 内存窗口缓存与 JSON/JSONL 仓库；复用原数据底座 |
 | 聚合与预测 | `datahub/runtime_processor.py`、`runtime/prediction_service.py` | 保留原计算与副作用顺序 |
 | 领域专家 | `agents/experts/` | Video/Radar 已实现；Internet/EV 保留明确 TODO |
 | 周期 LangGraph | `agents/graph.py`、`agents/state.py` | 状态、条件路由、只读专家重试、执行上下文 |
 | 受约束认知层 | `agents/actions.py`、`control_tools.py`、`cognitive.py`、`prompts.py` | 七类严格动作、本轮工具证据与候选审查、预算及故障降级 |
-| 原控制策略 | `app/core/control/policies/baseline.py` | 包装既有 selector/coordinator，保留原四元组接口 |
-| 最终安全门 | `app/core/control/safety_engine.py`、`safety_schemas.py` | 协调后严格结构、已有静态规则、上下界和 fallback 校验 |
+| 原控制策略 | `control/policies/baseline.py` | 包装既有 selector/coordinator，保留原四元组接口 |
+| 最终安全门 | `safety/service.py`、`safety/schemas.py` | 协调后严格结构、已有静态规则、上下界和 fallback 校验 |
 | 周期运行 | `runtime/decision_pipeline.py` | 全批次协调后通过 Safety Gate，再格式化并替换结果 |
 | 决策追踪 | `runtime/tracing.py` | 每路口每轮一条严格 JSON 记录，关联快照、调用、候选、最终方案、安全与错误 |
 | 输出与广播 | `datahub/result_warehouse.py`、`result_sender.py`、`writer.py` | 原 TCP 报文和本地日志 |
@@ -101,7 +101,7 @@ Video/Radar 为图的路由提供证据，原策略继续接收完整控制请�
 Phase 9 已补齐逐决策 trace，说明和查询方式见 [决策追踪](v2_decision_tracing.md)。
 Phase 10 的验收清单、冷启动修复、完整运行命令与待补齐项见 [最终验收](v2_final_acceptance.md)。
 
-`app/core/control/safety_engine.py` 的旧骨架已替换并接入真实周期链；早期
+`safety/service.py` 的旧骨架已替换并接入真实周期链；早期
 `output/dispatcher.py` 仍不是生产发送入口，输出继续由现有结果仓库和 TCP sender 负责。
 
 最终目标是：快速正常场景由原策略执行；复杂场景由受约束模型选择专家/工具、

@@ -5,8 +5,8 @@ import json
 import unittest
 from unittest.mock import Mock, patch
 
-from app.core.control.policies import BaselineController
-from app.core.control.safety_engine import ControlSafetyEngine
+from control.policies import BaselineController
+from safety.service import ControlSafetyEngine
 from phase_check import get_intersection_result_config, phase_check
 from test.fixtures.v2_baseline_controller import FIXTURE, compact_round, full_replay, isolated_runtime, sensor_request
 import test.test_decision_pipeline as pipeline_tests

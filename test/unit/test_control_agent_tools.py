@@ -7,7 +7,7 @@ from pydantic import ValidationError
 from agents.actions import ACTION_ADAPTER, ReviewDecision, ToolObservation
 from agents.control_tools import ControlAgentTools
 from agents.experts._state import ExpertContractError
-from app.core.control.adapters import signal_plan_from_legacy
+from control.adapters import signal_plan_from_legacy
 from datahub.classifier import DataKind, DataSource
 from datahub.service import TrafficDataHub
 from datahub.traffic_schemas import ExpertTrafficState, RawTrafficEvent, TrafficSnapshot

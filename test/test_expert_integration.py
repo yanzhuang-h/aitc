@@ -14,7 +14,7 @@ from pydantic import ValidationError
 
 from agents.experts import EVExpert, InternetExpert, RadarExpert, VideoExpert
 from app.config import RuntimeSettings, TrafficMemorySettings
-from app.core.control.policies import BaselineController
+from control.policies import BaselineController
 from datahub import RuntimeDataProcessor, TrafficDataHub
 from datahub.classifier import DataKind, DataSource
 from datahub.traffic_schemas import ExpertTrafficState, RawTrafficEvent, TrafficSnapshot

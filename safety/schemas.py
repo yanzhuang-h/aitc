@@ -3,7 +3,7 @@
 from typing import Literal
 from pydantic import BaseModel, Field
 from app.core.models.contract_types import CONTRACT_CONFIG, NonEmptyString
-from .schemas import SignalPlan
+from control.schemas import SignalPlan
 
 
 class PlanSafetyResult(BaseModel):

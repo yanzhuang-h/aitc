@@ -4,8 +4,8 @@ from typing import Any, Callable
 
 from pydantic import TypeAdapter
 
-from app.core.control.adapters import signal_plan_from_legacy
-from app.core.control.schemas import SignalPlan
+from control.adapters import signal_plan_from_legacy
+from control.schemas import SignalPlan
 from datahub.traffic_adapters import snapshot_to_legacy
 from datahub.traffic_schemas import TrafficSnapshot
 from lib.control_functions.types import IntersectionControlRequest

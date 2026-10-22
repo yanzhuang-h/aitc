@@ -3,8 +3,8 @@
 from dataclasses import dataclass
 from typing import Callable, TypedDict
 
-from app.core.control.policies.baseline import LegacySelection
-from app.core.control.schemas import SignalPlan
+from control.policies.baseline import LegacySelection
+from control.schemas import SignalPlan
 from datahub.traffic_schemas import ExpertTrafficState, TrafficSnapshot
 from lib.control_functions.types import IntersectionControlRequest
 

@@ -9,7 +9,7 @@ from typing import Any
 
 from pydantic import TypeAdapter
 
-from app.core.control.schemas import SignalPlan
+from control.schemas import SignalPlan
 from app.core.models.contract_types import NonEmptyString
 from datahub.service import SOURCE_KINDS, TrafficDataHub
 from datahub.traffic_schemas import ExpertTrafficState, TrafficDataView, TrafficSnapshot

@@ -4,8 +4,8 @@ from collections import Counter
 import json
 from pathlib import Path
 
-from app.core.control.adapters import signal_plan_from_legacy
-from app.core.control.safety_engine import ControlSafetyEngine
+from control.adapters import signal_plan_from_legacy
+from safety.service import ControlSafetyEngine
 
 
 def audit_schedules(config, schedules, roads):
