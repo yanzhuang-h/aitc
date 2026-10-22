@@ -5,9 +5,9 @@ from __future__ import annotations
 import tempfile
 import unittest
 
-from agent.qwen_agent import QwenSignalTimingAgent, QwenToolRouterAgent, SymbolicDataAgent
-from agent.harness import AgentHarness
-from agent.tools import DataQueryTools
+from agents.qwen_agent import QwenSignalTimingAgent, QwenToolRouterAgent, SymbolicDataAgent
+from agents.harness import AgentHarness
+from agents.tools import DataQueryTools
 from app.core.tools import SingleIntersectionSignalTimingTool
 from datahub import (
     ConfigService,
@@ -250,7 +250,7 @@ class SymbolicDataAgentTest(unittest.TestCase):
     # ---- 意图注册表 + 三层路由（显式 / 自主判断 / 兜底）----
 
     def test_intent_registry_basics(self) -> None:
-        from agent.registry import IntentRegistry
+        from agents.registry import IntentRegistry
 
         registry = IntentRegistry()
         registry.register("a", "A 描述", lambda payload: {"status": "success"})

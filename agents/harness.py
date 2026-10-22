@@ -1,7 +1,7 @@
 """Agent Harness：Agent 的统一运行载体。
 
 职责边界（参考 agent + harness 架构）：
-- Agent（``agent/qwen_agent.py``、``agent/control_agent.py``）：只负责决策与编排，
+- Agent（``agents/qwen_agent.py``、``agents/control_agent.py``）：只负责决策与编排，
   接收结构化请求、返回结构化结果（ToolResponse），不感知协议。
 - Harness（本模块）：负责统一入口、意图路由、请求校验、错误处理，
   以及协议层（HTTP/TCP）与 Agent / 工具之间的适配。

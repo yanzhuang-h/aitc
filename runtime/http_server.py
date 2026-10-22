@@ -59,7 +59,7 @@ class HttpRuntimeServer(LoggingMixin):
         self.logger = logger
         if agent_harness is None:
             # 兼容旧调用：未显式提供 harness 时，用旧参数自动装配统一门面
-            from agent.harness import AgentHarness
+            from agents.harness import AgentHarness
 
             agent_harness = AgentHarness(
                 signal_timing_tool=signal_timing_tool,

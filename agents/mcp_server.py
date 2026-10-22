@@ -9,7 +9,7 @@ Cursor 等）可通过 stdio 启动本模块，执行 ``list_tools`` / ``call_to
 
 启动方式（stdio，默认，WSL `.venv`）::
 
-    .venv/bin/python agent/mcp_server.py
+    .venv/bin/python agents/mcp_server.py
 
 外部 MCP 客户端配置示例（mcp.json / claude_desktop_config.json）::
 
@@ -17,7 +17,7 @@ Cursor 等）可通过 stdio 启动本模块，执行 ``list_tools`` / ``call_to
       "mcpServers": {
         "aitc": {
           "command": "<项目根目录>/.venv/bin/python",
-          "args": ["agent/mcp_server.py"],
+          "args": ["agents/mcp_server.py"],
           "cwd": "<项目根目录>"
         }
       }
@@ -40,8 +40,8 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 import Lambdas
 
-from agent.registry import ToolRegistry
-from agent.tools import DataQueryTools
+from agents.registry import ToolRegistry
+from agents.tools import DataQueryTools
 from app.config import RuntimeSettings
 from app.core.tools import SingleIntersectionSignalTimingTool
 from app.core.tools.control_function_tools import ControlFunctionTools

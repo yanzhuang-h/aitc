@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import unittest
 
-from agent.registry import ToolRegistry
+from agents.registry import ToolRegistry
 from app.core.tools.control_function_tools import ControlFunctionTools
 
 

@@ -15,7 +15,7 @@
 | A5 | 接入层吞吐优化 | TCP 65432 + HTTP 8088 分端口：信控平台走 TCP（长连接、量最大），雷达/博研走 HTTP；旧原因="一个端口忙不过来" | 协议拆分保留（设备协议决定）；方向：异步接收/独立写线程池，或统一网关+消息队列（MQ）；按规模再定 | 中 |
 | A6 | Agent 层重构（需求驱动） | 现状：五类组件叠加（SymbolicDataAgent / QwenSignalTimingAgent / QwenToolRouterAgent / ControlProcessAgent / AgentHarness）+ 双路由（IntentRegistry + action 符号路由）+ 15 个意图（绿波占 9 个，实为资源 CRUD）；工具需四处声明；文件命名不清晰（qwen_agent.py 一文件三类、tools.py 泛指） | 意图收敛（2026-09-30 结论）：真实意图仅「查询 / 单路口方案 /（可选）放行控制」2-3 个；symbolic+agent.tools+autonomous 三合一、signal_timing+agent.signal_timing 二合一、绿波 9 意图移出 harness 做独立资源路由；文件按组件拆分重命名；装饰器式工具注册；保留 `/api/agent/*` 兼容 | 中（远期） |
 | A7 | 目录与模块结构重构 | 现状：根目录混放运行入口与离线脚本；`app/core/tools` 反向依赖 `agent.registry`；`lib` 内分域不完全；`agent` 与运行时装配耦合 | 参照成熟分层惯例（FastAPI 风格 `app/{api,core,models,services}` 或 domain/application/infrastructure）+ `架构.png` 模块边界（数据底座/控制模块/安全引擎）分步调整；先收敛根目录（C4/C5）、注册中心下沉、lib 分域、agent 服务化；不照搬图，逐项迭代 | 中（远期） |
-| A8 | MCP 多服务器化 | 现状：单个 `agent/mcp_server.py` 暴露全部 10 个工具 | 按功能域拆多个 MCP server（数据查询 / 信号控制 / 绿波管理等），各自独立进程与配置；复用统一注册中心按域过滤 | 低（远期） |
+| A8 | MCP 多服务器化 | 现状：单个 `agents/mcp_server.py` 暴露全部 10 个工具 | 按功能域拆多个 MCP server（数据查询 / 信号控制 / 绿波管理等），各自独立进程与配置；复用统一注册中心按域过滤 | 低（远期） |
 
 ## B. 数据底座待办
 

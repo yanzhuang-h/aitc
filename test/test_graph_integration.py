@@ -8,8 +8,8 @@ from unittest.mock import Mock, patch
 
 import Lambdas
 
-from agent.experts import RadarExpert, VideoExpert
-from agent.graph import ControlGraph
+from agents.experts import RadarExpert, VideoExpert
+from agents.graph import ControlGraph
 from app.config import RuntimeSettings
 from app.core.control.policies import BaselineController
 from datahub import TrafficDataHub

@@ -3,7 +3,7 @@
 import logging
 import unittest
 
-from agent.control_agent import ControlProcessAgent
+from agents.control_agent import ControlProcessAgent
 
 
 class FakeLLMClient:

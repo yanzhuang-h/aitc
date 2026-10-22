@@ -7,7 +7,7 @@ from unittest.mock import patch
 from pydantic import ValidationError
 
 import Lambdas
-from agent.experts import EVExpert, InternetExpert, RadarExpert, VideoExpert
+from agents.experts import EVExpert, InternetExpert, RadarExpert, VideoExpert
 from datahub import cache_processor
 from datahub.classifier import DataKind, DataSource
 from datahub.service import TrafficDataHub

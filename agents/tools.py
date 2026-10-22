@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from agent.registry import ToolRegistry
+from agents.registry import ToolRegistry
 from app.core.models import ToolResponse
 from datahub import MemoryQueryLayer
 

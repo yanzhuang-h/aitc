@@ -44,14 +44,14 @@ from .prediction_scheduler import PredictionScheduler
 from .prediction_service import FlowPredictionService, QueuePredictionService
 from .result_formatter import format_result
 from .tcp_server import TcpRuntimeServer
-from agent.qwen_agent import QwenSignalTimingAgent, QwenToolRouterAgent, SymbolicDataAgent
-from agent.control_agent import ControlProcessAgent
-from agent.harness import AgentHarness
-from agent.experts import EVExpert, InternetExpert, RadarExpert, VideoExpert
-from agent.graph import ControlGraph
-from agent.cognitive import CognitiveController
-from agent.control_tools import ControlAgentTools
-from agent.tools import DataQueryTools
+from agents.qwen_agent import QwenSignalTimingAgent, QwenToolRouterAgent, SymbolicDataAgent
+from agents.control_agent import ControlProcessAgent
+from agents.harness import AgentHarness
+from agents.experts import EVExpert, InternetExpert, RadarExpert, VideoExpert
+from agents.graph import ControlGraph
+from agents.cognitive import CognitiveController
+from agents.control_tools import ControlAgentTools
+from agents.tools import DataQueryTools
 from app.core.control.synergy.green_wave_service import GreenWaveDataService
 from app.infrastructure.llm import (
     DeepSeekProvider, DisabledProvider, MockProvider, ModelGateway, OpenAICompatibleLLMClient, QwenProvider,

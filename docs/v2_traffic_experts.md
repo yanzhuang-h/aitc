@@ -9,7 +9,7 @@ HEAD 与 origin/main；修改前主测试 210 项全部通过。数据接口见
 
 ## 接口和接线
 
-`agent/experts` 提供四个明确的专家入口，不新增基类、模型客户端或工具注册框架。
+`agents/experts` 提供四个明确的专家入口，不新增基类、模型客户端或工具注册框架。
 
 ```python
 from agent.experts import VideoExpert, RadarExpert, InternetExpert, EVExpert
