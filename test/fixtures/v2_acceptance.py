@@ -13,7 +13,7 @@ import Lambdas
 from unittest.mock import Mock, patch
 
 from app.config import ControlAgentSettings, RuntimeSettings, TrafficMemorySettings
-from infra.data.classifier import DataKind, DataSource
+from datahub.classifier import DataKind, DataSource
 from runtime.application import create_application
 
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 
-from infra.data import (
+from datahub import (
     ConfigService,
     DataKind,
     LongTermMemory,

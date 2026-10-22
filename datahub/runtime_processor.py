@@ -9,7 +9,7 @@ from .classifier import DataKind
 from .memory.short_term import ShortTermMemory
 
 if TYPE_CHECKING:
-    from .datahub import TrafficDataHub
+    from .service import TrafficDataHub
 
 
 class RuntimeDataProcessor:

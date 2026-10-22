@@ -9,7 +9,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any, Mapping
 from urllib.parse import parse_qs, urlparse
 
-from infra.data.classifier import DataKind
+from datahub.classifier import DataKind
 from infra.logging import LoggingMixin
 
 

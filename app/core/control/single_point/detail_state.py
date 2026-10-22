@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from infra.data import MemoryQueryLayer
+from datahub import MemoryQueryLayer
 
 
 class IntersectionDetailState:

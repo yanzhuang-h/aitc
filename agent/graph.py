@@ -12,9 +12,9 @@ from app.core.control.adapters import signal_plan_from_legacy
 from app.core.control.policies import BaselineController
 from app.core.control.policies.baseline import LegacySelection
 from app.core.control.schemas import SignalPlan
-from infra.data.datahub import TrafficDataHub
-from infra.data.traffic_adapters import snapshot_to_legacy
-from infra.data.traffic_schemas import ExpertTrafficState, TrafficSnapshot
+from datahub.service import TrafficDataHub
+from datahub.traffic_adapters import snapshot_to_legacy
+from datahub.traffic_schemas import ExpertTrafficState, TrafficSnapshot
 from lib.control_functions.types import IntersectionControlRequest
 
 from ._langgraph_compat import isolate_checkpoint_randomness

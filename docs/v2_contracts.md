@@ -29,7 +29,7 @@ Model Gateway 和独立 Safety Gate。这里的 schema 校验不代表完整交�
 | 契约 | 定义 | 含义 |
 |---|---|---|
 | `SignalPlan` | `app/core/control/schemas.py` | 路口 ID、八个相位槽、保留位、方案号 |
-| `RawTrafficEvent` | `infra/data/traffic_schemas.py` | 已分类原始报文、TCP/HTTP 来源、接收时间、可选路口 ID、质量问题 |
+| `RawTrafficEvent` | `datahub/traffic_schemas.py` | 已分类原始报文、TCP/HTTP 来源、接收时间、可选路口 ID、质量问题 |
 | `TrafficSnapshot` | 同上 | 每路口一轮十五字段算法上下文；继承现有 `IntersectionControlRequest` |
 | `ExpertTrafficState` | 同上 | video/radar/internet/ev 来源、snapshot observation、missing_fields、confidence |
 
@@ -63,7 +63,7 @@ assert signal_plan_to_legacy(plan) == legacy
 
 ## 输入与状态 adapter
 
-`infra/data/traffic_adapters.py` 提供：
+`datahub/traffic_adapters.py` 提供：
 
 ```python
 raw_event_from_legacy(payload, source=DataSource.TCP, received_at=received_seconds,

@@ -1,7 +1,7 @@
 """EV/V2X 状态接口；当前没有已接线的原始数据与映射定义。"""
 
-from infra.data.datahub import TrafficDataHub
-from infra.data.traffic_schemas import ExpertTrafficState
+from datahub.service import TrafficDataHub
+from datahub.traffic_schemas import ExpertTrafficState
 
 from ._state import empty_observation
 

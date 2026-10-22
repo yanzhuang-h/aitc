@@ -3,7 +3,7 @@ import unittest
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from infra.data.prediction_repository import FilePredictionRepository
+from datahub.prediction_repository import FilePredictionRepository
 
 
 class PredictionRepositoryTest(unittest.TestCase):

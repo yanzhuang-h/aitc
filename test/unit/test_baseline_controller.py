@@ -8,7 +8,7 @@ from pydantic import ValidationError
 
 from app.core.control.adapters import signal_plan_to_legacy
 from app.core.control.policies import BaselineController
-from infra.data.traffic_schemas import TrafficSnapshot
+from datahub.traffic_schemas import TrafficSnapshot
 from lib.control_functions.types import IntersectionControlRequest
 
 

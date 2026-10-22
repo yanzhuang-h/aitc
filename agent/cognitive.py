@@ -14,7 +14,7 @@ from app.config import ControlAgentSettings
 from app.core.control.schemas import SignalPlan
 from app.infrastructure.llm import ModelGateway, ModelMessage, ModelRequest
 from app.infrastructure.llm.errors import ModelGatewayError, ModelUnavailableError
-from infra.data.traffic_schemas import ExpertTrafficState, TrafficSnapshot
+from datahub.traffic_schemas import ExpertTrafficState, TrafficSnapshot
 
 from .actions import (
     ACTION_ADAPTER, EmptyArguments, QueryRadarStateAction, QueryVideoStateAction,

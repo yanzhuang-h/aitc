@@ -19,7 +19,7 @@ from app.config import ControlAgentSettings
 from app.core.control.policies import BaselineController
 from app.infrastructure.llm import ModelGateway, MockProvider
 from app.infrastructure.llm.errors import ModelTimeoutError
-from infra.data import TrafficDataHub
+from datahub import TrafficDataHub
 from runtime.tracing import DecisionTrace
 from test import test_datahub_integration as hub_tests
 from test import test_decision_pipeline as pipeline_tests

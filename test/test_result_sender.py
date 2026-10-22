@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import unittest
 
-from infra.data.result_sender import ResultSender
+from datahub.result_sender import ResultSender
 
 
 class _FakeSocket:

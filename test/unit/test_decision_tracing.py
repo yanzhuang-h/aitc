@@ -9,7 +9,7 @@ from unittest.mock import Mock, patch
 
 from pydantic import ValidationError
 
-from infra.data.traffic_adapters import snapshot_from_legacy
+from datahub.traffic_adapters import snapshot_from_legacy
 from lib.control_functions.types import IntersectionControlRequest
 from runtime.tracing import DecisionTrace, trace_stage, trace_value
 

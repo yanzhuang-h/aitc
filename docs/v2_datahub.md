@@ -6,7 +6,7 @@ HEAD 与 origin/main；修改前主测试 170 项全部通过。契约见
 
 ## 职责和接线
 
-`infra/data/datahub.py::TrafficDataHub` 是运行交通状态入口，使用 dict/deque，
+`datahub/service.py::TrafficDataHub` 是运行交通状态入口，使用 dict/deque，
 复用 `ShortTermMemory` 的原时间窗口和原聚合函数。没有新增存储服务或抽象仓库层。
 
 ```mermaid
@@ -53,7 +53,7 @@ Phase 4 新增可选 include_snapshot=False，供只提取当前事件的专家�
 查询不会调用模型、选择器或发送结果。
 
 ```python
-from infra.data.classifier import DataSource
+from datahub.classifier import DataSource
 
 hub = app.datahub
 state = hub.latest("1300068")

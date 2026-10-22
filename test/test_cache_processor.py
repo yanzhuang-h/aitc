@@ -4,7 +4,7 @@ import unittest
 
 import Lambdas
 
-from infra.data import cache_processor
+from datahub import cache_processor
 
 
 class CacheProcessorTest(unittest.TestCase):

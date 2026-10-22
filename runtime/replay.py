@@ -176,7 +176,7 @@ def run_worker(options, mode):
     os.environ['AITC_FLOW_ALLOCATOR_SHADOW_LOG_DIR'] = str(root / 'shadow')
     from app.config import ControlAgentSettings, RuntimeSettings
     from runtime.application import create_application
-    from infra.data.classifier import DataKind
+    from datahub.classifier import DataKind
 
     records, sources = [], []
     for source in ('tcp', 'http'):
@@ -244,8 +244,8 @@ def run_worker(options, mode):
             for target in ('lib.Global_intersection_coordinate.datetime', 'lib.lvbotest.datetime',
                            'lib.green_wave_functions.datetime', 'lib.data_ANS.flow_allocator_shadow.datetime',
                            'Flow_predict.datetime', 'Queue_predict.datetime',
-                           'infra.data.schemas.datetime', 'infra.data.output_store.datetime',
-                           'infra.data.quality.datetime'):
+                           'datahub.schemas.datetime', 'datahub.output_store.datetime',
+                           'datahub.quality.datetime'):
                 stack.enter_context(patch(target, ReplayDatetime))
             for index in range(options['rounds']):
                 decision_time = initial_time + (index + 1) * options['interval']

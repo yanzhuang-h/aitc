@@ -34,6 +34,7 @@ Thumbs.db
 # Logs and temporary files
 logs_data/
 **/logs_data/
+datahub/runtime/
 infra/data/runtime/
 *.log
 server.log.*

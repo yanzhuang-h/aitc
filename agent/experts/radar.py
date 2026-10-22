@@ -1,9 +1,9 @@
 """保留原雷达与博研观测 map，不推导尚无业务定义的视频特征。"""
 
-from infra.data import cache_processor
-from infra.data.classifier import DataKind
-from infra.data.datahub import TrafficDataHub
-from infra.data.traffic_schemas import ExpertTrafficState
+from datahub import cache_processor
+from datahub.classifier import DataKind
+from datahub.service import TrafficDataHub
+from datahub.traffic_schemas import ExpertTrafficState
 
 from ._state import empty_observation, expert_state, source_view
 

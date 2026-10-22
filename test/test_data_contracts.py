@@ -1,7 +1,7 @@
 import unittest
 
-from infra.data.classifier import DataKind, DataSource
-from infra.data.contracts import CONTRACTS, validate_contract
+from datahub.classifier import DataKind, DataSource
+from datahub.contracts import CONTRACTS, validate_contract
 
 
 class DataContractsTest(unittest.TestCase):

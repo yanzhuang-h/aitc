@@ -12,8 +12,8 @@ import Lambdas
 from app.core.control.adapters import (
     signal_plan_from_legacy, signal_plan_to_legacy, signal_plan_to_payload,
 )
-from infra.data import ResultSender, ResultWarehouse
-from infra.data.traffic_adapters import snapshot_from_legacy, snapshot_to_legacy
+from datahub import ResultSender, ResultWarehouse
+from datahub.traffic_adapters import snapshot_from_legacy, snapshot_to_legacy
 from lib.control_functions.dqn_control import call_dqn_select
 from lib.control_functions.types import IntersectionControlRequest
 from phase_check import phase_check

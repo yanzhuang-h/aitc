@@ -5,7 +5,7 @@ from typing import Callable, TypedDict
 
 from app.core.control.policies.baseline import LegacySelection
 from app.core.control.schemas import SignalPlan
-from infra.data.traffic_schemas import ExpertTrafficState, TrafficSnapshot
+from datahub.traffic_schemas import ExpertTrafficState, TrafficSnapshot
 from lib.control_functions.types import IntersectionControlRequest
 
 from .cognitive import CognitiveSession

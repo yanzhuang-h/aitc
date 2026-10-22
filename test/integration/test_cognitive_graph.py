@@ -18,8 +18,8 @@ from agent.graph import ControlGraph
 from app.config import ControlAgentSettings, RuntimeSettings
 from app.core.control.policies import BaselineController
 from app.infrastructure.llm import ModelGateway, ModelResponse, MockProvider
-from infra.data import TrafficDataHub
-from infra.data.traffic_schemas import TrafficSnapshot
+from datahub import TrafficDataHub
+from datahub.traffic_schemas import TrafficSnapshot
 from lib.control_functions.types import IntersectionControlRequest
 from runtime.application import create_application
 from test.fixtures.v2_baseline_controller import FIXTURE, compact_round, full_replay, isolated_runtime

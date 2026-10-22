@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from infra.data import is_millisecond_timestamp
+from datahub import is_millisecond_timestamp
 
 
 class MillisecondTimestampTest(unittest.TestCase):

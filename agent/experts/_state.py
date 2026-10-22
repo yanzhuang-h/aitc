@@ -2,8 +2,8 @@
 
 import time
 
-from infra.data.datahub import SOURCE_KINDS, TrafficDataHub
-from infra.data.traffic_schemas import (
+from datahub.service import SOURCE_KINDS, TrafficDataHub
+from datahub.traffic_schemas import (
     ExpertTrafficState, TrafficDataView, TrafficSnapshot, TrafficSource,
 )
 

@@ -13,7 +13,7 @@ from pydantic import ValidationError
 
 from app.config import RuntimeSettings, TrafficMemorySettings
 from app.core.control.policies import BaselineController
-from infra.data import ResultWarehouse, ShortTermMemory, TrafficDataHub
+from datahub import ResultWarehouse, ShortTermMemory, TrafficDataHub
 from runtime import PeriodicDecisionPipeline
 from runtime.application import create_application
 from test.fixtures.v2_baseline_controller import (

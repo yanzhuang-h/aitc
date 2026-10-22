@@ -5,7 +5,7 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, Field, TypeAdapter, model_validator
 
 from app.core.models.contract_types import CONTRACT_CONFIG, NonEmptyString
-from infra.data.traffic_schemas import ExpertTrafficState, TrafficSource
+from datahub.traffic_schemas import ExpertTrafficState, TrafficSource
 
 
 Reason = Annotated[NonEmptyString, Field(max_length=1000)]

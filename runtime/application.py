@@ -18,7 +18,7 @@ from app.config import RuntimeSettings
 from app.core.control.policies import BaselineController
 from app.core.control.safety_engine import ControlSafetyEngine
 
-from infra.data import (
+from datahub import (
     ConfigService,
     ConfigSyncManager,
     LongTermMemory,
@@ -35,7 +35,7 @@ from infra.data import (
     RuntimeDataWriter,
     is_millisecond_timestamp,
 )
-from infra.data.output_store import FileRuntimeOutputStore
+from datahub.output_store import FileRuntimeOutputStore
 from infra.logging import LoggingMixin
 
 from .decision_pipeline import PeriodicDecisionPipeline
@@ -189,7 +189,7 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
         FileRuntimeOutputStore(settings.runtime_output_dir),
         experience_manifest_path=settings.experience_release.active_manifest_path,
     )
-    # 长期仓库（infra/data/runtime/runtime/*.jsonl，供历史查询）
+    # 长期仓库（datahub/runtime/runtime/*.jsonl，供历史查询）
     repository = LongTermMemory(root=settings.runtime_data_dir)
     # 溢出告警表：初始结构与 map_lambda 一致，按「路口×方向」记录最新告警
     overflow_warning_map = copy.deepcopy(Lambdas.map_lambda)
