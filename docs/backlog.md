@@ -1,6 +1,6 @@
 # 调整候选清单（Backlog）
 
-> 汇总学习 Day 1（入口/装配/协议）与 Day 2（数据底座 `infra/data`）过程中发现的、待后续统一处理的调整点，避免遗漏。
+> 汇总学习 Day 1（入口/装配/协议）与 Day 2（数据底座 `datahub`）过程中发现的、待后续统一处理的调整点，避免遗漏。
 > 已落地的事项不入此表（见各 PR）；每项注明来源、现状、建议与优先级（低/中/高）。
 > 处理原则：先小后大、行为不变优先；涉及算法行为的事项需单独说明影响面。
 
@@ -40,7 +40,7 @@
 | --- | --- | --- | --- | --- |
 | C1（#4） | 配置文件路径硬编码 | `app/core/control/synergy/green_wave_api_adapter.py`、`phase_check.py`、`time_schedule/get_sch_for_cross.py` 写死路径 | ✅ 已落地：`app/paths.py` 集中路径 + 环境变量覆盖（`AITC_*_PATH`）；后续可继续收敛其余散落路径 | 低 |
 | C2（#10） | 流动窗口默认值易误解 | `DEFAULT_FLOW_DURATION_SECONDS=300` 与运行配置 150 不一致（运行时会被注入覆盖） | 去默认值（必填）或注明"仅占位" | 低 |
-| C3（#9） | 两套 JSON 存储实现 | `lib/_local_json_store.py` 与 `infra/data/storage.py::JsonFileStore` 功能重复 | 只记录不合并（跨 lib 边界风险高） | 低 |
+| C3（#9） | 两套 JSON 存储实现 | `lib/_local_json_store.py` 与 `datahub/storage.py::JsonFileStore` 功能重复 | 只记录不合并（跨 lib 边界风险高） | 低 |
 | C4（#8） | 遗留路径与服务 | `path_config.py`（62）+ 根目录 `time_schedule.py`（688，Flask）仅旧服务引用 | 确认无外部调用后移 `legacy/` | 中 |
 | C5（#6/#7） | 根目录离线脚本混放 | 已核实（2026-10-01）：`intersection_to_rid_lambda.py`/`new_online_data_map_lambda.py` 是 `gen_online_config.py` 的生成产物，无导入方，已删除；`magic_hand.py` 零引用已删除；`config_check.py`/`gen_online_config.py`/`gen_api_docs.py` 为离线脚本 | 三个离线脚本移入 `tools/`（需补项目根目录 sys.path 修正），待做 | 低 |
 | C6（#2） | 配置默认值单一来源 | ✅ 已完成：`RuntimeSettings` 字段默认值即唯一来源，`from_environment` 统一用 `cls.<字段>` 回退 | — | ✅ |

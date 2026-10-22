@@ -3,9 +3,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from infra.data.classifier import DataKind
-from infra.data.output_store import FileRuntimeOutputStore
-from infra.data.writer import RuntimeDataWriter
+from datahub.classifier import DataKind
+from datahub.output_store import FileRuntimeOutputStore
+from datahub.writer import RuntimeDataWriter
 
 
 class RuntimeWriterTest(unittest.TestCase):

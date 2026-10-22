@@ -12,7 +12,7 @@ from agent.graph import ControlGraph
 from agent.experts._state import ExpertContractError
 from app.core.control.adapters import signal_plan_to_legacy
 from app.core.control.policies import BaselineController
-from infra.data.traffic_schemas import ExpertTrafficState, TrafficSnapshot
+from datahub.traffic_schemas import ExpertTrafficState, TrafficSnapshot
 from lib.control_functions.types import IntersectionControlRequest
 
 

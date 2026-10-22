@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from app.core.control.adapters import signal_plan_to_legacy
 from app.core.control.policies.baseline import BaselineController
-from infra.data.traffic_adapters import snapshot_from_legacy
+from datahub.traffic_adapters import snapshot_from_legacy
 from test.fixtures.v2_baseline_controller import (
     FIXTURE, SELECTOR_CASES, compact_round, config_sources, full_replay,
     global_control, green_wave, isolated_runtime, selector_replay,

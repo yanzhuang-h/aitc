@@ -11,8 +11,8 @@ from pydantic import TypeAdapter
 
 from app.core.control.schemas import SignalPlan
 from app.core.models.contract_types import NonEmptyString
-from infra.data.datahub import SOURCE_KINDS, TrafficDataHub
-from infra.data.traffic_schemas import ExpertTrafficState, TrafficDataView, TrafficSnapshot
+from datahub.service import SOURCE_KINDS, TrafficDataHub
+from datahub.traffic_schemas import ExpertTrafficState, TrafficDataView, TrafficSnapshot
 
 from .actions import ACTION_ADAPTER, ToolAction, ToolObservation
 from .experts._state import ExpertContractError

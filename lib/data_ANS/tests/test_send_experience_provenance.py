@@ -6,9 +6,9 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from infra.data.output_store import FileRuntimeOutputStore
-from infra.data.result_sender import ResultSender
-from infra.data.writer import RuntimeDataWriter
+from datahub.output_store import FileRuntimeOutputStore
+from datahub.result_sender import ResultSender
+from datahub.writer import RuntimeDataWriter
 
 
 class _Client:
@@ -72,7 +72,7 @@ class SendExperienceProvenanceTests(unittest.TestCase):
 
     def test_valid_manifest_is_cached_and_returned_as_a_copy(self):
         self._write_manifest(json.dumps(self.provenance))
-        with mock.patch("infra.data.writer.json.load", wraps=json.load) as load:
+        with mock.patch("datahub.writer.json.load", wraps=json.load) as load:
             first = self.writer.get_active_experience_provenance()
             first["release_id"] = "caller_changed_it"
             second = self.writer.get_active_experience_provenance()
@@ -122,7 +122,7 @@ class SendExperienceProvenanceTests(unittest.TestCase):
                 self.assertEqual(self.writer.get_active_experience_provenance(), self.provenance)
                 self._write_manifest(content)
                 client = _Client()
-                with self.assertLogs("infra.data.writer", level="WARNING"):
+                with self.assertLogs("datahub.writer", level="WARNING"):
                     disconnected = ResultSender(writer=self.writer).send_batch(
                         [client], [{"CrossId": "1300069"}],
                     )
@@ -137,7 +137,7 @@ class SendExperienceProvenanceTests(unittest.TestCase):
                 self.assertEqual(self.writer.get_active_experience_provenance(), self.provenance)
                 self._write_manifest(json.dumps(self.provenance))
                 with mock.patch.object(Path, operation, side_effect=PermissionError("unreadable")):
-                    with self.assertLogs("infra.data.writer", level="WARNING"):
+                    with self.assertLogs("datahub.writer", level="WARNING"):
                         self.assertEqual(self.writer.get_active_experience_provenance(), {})
                 self.assertEqual(self.writer.get_active_experience_provenance(), self.provenance)
 

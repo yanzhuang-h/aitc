@@ -8,9 +8,9 @@ from agent.actions import ACTION_ADAPTER, ReviewDecision, ToolObservation
 from agent.control_tools import ControlAgentTools
 from agent.experts._state import ExpertContractError
 from app.core.control.adapters import signal_plan_from_legacy
-from infra.data.classifier import DataKind, DataSource
-from infra.data.datahub import TrafficDataHub
-from infra.data.traffic_schemas import ExpertTrafficState, RawTrafficEvent, TrafficSnapshot
+from datahub.classifier import DataKind, DataSource
+from datahub.service import TrafficDataHub
+from datahub.traffic_schemas import ExpertTrafficState, RawTrafficEvent, TrafficSnapshot
 
 
 def action(tool, **arguments):

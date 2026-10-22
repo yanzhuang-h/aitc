@@ -1,11 +1,11 @@
 import tempfile
 import unittest
 
-from infra.data import ConfigService, LongTermMemory, MemoryQueryLayer, ResultWarehouse, ShortTermMemory
-from infra.data.memory import LongTermMemory as PackageLongTermMemory
-from infra.data.memory import MemoryQueryLayer as PackageMemoryQueryLayer
-from infra.data.memory import ShortTermMemory as PackageShortTermMemory
-from infra.data.classifier import DataKind
+from datahub import ConfigService, LongTermMemory, MemoryQueryLayer, ResultWarehouse, ShortTermMemory
+from datahub.memory import LongTermMemory as PackageLongTermMemory
+from datahub.memory import MemoryQueryLayer as PackageMemoryQueryLayer
+from datahub.memory import ShortTermMemory as PackageShortTermMemory
+from datahub.classifier import DataKind
 
 
 class MemoryLayersTest(unittest.TestCase):

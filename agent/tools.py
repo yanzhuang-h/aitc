@@ -6,7 +6,7 @@ from typing import Any, Mapping
 
 from agent.registry import ToolRegistry
 from app.core.models import ToolResponse
-from infra.data import MemoryQueryLayer
+from datahub import MemoryQueryLayer
 
 
 class DataQueryTools:

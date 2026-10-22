@@ -15,9 +15,9 @@ from pydantic import ValidationError
 from agent.experts import EVExpert, InternetExpert, RadarExpert, VideoExpert
 from app.config import RuntimeSettings, TrafficMemorySettings
 from app.core.control.policies import BaselineController
-from infra.data import RuntimeDataProcessor, TrafficDataHub
-from infra.data.classifier import DataKind, DataSource
-from infra.data.traffic_schemas import ExpertTrafficState, RawTrafficEvent, TrafficSnapshot
+from datahub import RuntimeDataProcessor, TrafficDataHub
+from datahub.classifier import DataKind, DataSource
+from datahub.traffic_schemas import ExpertTrafficState, RawTrafficEvent, TrafficSnapshot
 from runtime.application import create_application
 from test.fixtures.v2_baseline_controller import (
     FIXED_TIME, FIXTURE, compact_round, full_replay, isolated_runtime, sensor_request,
@@ -186,7 +186,7 @@ class ExpertIntegrationTest(unittest.TestCase):
             ingest_observations(hub, FIXED_TIME)
             hub.capture(sensor_request(VIDEO_INTERSECTION, observed=True))
             original_deepcopy = copy.deepcopy
-            with patch("infra.data.datahub.copy.deepcopy", wraps=original_deepcopy) as copies:
+            with patch("datahub.service.copy.deepcopy", wraps=original_deepcopy) as copies:
                 events = hub.query(VIDEO_INTERSECTION, source="video", include_snapshot=False)
                 self.assertFalse(any(
                     isinstance(call.args[0], TrafficSnapshot) for call in copies.call_args_list

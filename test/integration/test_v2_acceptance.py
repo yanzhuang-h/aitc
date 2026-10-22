@@ -8,7 +8,7 @@ from unittest.mock import patch
 import Lambdas
 from app.infrastructure.llm import MockProvider, ModelResponse
 from agent.control_tools import snapshot_summary
-from infra.data.classifier import DataKind, DataSource
+from datahub.classifier import DataKind, DataSource
 from runtime.tracing import DecisionTrace
 from test.fixtures.v2_acceptance import (
     RADAR_INTERSECTION, VIDEO_INTERSECTION, acceptance_application, broadcast_results,

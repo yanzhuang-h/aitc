@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 from .classifier import ClassifiedData, DataKind, DataSource, classify_data
-from .datahub import TrafficDataHub
+from .service import TrafficDataHub
 from .contracts import validate_contract
 from .quality import DataQualityMonitor
 from .memory.short_term import ShortTermMemory

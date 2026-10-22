@@ -12,7 +12,7 @@ from agent.experts import RadarExpert, VideoExpert
 from agent.graph import ControlGraph
 from app.config import RuntimeSettings
 from app.core.control.policies import BaselineController
-from infra.data import TrafficDataHub
+from datahub import TrafficDataHub
 from phase_check import phase_check
 from test.fixtures.v2_baseline_controller import (
     FIXED_TIME, FIXTURE, compact_round, full_replay,

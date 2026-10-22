@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta
 import logging
 import Lambdas
-from infra.data.prediction_repository import FilePredictionRepository
-from infra.data.prediction_windows import generate_target_windows, is_workday
+from datahub.prediction_repository import FilePredictionRepository
+from datahub.prediction_windows import generate_target_windows, is_workday
 
 
 logger = logging.getLogger(__name__)

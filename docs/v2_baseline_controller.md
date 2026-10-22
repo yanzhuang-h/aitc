@@ -19,7 +19,7 @@
 
 ```python
 from app.core.control.policies import BaselineController
-from infra.data.traffic_adapters import snapshot_from_legacy
+from datahub.traffic_adapters import snapshot_from_legacy
 
 controller = BaselineController()
 candidate = controller.predict(snapshot_from_legacy(legacy_request))

@@ -22,7 +22,7 @@ AITC 交通信号控制系统，正在进行企业级重构：**Qwen 大模型�
 ```text
 Server_AITC.py        纯启动入口（日志/信号/application.run()）
 runtime/              运行编排：application / tcp_server / http_server / decision_pipeline / prediction_*
-infra/data/           数据底座：memory/(短/长/查询) + 接收/分类/契约/质量/仓库/聚合/输出/配置/同步
+datahub/           数据底座：memory/(短/长/查询) + 接收/分类/契约/质量/仓库/聚合/输出/配置/同步
 agent/                QwenAgent（符号路由 + Qwen 编排）、DataQueryTools
 app/                  配置(config.py) + 核心模型(core/models) + 工具(core/tools) + LLM 客户端(infrastructure/llm)
 web/index.html        单文件前端页面
@@ -35,7 +35,7 @@ test/                 自动化测试 + 手工回放客户端
 - Qwen 负责编排，DQN 负责算法：Qwen 选工具 -> 工具从数据仓库取上下文 -> 调用算法 -> 汇总答案。
 - 结果仓库 + 纯发送器；仓库可替换为 Redis/数据库。
 - 长期记忆 = 运行历史 + 经验池 + 配置池（必须持久化的一等能力）。
-- 运行数据仓库写入 `infra/data/runtime/runtime/*.jsonl`（已 gitignore），模型权重不提交。
+- 运行数据仓库写入 `datahub/runtime/runtime/*.jsonl`（已 gitignore），模型权重不提交。
 - 命名规范（2026-09-29 起）：本项目自有的函数/类/变量/文件名一律使用可读英文命名，禁止拼音缩写；上游协议字段（`jtll_ddbh`、`ycsb_*` 等）保持原名不动；存量拼音命名按 `docs/backlog.md`（B12）分批改造；算法参数接口统一走 `lib/control_functions` 的类型化请求对象（`IntersectionControlRequest`）。
 - 日志统一使用 `logging` 分级，禁止裸 `print` 刷屏。
 

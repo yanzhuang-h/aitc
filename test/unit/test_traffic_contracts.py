@@ -5,11 +5,11 @@ from pydantic import TypeAdapter, ValidationError
 
 from app.core.control.adapters import signal_plan_from_legacy, signal_plan_to_legacy
 from app.core.control.schemas import SignalPlan
-from infra.data.classifier import DataKind, DataSource
-from infra.data.traffic_adapters import (
+from datahub.classifier import DataKind, DataSource
+from datahub.traffic_adapters import (
     raw_event_from_legacy, raw_event_to_legacy, snapshot_from_legacy, snapshot_to_legacy,
 )
-from infra.data.traffic_schemas import ExpertTrafficState, RawTrafficEvent, TrafficSnapshot
+from datahub.traffic_schemas import ExpertTrafficState, RawTrafficEvent, TrafficSnapshot
 from lib.control_functions.types import IntersectionControlRequest
 
 

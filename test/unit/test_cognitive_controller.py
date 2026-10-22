@@ -24,9 +24,9 @@ from app.infrastructure.llm import (
     OpenAICompatibleLLMClient,
     QwenProvider,
 )
-from infra.data.classifier import DataKind, DataSource
-from infra.data.datahub import TrafficDataHub
-from infra.data.traffic_schemas import RawTrafficEvent, TrafficSnapshot
+from datahub.classifier import DataKind, DataSource
+from datahub.service import TrafficDataHub
+from datahub.traffic_schemas import RawTrafficEvent, TrafficSnapshot
 
 
 NOW = 1_700_000_000.0

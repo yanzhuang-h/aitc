@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 
 from app.core.models import DecisionResult, ToolResponse
-from infra.data import ResultWarehouse
+from datahub import ResultWarehouse
 
 
 class CoreModelsTest(unittest.TestCase):

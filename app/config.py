@@ -322,7 +322,7 @@ class RuntimeSettings:
     enable_experience_pool_scheduler: bool = True  # 经验池调度开关
 
     # ── 落盘路径 ──
-    runtime_data_dir: Path = Path("infra/data/runtime")      # 长期历史仓库（jsonl）
+    runtime_data_dir: Path = Path("datahub/runtime")      # 长期历史仓库（jsonl）
     runtime_output_dir: Path = Path("logs_data")             # 兼容日志输出目录
     prediction_data_dir: Path = Path("logs_data")            # 预测历史与每日预测输出目录
     control_snapshot_dir: Path = Path("logs_data/control_snapshots")  # 控制快照目录

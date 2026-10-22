@@ -1,7 +1,7 @@
 """互联网状态接口；单点契约尚不能承载全局路段协调上下文。"""
 
-from infra.data.datahub import TrafficDataHub
-from infra.data.traffic_schemas import ExpertTrafficState
+from datahub.service import TrafficDataHub
+from datahub.traffic_schemas import ExpertTrafficState
 
 from ._state import empty_observation
 

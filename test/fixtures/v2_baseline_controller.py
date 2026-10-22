@@ -25,7 +25,7 @@ import lib.floating_value as floating_value
 import lib.lvbotest as green_wave
 import lib.road_state as road_state
 import phase_check as phase_checker
-from infra.data import ResultSender, ResultWarehouse
+from datahub import ResultSender, ResultWarehouse
 from lib.control_functions.dqn_control import call_dqn_select
 from lib.control_functions.types import IntersectionControlRequest
 from lib.data_ANS import flow_allocator_shadow as shadow

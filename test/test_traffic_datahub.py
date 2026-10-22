@@ -8,10 +8,10 @@ from unittest.mock import patch
 
 from pydantic import ValidationError
 
-from infra.data.classifier import ClassifiedData, DataKind, DataSource
-from infra.data.datahub import TrafficDataHub
-from infra.data.memory.short_term import ShortTermMemory
-from infra.data.traffic_schemas import RawTrafficEvent
+from datahub.classifier import ClassifiedData, DataKind, DataSource
+from datahub.service import TrafficDataHub
+from datahub.memory.short_term import ShortTermMemory
+from datahub.traffic_schemas import RawTrafficEvent
 from lib.control_functions.types import IntersectionControlRequest
 
 

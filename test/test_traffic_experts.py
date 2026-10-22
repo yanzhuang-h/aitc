@@ -8,11 +8,11 @@ from pydantic import ValidationError
 
 import Lambdas
 from agent.experts import EVExpert, InternetExpert, RadarExpert, VideoExpert
-from infra.data import cache_processor
-from infra.data.classifier import DataKind, DataSource
-from infra.data.datahub import TrafficDataHub
-from infra.data.memory.short_term import ShortTermMemory
-from infra.data.traffic_schemas import ExpertTrafficState, RawTrafficEvent
+from datahub import cache_processor
+from datahub.classifier import DataKind, DataSource
+from datahub.service import TrafficDataHub
+from datahub.memory.short_term import ShortTermMemory
+from datahub.traffic_schemas import ExpertTrafficState, RawTrafficEvent
 from lib.control_functions.types import IntersectionControlRequest
 
 

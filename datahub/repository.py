@@ -199,7 +199,7 @@ class DataFoundationRepository:
 
     def __init__(
         self,
-        root: str | Path = "infra/data/runtime",
+        root: str | Path = "datahub/runtime",
         runtime_max_records_per_kind: int = 10000,
     ) -> None:
         self.root = Path(root)

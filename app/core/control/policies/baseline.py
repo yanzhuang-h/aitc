@@ -6,8 +6,8 @@ from pydantic import TypeAdapter
 
 from app.core.control.adapters import signal_plan_from_legacy
 from app.core.control.schemas import SignalPlan
-from infra.data.traffic_adapters import snapshot_to_legacy
-from infra.data.traffic_schemas import TrafficSnapshot
+from datahub.traffic_adapters import snapshot_to_legacy
+from datahub.traffic_schemas import TrafficSnapshot
 from lib.control_functions.types import IntersectionControlRequest
 
 
