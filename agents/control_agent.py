@@ -14,7 +14,7 @@ from typing import Any, Mapping
 
 from app.core.models import ToolResponse
 from app.core.tools.control_flow import CONTROL_STEPS, build_initial_context, query_data_hub_summary
-from app.infrastructure.llm import ModelRequest, as_model_gateway
+from models import ModelRequest, as_model_gateway
 
 
 class ControlProcessAgent:

@@ -17,7 +17,7 @@ from agents.control_tools import ControlAgentTools
 from agents.graph import ControlGraph
 from app.config import ControlAgentSettings, RuntimeSettings
 from app.core.control.policies import BaselineController
-from app.infrastructure.llm import ModelGateway, ModelResponse, MockProvider
+from models import ModelGateway, ModelResponse, MockProvider
 from datahub import TrafficDataHub
 from datahub.traffic_schemas import TrafficSnapshot
 from lib.control_functions.types import IntersectionControlRequest

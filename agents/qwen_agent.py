@@ -11,7 +11,7 @@ import re
 from typing import Any, Mapping
 
 from app.core.models import ToolResponse
-from app.infrastructure.llm import ModelRequest, as_model_gateway
+from models import ModelRequest, as_model_gateway
 
 from .tools import DataQueryTools
 

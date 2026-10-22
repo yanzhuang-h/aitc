@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import patch
 
 import Lambdas
-from app.infrastructure.llm import MockProvider, ModelResponse
+from models import MockProvider, ModelResponse
 from agents.control_tools import snapshot_summary
 from datahub.classifier import DataKind, DataSource
 from runtime.tracing import DecisionTrace
@@ -56,7 +56,7 @@ class V2AcceptanceTest(unittest.TestCase):
             return result, trace_records
 
     def test_no_llm_video_only_reaches_original_tcp_output(self):
-        with patch("app.infrastructure.llm.openai_compatible.request.urlopen", side_effect=AssertionError("no LLM mode must not use model network")) as network:
+        with patch("models.openai_compatible.request.urlopen", side_effect=AssertionError("no LLM mode must not use model network")) as network:
             result, traced = self.run_wire_case()
         network.assert_not_called()
         record = next(item for item in traced if item["intersection_id"] == VIDEO_INTERSECTION)

@@ -53,7 +53,7 @@ from agents.cognitive import CognitiveController
 from agents.control_tools import ControlAgentTools
 from agents.tools import DataQueryTools
 from app.core.control.synergy.green_wave_service import GreenWaveDataService
-from app.infrastructure.llm import (
+from models import (
     DeepSeekProvider, DisabledProvider, MockProvider, ModelGateway, OpenAICompatibleLLMClient, QwenProvider,
     as_model_gateway,
 )

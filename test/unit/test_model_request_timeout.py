@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from pydantic import ValidationError
 
-from app.infrastructure.llm import ModelGateway, ModelRequest, OpenAICompatibleLLMClient, QwenProvider
+from models import ModelGateway, ModelRequest, OpenAICompatibleLLMClient, QwenProvider
 
 
 class _Response:
@@ -22,7 +22,7 @@ class ModelRequestTimeoutTest(unittest.TestCase):
     def test_request_timeout_reaches_transport_without_changing_client_default(self):
         client = OpenAICompatibleLLMClient(timeout_seconds=60)
         gateway = ModelGateway(QwenProvider(client))
-        with patch("app.infrastructure.llm.openai_compatible.request.urlopen", return_value=_Response()) as network:
+        with patch("models.openai_compatible.request.urlopen", return_value=_Response()) as network:
             gateway.invoke_sync(ModelRequest(
                 messages=[{"role": "user", "content": "bounded request"}],
                 timeout_seconds=0.25, max_retries=0,

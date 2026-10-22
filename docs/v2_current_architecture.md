@@ -73,7 +73,7 @@ Video/Radar 为图的路由提供证据，原策略继续接收完整控制请�
 | 决策追踪 | `runtime/tracing.py` | 每路口每轮一条严格 JSON 记录，关联快照、调用、候选、最终方案、安全与错误 |
 | 输出与广播 | `datahub/result_warehouse.py`、`result_sender.py`、`writer.py` | 原 TCP 报文和本地日志 |
 | HTTP Agent 执行 | `agents/harness.py`、`agents/qwen_agent.py`、`agents/control_agent.py` | 已有意图与注册工具接口；与周期控制图并列 |
-| 统一模型接入 | `app/infrastructure/llm/` | Qwen、DeepSeek、Mock、Disabled；同步与异步调用、严格边界 |
+| 统一模型接入 | `models/` | Qwen、DeepSeek、Mock、Disabled；同步与异步调用、严格边界 |
 | 配置 | `app/config.py` | 模型、周期认知预算、DataHub、经验发布路径用 pydantic-settings；其余运行字段保留原配置机制 |
 
 `DQN_Select.py` 的名称不能证明当前运行了在线神经网络 RL 推理。当前生产 selector

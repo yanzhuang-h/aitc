@@ -3,8 +3,8 @@ import unittest
 from unittest.mock import patch
 from urllib.error import HTTPError, URLError
 
-from app.infrastructure.llm import OpenAICompatibleLLMClient
-from app.infrastructure.llm.openai_compatible import LLMServiceError
+from models import OpenAICompatibleLLMClient
+from models.openai_compatible import LLMServiceError
 
 
 class _Response:
@@ -58,7 +58,7 @@ class OpenAICompatibleLLMClientTest(unittest.TestCase):
             enable_thinking=True,
         )
 
-        with patch("app.infrastructure.llm.openai_compatible.request.urlopen", fake_urlopen):
+        with patch("models.openai_compatible.request.urlopen", fake_urlopen):
             result = client.chat([{"role": "user", "content": "hello"}])
 
         self.assertEqual(captured["url"], "http://localhost:8000/v1/chat/completions")
@@ -80,7 +80,7 @@ class OpenAICompatibleLLMClientTest(unittest.TestCase):
             return _Response({"choices": [{"message": {"content": "ok"}}]})
 
         client = OpenAICompatibleLLMClient(base_url="http://localhost:8000/v1")
-        with patch("app.infrastructure.llm.openai_compatible.request.urlopen", fake_urlopen):
+        with patch("models.openai_compatible.request.urlopen", fake_urlopen):
             client.chat([{"role": "user", "content": "hi"}])
 
         self.assertEqual(
@@ -98,8 +98,8 @@ class OpenAICompatibleLLMClientTest(unittest.TestCase):
             return _Response({"choices": [{"message": {"content": "ok"}}]})
 
         client = OpenAICompatibleLLMClient(base_url="http://localhost:8000/v1", max_retries=2)
-        with patch("app.infrastructure.llm.openai_compatible.request.urlopen", fake_urlopen), \
-             patch("app.infrastructure.llm.openai_compatible.time.sleep"):
+        with patch("models.openai_compatible.request.urlopen", fake_urlopen), \
+             patch("models.openai_compatible.time.sleep"):
             result = client.chat([{"role": "user", "content": "hi"}])
         self.assertEqual(result.content, "ok")
         self.assertEqual(len(calls), 2)
@@ -114,8 +114,8 @@ class OpenAICompatibleLLMClientTest(unittest.TestCase):
             return _Response({"choices": [{"message": {"content": "ok"}}]})
 
         client = OpenAICompatibleLLMClient(base_url="http://localhost:8000/v1", max_retries=2)
-        with patch("app.infrastructure.llm.openai_compatible.request.urlopen", fake_urlopen), \
-             patch("app.infrastructure.llm.openai_compatible.time.sleep"):
+        with patch("models.openai_compatible.request.urlopen", fake_urlopen), \
+             patch("models.openai_compatible.time.sleep"):
             result = client.chat([{"role": "user", "content": "hi"}])
         self.assertEqual(result.content, "ok")
         self.assertEqual(len(calls), 2)
@@ -128,8 +128,8 @@ class OpenAICompatibleLLMClientTest(unittest.TestCase):
             raise _http_error(400)
 
         client = OpenAICompatibleLLMClient(base_url="http://localhost:8000/v1", max_retries=2)
-        with patch("app.infrastructure.llm.openai_compatible.request.urlopen", fake_urlopen), \
-             patch("app.infrastructure.llm.openai_compatible.time.sleep"):
+        with patch("models.openai_compatible.request.urlopen", fake_urlopen), \
+             patch("models.openai_compatible.time.sleep"):
             with self.assertRaises(LLMServiceError):
                 client.chat([{"role": "user", "content": "hi"}])
         self.assertEqual(len(calls), 1)
@@ -142,7 +142,7 @@ class OpenAICompatibleLLMClientTest(unittest.TestCase):
             raise _http_error(503)
 
         client = OpenAICompatibleLLMClient(base_url="http://localhost:8000/v1", max_retries=0)
-        with patch("app.infrastructure.llm.openai_compatible.request.urlopen", fake_urlopen):
+        with patch("models.openai_compatible.request.urlopen", fake_urlopen):
             with self.assertRaises(LLMServiceError) as ctx:
                 client.chat([{"role": "user", "content": "hi"}])
         self.assertEqual(ctx.exception.status_code, 503)
