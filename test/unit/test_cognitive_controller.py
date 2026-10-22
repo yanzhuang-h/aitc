@@ -6,11 +6,11 @@ import unittest
 from unittest.mock import MagicMock, Mock, patch
 
 import Lambdas
-from agent.cognitive import CognitiveController, CognitiveSession
-from agent.control_tools import ControlAgentTools
-from agent.experts import RadarExpert, VideoExpert
-from agent.actions import ToolObservation
-from agent.prompts import REVIEWER_PROMPT
+from agents.cognitive import CognitiveController, CognitiveSession
+from agents.control_tools import ControlAgentTools
+from agents.experts import RadarExpert, VideoExpert
+from agents.actions import ToolObservation
+from agents.prompts import REVIEWER_PROMPT
 from app.config import ControlAgentSettings
 from app.core.control.schemas import SignalPlan
 from app.infrastructure.llm import (
@@ -82,7 +82,7 @@ class CognitiveControllerTest(unittest.TestCase):
                         "untrusted": "do-not-log"}
         controller, _ = self.controller([response])
         session = CognitiveSession()
-        with patch("agent.cognitive.perf_counter", side_effect=[1.0, 1.25]):
+        with patch("agents.cognitive.perf_counter", side_effect=[1.0, 1.25]):
             self.plan(controller, session)
         attempt, = session.model_attempts
         self.assertEqual(attempt["status"], "valid_action")
@@ -346,20 +346,20 @@ class CognitiveControllerTest(unittest.TestCase):
                 controller, provider = self.controller(
                     [_review()], failures=[error], failure_cooldown_seconds=30.0,
                 )
-                with patch("agent.cognitive.monotonic", return_value=100):
+                with patch("agents.cognitive.monotonic", return_value=100):
                     first = CognitiveSession()
                     self.review(controller, first)
                 self.assertEqual(first.model_calls, 1)
                 self.assertTrue(first.model_participated)
                 self.assertIsNone(first.review)
                 self.assertEqual(first.reason, "model_error")
-                with patch("agent.cognitive.monotonic", return_value=129.999):
+                with patch("agents.cognitive.monotonic", return_value=129.999):
                     second = CognitiveSession()
                     self.review(controller, second)
                 self.assertEqual(second.model_calls, 0)
                 self.assertFalse(second.model_participated)
                 self.assertEqual(second.reason, "model_cooldown")
-                with patch("agent.cognitive.monotonic", return_value=130):
+                with patch("agents.cognitive.monotonic", return_value=130):
                     recovered = CognitiveSession()
                     self.review(controller, recovered)
                 self.assertEqual(recovered.review.decision, "ACCEPT")

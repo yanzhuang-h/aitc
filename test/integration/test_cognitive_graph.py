@@ -12,9 +12,9 @@ from urllib.error import URLError
 
 import Lambdas
 
-from agent.cognitive import CognitiveController
-from agent.control_tools import ControlAgentTools
-from agent.graph import ControlGraph
+from agents.cognitive import CognitiveController
+from agents.control_tools import ControlAgentTools
+from agents.graph import ControlGraph
 from app.config import ControlAgentSettings, RuntimeSettings
 from app.core.control.policies import BaselineController
 from app.infrastructure.llm import ModelGateway, ModelResponse, MockProvider
@@ -219,7 +219,7 @@ class CognitiveGraphIntegrationTest(unittest.TestCase):
 
     def test_enabled_cognition_preserves_two_round_control_and_tcp_golden(self):
         hub = TrafficDataHub(lambdas_module=Lambdas, memory_window=2)
-        from agent.experts import RadarExpert, VideoExpert
+        from agents.experts import RadarExpert, VideoExpert
 
         video, radar = VideoExpert(hub), RadarExpert(hub)
         controller = BaselineController()

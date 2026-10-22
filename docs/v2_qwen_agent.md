@@ -38,7 +38,7 @@ selector 只运行一次；原四元组及对象引用、经验记录、全局�
 
 ## 七类动作与权限
 
-动作定义在 `agent/actions.py`，由 Pydantic discriminator 按 `tool` 校验。
+动作定义在 `agents/actions.py`，由 Pydantic discriminator 按 `tool` 校验。
 模型只提交 content 中的一个完整 JSON 对象；不从 Markdown 或任意文本中猜测动作。
 额外字段、未知工具、错误类型、越界 limit、模型指定路口或传入配时数值均被拒绝。
 路口和本轮上下文由宿主绑定，模型不能修改算法输入或扩大调用预算。
@@ -144,7 +144,7 @@ AITC_CONTROL_AGENT_ENABLED=true .venv/bin/python Server_AITC.py
 成功审查与模型异常报告通过现有 logger 记录单行 JSON，明确模型来源与 advisory 性质；
 已知错误和降级也会记录。Phase 9 已将这些证据串入逐路口决策日志，见 [决策追踪](v2_decision_tracing.md)。
 
-本轮沿现有 `agent/` 新增 actions、control_tools、cognitive、prompts 四个职责明确的
+本轮沿现有 `agents/` 新增 actions、control_tools、cognitive、prompts 四个职责明确的
 模块；没有为了参考目录机械迁移生产算法或建立第二套模型网关。
 
 ## 验证

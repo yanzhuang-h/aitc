@@ -4,9 +4,9 @@ import unittest
 
 from pydantic import ValidationError
 
-from agent.actions import ACTION_ADAPTER, ReviewDecision, ToolObservation
-from agent.control_tools import ControlAgentTools
-from agent.experts._state import ExpertContractError
+from agents.actions import ACTION_ADAPTER, ReviewDecision, ToolObservation
+from agents.control_tools import ControlAgentTools
+from agents.experts._state import ExpertContractError
 from app.core.control.adapters import signal_plan_from_legacy
 from datahub.classifier import DataKind, DataSource
 from datahub.service import TrafficDataHub

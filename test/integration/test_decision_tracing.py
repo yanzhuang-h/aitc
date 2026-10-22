@@ -10,11 +10,11 @@ import unittest
 from unittest.mock import Mock, patch
 
 import Lambdas
-from agent.cognitive import CognitiveController
-from agent.control_tools import ControlAgentTools
-from agent.experts import RadarExpert, VideoExpert
-from agent.experts._state import ExpertContractError
-from agent.graph import ControlGraph
+from agents.cognitive import CognitiveController
+from agents.control_tools import ControlAgentTools
+from agents.experts import RadarExpert, VideoExpert
+from agents.experts._state import ExpertContractError
+from agents.graph import ControlGraph
 from app.config import ControlAgentSettings
 from app.core.control.policies import BaselineController
 from app.infrastructure.llm import ModelGateway, MockProvider

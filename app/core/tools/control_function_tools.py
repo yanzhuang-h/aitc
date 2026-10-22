@@ -17,7 +17,7 @@ from collections.abc import Callable, Mapping
 from typing import Any
 
 import Lambdas
-from agent.registry import ToolRegistry
+from agents.registry import ToolRegistry
 from app.core.models import ToolResponse
 from lib.control_functions import (
     IntersectionControlRequest,

@@ -64,15 +64,15 @@ Video/Radar 为图的路由提供证据，原策略继续接收完整控制请�
 | 交通数据中心 | `datahub/service.py` | 按路口隔离当前事件、来源查询、最近 N 轮严格快照与质量信息 |
 | 短期与长期记忆 | `datahub/memory/` | 内存窗口缓存与 JSON/JSONL 仓库；复用原数据底座 |
 | 聚合与预测 | `datahub/runtime_processor.py`、`runtime/prediction_service.py` | 保留原计算与副作用顺序 |
-| 领域专家 | `agent/experts/` | Video/Radar 已实现；Internet/EV 保留明确 TODO |
-| 周期 LangGraph | `agent/graph.py`、`agent/state.py` | 状态、条件路由、只读专家重试、执行上下文 |
-| 受约束认知层 | `agent/actions.py`、`control_tools.py`、`cognitive.py`、`prompts.py` | 七类严格动作、本轮工具证据与候选审查、预算及故障降级 |
+| 领域专家 | `agents/experts/` | Video/Radar 已实现；Internet/EV 保留明确 TODO |
+| 周期 LangGraph | `agents/graph.py`、`agents/state.py` | 状态、条件路由、只读专家重试、执行上下文 |
+| 受约束认知层 | `agents/actions.py`、`control_tools.py`、`cognitive.py`、`prompts.py` | 七类严格动作、本轮工具证据与候选审查、预算及故障降级 |
 | 原控制策略 | `app/core/control/policies/baseline.py` | 包装既有 selector/coordinator，保留原四元组接口 |
 | 最终安全门 | `app/core/control/safety_engine.py`、`safety_schemas.py` | 协调后严格结构、已有静态规则、上下界和 fallback 校验 |
 | 周期运行 | `runtime/decision_pipeline.py` | 全批次协调后通过 Safety Gate，再格式化并替换结果 |
 | 决策追踪 | `runtime/tracing.py` | 每路口每轮一条严格 JSON 记录，关联快照、调用、候选、最终方案、安全与错误 |
 | 输出与广播 | `datahub/result_warehouse.py`、`result_sender.py`、`writer.py` | 原 TCP 报文和本地日志 |
-| HTTP Agent 执行 | `agent/harness.py`、`agent/qwen_agent.py`、`agent/control_agent.py` | 已有意图与注册工具接口；与周期控制图并列 |
+| HTTP Agent 执行 | `agents/harness.py`、`agents/qwen_agent.py`、`agents/control_agent.py` | 已有意图与注册工具接口；与周期控制图并列 |
 | 统一模型接入 | `app/infrastructure/llm/` | Qwen、DeepSeek、Mock、Disabled；同步与异步调用、严格边界 |
 | 配置 | `app/config.py` | 模型、周期认知预算、DataHub、经验发布路径用 pydantic-settings；其余运行字段保留原配置机制 |
 

@@ -117,7 +117,7 @@ Phase 6 再建立统一 Model Gateway 和 provider 配置；本阶段没有新�
 langgraph-checkpoint 默认 UUID 随机数会消耗 Python 全局 random，改变原配时随机
 扰动和 TCP 诊断值，因而不能直接按默认行为接线。
 
-agent/_langgraph_compat.py 在构图时只将 checkpoint ID 模块的随机源引用绑定到
+agents/_langgraph_compat.py 在构图时只将 checkpoint ID 模块的随机源引用绑定到
 独立 SystemRandom；不修改标准 random，也不保存/恢复调用级全局随机状态。
 后者会回滚 selector 的合法随机消费，并破坏并发请求。重试 jitter 同时关闭。
 

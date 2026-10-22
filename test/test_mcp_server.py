@@ -10,7 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 PYTHON = sys.executable
 
-from agent.mcp_server import build_unified_registry
+from agents.mcp_server import build_unified_registry
 
 #: 数据查询工具 + 信号控制工具的全部工具名。
 EXPECTED_TOOLS = [
@@ -63,7 +63,7 @@ class TestMcpServerOverStdio(unittest.TestCase):
 
             params = StdioServerParameters(
                 command=PYTHON,
-                args=[str(ROOT / "agent" / "mcp_server.py")],
+                args=[str(ROOT / "agents" / "mcp_server.py")],
                 cwd=str(ROOT),
             )
             async with stdio_client(params) as (read, write):

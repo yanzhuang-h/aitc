@@ -12,7 +12,7 @@ from unittest.mock import patch
 import Lambdas
 from pydantic import ValidationError
 
-from agent.experts import EVExpert, InternetExpert, RadarExpert, VideoExpert
+from agents.experts import EVExpert, InternetExpert, RadarExpert, VideoExpert
 from app.config import RuntimeSettings, TrafficMemorySettings
 from app.core.control.policies import BaselineController
 from datahub import RuntimeDataProcessor, TrafficDataHub

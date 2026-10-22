@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from agent.registry import ToolRegistry
+from agents.registry import ToolRegistry
 
 
 def _handler(*, value: int = 0) -> dict:
