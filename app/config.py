@@ -18,6 +18,14 @@ from pydantic_settings import BaseSettings, EnvSettingsSource, SettingsConfigDic
 
 T = TypeVar("T")
 
+def _compiled_probe() -> None:
+    """占位函数：本模块编译为 .so 后，它的类型是 cython_function_or_method。"""
+
+
+# Cython 会把类方法编译成 cython_function_or_method，pydantic 2 会把它误判成
+# 未注解的字段并拒绝建模。把该类型声明进 ignored_types，源码运行与 .so 运行都正常。
+CYTHON_METHOD_TYPES = (type(_compiled_probe),)
+
 DEFAULT_MEMORY_WINDOW = 20
 DEFAULT_DATAHUB_EVENT_LIMIT = 2048
 
@@ -27,6 +35,7 @@ class ExperienceReleaseSettings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="AITC_EXPERIENCE_", extra="ignore", frozen=True,
+        ignored_types=CYTHON_METHOD_TYPES,
     )
 
     versions_dir: Path = Path(__file__).resolve().parents[1] / "lib" / "experience_versions"
@@ -40,7 +49,10 @@ class ExperienceReleaseSettings(BaseSettings):
 class TrafficMemorySettings(BaseSettings):
     """最近决策轮数与每路口原始事件容量；非法值在装配时失败。"""
 
-    model_config = SettingsConfigDict(env_prefix="AITC_", extra="ignore", populate_by_name=True)
+    model_config = SettingsConfigDict(
+        env_prefix="AITC_", extra="ignore", populate_by_name=True,
+        ignored_types=CYTHON_METHOD_TYPES,
+    )
 
     memory_window: int = Field(
         default=DEFAULT_MEMORY_WINDOW, gt=0,
@@ -64,7 +76,7 @@ class _ModelEnvironmentSource(EnvSettingsSource):
     def _load_env_vars(self) -> dict[str, str]:
         return {
             key: value.strip()
-            for key, value in super()._load_env_vars().items()
+            for key, value in super(_ModelEnvironmentSource, self)._load_env_vars().items()
             if isinstance(value, str) and value.strip()
         }
 
@@ -92,6 +104,7 @@ class ModelSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="AITC_", extra="ignore", populate_by_name=True,
         strict=True, frozen=True, allow_inf_nan=False, hide_input_in_errors=True,
+        ignored_types=CYTHON_METHOD_TYPES,
     )
 
     enabled: bool = Field(
@@ -165,6 +178,7 @@ class ControlAgentSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="AITC_CONTROL_AGENT_", extra="ignore", frozen=True,
         strict=True, allow_inf_nan=False,
+        ignored_types=CYTHON_METHOD_TYPES,
     )
 
     enabled: StrictBool = False

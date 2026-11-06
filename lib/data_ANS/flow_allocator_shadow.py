@@ -61,7 +61,7 @@ DIRECTIONS = ("U", "D", "L", "R", "UTL", "DTL", "LTL", "RTL")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 LIB_DIR = PROJECT_ROOT / "lib"
-DEFAULT_EXPERIENCE_PATH = LIB_DIR / "experience_pool" / "new_wwx.json"
+DEFAULT_EXPERIENCE_PATH = LIB_DIR / "experience_pool" / "online_experience.json"
 DEFAULT_CROSS_INFO_PATH = LIB_DIR / "cross_info.json"
 DEFAULT_LOG_DIRECTORY = PROJECT_ROOT / "logs_data" / "shadow"
 

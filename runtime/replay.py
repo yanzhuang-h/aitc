@@ -133,10 +133,13 @@ def summarize_model_attempts(traces, prices=None):
     )
     cost = None
     if complete and prices:
+        # 写成局部变量而不是内联字面量：Cython 3 会常量折叠这个列表，
+        # 生成引用未定义 __pyx_cur_scope 的 C 代码，导致 .so 编译失败。
+        priced_tokens = [('prompt_cache_hit_tokens', 'cache_hit'),
+                         ('prompt_cache_miss_tokens', 'cache_miss'),
+                         ('completion_tokens', 'output')]
         cost = str(sum(Decimal(usage.get(token, 0)) * Decimal(prices[price]) / Decimal(1_000_000)
-                       for token, price in [('prompt_cache_hit_tokens', 'cache_hit'),
-                                            ('prompt_cache_miss_tokens', 'cache_miss'),
-                                            ('completion_tokens', 'output')]))
+                       for token, price in priced_tokens))
     return {'attempts': len(attempts), 'statuses': dict(statuses),
             'valid_action_rate': statuses['valid_action'] / len(attempts) if attempts else None,
             'latency_p50_ms': latencies[math.ceil(len(latencies)*.5)-1] if latencies else None,
@@ -209,9 +212,9 @@ def run_worker(options, mode):
 
     settings = RuntimeSettings.from_environment().validate()
     configuration_files = {}
-    for name in ('intersection_result_config.json', 'lib/wwx.json', 'lib/cross_info.json',
+    for name in ('intersection_result_config.json', 'lib/offline_experience.json', 'lib/cross_info.json',
                  'lib/road_info.json', 'lib/road_state.json', 'lib/floating_value.json',
-                 'lib/green_wave_corridors.json', 'lib/experience_pool/new_wwx.json'):
+                 'lib/green_wave_corridors.json', 'lib/experience_pool/online_experience.json'):
         with Path(name).open('rb') as file:
             configuration_files[name] = hashlib.file_digest(file, 'sha256').hexdigest()
     use_model = mode == 'v2' and options['model']

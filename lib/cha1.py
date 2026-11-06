@@ -11,7 +11,7 @@ BASE_DIR = Path(__file__).resolve().parent  # lib 目录
 info = BASE_DIR / "cross_info.json"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-JIYAN_PATH = os.path.join(BASE_DIR, "wwx.json")
+JIYAN_PATH = os.path.join(BASE_DIR, "offline_experience.json")
 with open(info, 'r',encoding='utf-8') as f:
     lines3=json.load(f)
 

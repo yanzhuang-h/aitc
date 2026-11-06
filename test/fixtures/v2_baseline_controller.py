@@ -79,7 +79,7 @@ def digest(value):
 
 def config_sources():
     paths = (
-        "lib/wwx.json", "lib/experience_pool/new_wwx.json", "lib/cross_info.json",
+        "lib/offline_experience.json", "lib/experience_pool/online_experience.json", "lib/cross_info.json",
         "lib/road_info.json", "lib/road_state.json", "lib/floating_value.json",
         "lib/green_wave_corridors.json", "intersection_result_config.json",
         "time_schedule/schedule_json/FIne_turn.json",
@@ -129,7 +129,7 @@ def isolated_runtime(now=FIXED_TIME, *, mode="legacy", fallback=False):
                 "AITC_FLOW_ALLOCATOR_PILOT_ROADS": "1300068",
                 "AITC_FLOW_ALLOCATOR_SHADOW_ROADS": "1300068",
                 "AITC_FLOW_ALLOCATOR_SHADOW_ENABLED": "1",
-                "AITC_FLOW_ALLOCATOR_SHADOW_TABLE": str(ROOT / "lib/experience_pool/new_wwx.json"),
+                "AITC_FLOW_ALLOCATOR_SHADOW_TABLE": str(ROOT / "lib/experience_pool/online_experience.json"),
                 "AITC_FLOW_ALLOCATOR_SHADOW_CROSS_INFO": str(ROOT / "lib/cross_info.json"),
                 "AITC_FLOW_ALLOCATOR_SHADOW_LOG_DIR": directory,
             }

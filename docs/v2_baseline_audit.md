@@ -33,7 +33,7 @@ Server_AITC.py::main
 2. 没有 LLM 服务时，默认 `llm_required=false`，启动检查只告警，实时控制链仍能独立计算和下发方案。
 3. 名为 `DQN_select` 的生产入口目前不是神经网络 DQN 推理。实时链路不加载 `torch`、DQN 权重或 `time_schedule/Agent/DQN.py`；它是历史保留的路口分发器，内部混合时刻表、规则启发式、旧经验表和新经验分配器。
 4. 真正的内部方案契约是十元素列表：`[phase0..phase7, reserved, program/state]`。全局协调和安全夹限会继续修改该列表；随后才打包为下游 TCP 协议。
-5. 当前默认 `AITC_FLOW_ALLOCATOR_PILOT_MODE=new`，33 个白名单路口会尝试用 `lib/experience_pool/new_wwx.json` 计算新经验方案，失败再回退旧方案。因此经验池已经能间接影响最终配时，并非纯离线旁路。
+5. 当前默认 `AITC_FLOW_ALLOCATOR_PILOT_MODE=new`，33 个白名单路口会尝试用 `lib/experience_pool/online_experience.json` 计算新经验方案，失败再回退旧方案。因此经验池已经能间接影响最终配时，并非纯离线旁路。
 6. Baseline Controller 的核心边界是 `RuntimeDataProcessor/cache_processor -> DQN_Select/经验与时刻表 -> coordinate/绿波/特殊规则 -> phase_check -> format_result`。这些模块中的顺序、列表索引、阈值、随机扰动、回退行为和原地修改语义都不应在 V2 第一阶段改变。
 
 ## 2. 实际运行入口与目录定位
@@ -268,7 +268,7 @@ TcpRuntimeServer.broadcast_forever（默认每 50 秒）
 | 形态 | 函数数 | 含义 |
 |---|---:|---|
 | `chuli_shuju + select_pilot_schedule` | 24 | 先算旧经验方案，再按 pilot 模式选择新方案或旧方案 |
-| `chuli_shuju` | 11 | 读取 `lib/wwx.json` 的旧经验容量表 |
+| `chuli_shuju` | 11 | 读取 `lib/offline_experience.json` 的旧经验容量表 |
 | `select_pilot_schedule` | 9 | 以函数内 legacy 向量为回退，尝试新经验分配器 |
 | `Get_time_map` | 7 | 当前小时固定时刻表及路口规则 |
 | `Get_time_map + chuli_shuju` | 7 | 先取时刻表/规则，后由旧经验方案覆盖或参与 |
@@ -284,7 +284,7 @@ TcpRuntimeServer.broadcast_forever（默认每 50 秒）
 ```text
 DQN_select_<id>
   -> lib.cha1.chuli_shuju / chuli_shuju3
-  -> lib/wwx.json + lib/cross_info.json
+  -> lib/offline_experience.json + lib/cross_info.json
   -> 依据 10 分钟车道流量、实际阶段集合查表
   -> 10 元素方案
 ```
@@ -296,12 +296,12 @@ DQN_select_<id>
   -> select_pilot_schedule
      -> record_shadow_comparison
      -> allocate_from_runtime_data
-     -> lib/experience_pool/new_wwx.json + lib/cross_info.json
+     -> lib/experience_pool/online_experience.json + lib/cross_info.json
      -> 合格则 selected_schedule_source=new，否则 legacy
      -> logs_data/shadow/*.jsonl 审计记录
 ```
 
-默认 pilot mode 是 `new`，默认目标集合 33 个路口；`legacy` 不运行新模块，`shadow` 只比较不采用，`new` 在有效性检查通过时采用新方案。经验池调度器默认每天维护并可能原子激活 `new_wwx.json`，所以它是“异步学习数据维护 -> 下一轮运行读取”的间接闭环。
+默认 pilot mode 是 `new`，默认目标集合 33 个路口；`legacy` 不运行新模块，`shadow` 只比较不采用，`new` 在有效性检查通过时采用新方案。经验池调度器默认每天维护并可能原子激活 `online_experience.json`，所以它是“异步学习数据维护 -> 下一轮运行读取”的间接闭环。
 
 ### 6.3 时刻表与全局其他控制
 
@@ -435,7 +435,7 @@ Agent 有三种与控制相关的旁路能力：
 | `lib/DQN_Select.py::DQN_select` | 历史 15 参数 | `(plan, coordinate, model_info, exp)` | `Get_time_map`, `DQN_select_<id>` | `call_dqn_select` | 是（路口分发） | 读时刻表、stdout；底层可能写 shadow 日志 |
 | `DQN_select_<id>`（63 个函数族） | 本路口流量/排队/阶段/事件等 | 同上 | AITC_tool、`chuli_shuju*`、pilot、路口公式 | `DQN_select` | 是 | 读 JSON、随机 model score、大量 stdout、shadow 文件 |
 | `AITC_tool.Get_time_map` | cross ID、系统日期 | 24 小时时刻表或 `None` | `is_workday`, `json.load` | selector/global fallback | 是 | 文件读取、失败 stdout |
-| `cha1.chuli_shuju/chuli_shuju3` | flow/extend、本路口 ID | 十元素旧经验方案 | `lib/wwx.json`, `cross_info.json` | 多个路口函数 | 是 | 文件读取、stdout |
+| `cha1.chuli_shuju/chuli_shuju3` | flow/extend、本路口 ID | 十元素旧经验方案 | `lib/offline_experience.json`, `cross_info.json` | 多个路口函数 | 是 | 文件读取、stdout |
 | `flow_allocator_shadow.select_pilot_schedule` | legacy plan、flow/extend、ID | legacy/new 十元素方案 | `record_shadow_comparison` | 35 个已接线路口函数；默认目标 33 个 | 是（开关/回退） | 读环境和 JSON、写 shadow JSONL |
 | `flow_time_allocator.allocate_from_runtime_data` | flow/extend、经验表、cross config | 方案及审计详情 | 周期选择、车道聚合、容量查表 | shadow/pilot | 是 | 无直接写；调用者缓存/记录 |
 | `Global_intersection_coordinate.coordinate` | 全路口 plan、coordinate、online、overflow、extend | 原地修改后的 plan map | 三类 processor、special、minimum cycle、green wave、floating | pipeline | 是（核心全局控制） | 读多份 JSON、修改全局 `inter_road_state`/绿波状态、随机数、stdout |
@@ -468,7 +468,7 @@ lib/control_functions/dqn_control.py::call_dqn_select
 lib/DQN_Select.py + lib/AITC_tool.py + lib/cha.py + lib/cha1.py
 lib/data_ANS/flow_allocator_shadow.py + flow_time_allocator.py
 time_schedule/schedule_json/*
-lib/wwx.json / lib/experience_pool/new_wwx.json / lib/cross_info.json
+lib/offline_experience.json / lib/experience_pool/online_experience.json / lib/cross_info.json
 lib/Global_intersection_coordinate.py
 lib/control_functions/global_processors/*
 lib/road_state.py / lib/floating_value.py / lib/lvbotest.py / lib/green_wave_functions.py
