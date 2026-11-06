@@ -1,3 +1,11 @@
+# 离线生成脚本：位于 tools/，把仓库根目录加入 sys.path 后再导入 lib 与 Lambdas
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 # 创建新的intersection_to_rid_lambda字典，从原始数据开始
 intersection_to_rid_lambda_new = {}
 from lib.Global_intersection_coordinate import road_map, online_map_info
@@ -269,28 +277,54 @@ def compare_rids_detailed(intersection_to_rid_lambda_new, online_data_map_lambda
 
 
 
+def online_direction(mapping, intersection_id):
+    """从 online_map_info 条目取指定路口的方向，兼容 {路口ID: 方向} 与 [路口ID, 方向, ...] 两种形态。"""
+    if isinstance(mapping, dict):
+        candidates = [intersection_id, str(intersection_id)]
+        stripped = str(intersection_id)
+        if stripped.lstrip("-").isdigit():
+            candidates.append(int(stripped))
+        for key in candidates:
+            if key in mapping:
+                return mapping[key]
+        return None
+    if len(mapping) >= 2 and str(mapping[0]) == str(intersection_id):
+        return mapping[1]
+    if len(mapping) >= 4 and str(mapping[2]) == str(intersection_id):
+        return mapping[3]
+    return None
+
+
+def add_rid_direction(intersection_id, rid, direction):
+    """并入 (rid, 方向)；同一路口同一 rid 只保留一条，有效方向可覆盖先前的 None。"""
+    # road_map / online_map_info 的路口键可能是 int，统一按字符串归档，避免同一路口写出两段
+    intersection_id = str(intersection_id)
+    rid_list = intersection_to_rid_lambda_new.setdefault(intersection_id, [])
+    for index, (existing_rid, existing_direction) in enumerate(rid_list):
+        if existing_rid == rid:
+            if existing_direction is None and direction is not None:
+                rid_list[index] = (rid, direction)
+            return
+    rid_list.append((rid, direction))
+
+
 # 首先处理原始intersection_to_rid_lambda数据
 for intersection_id, rid_list in intersection_to_rid_lambda.items():
     if intersection_id not in intersection_to_rid_lambda_new:
         intersection_to_rid_lambda_new[intersection_id] = []
     
-    # 将原有的rid转换为(rid, direction)格式，方向设为None
+    # 将原有的rid转换为(rid, direction)格式，方向未知时为 None
     for rid in rid_list:
-        # 检查rid是否在road_map中，如果是则获取方向
+        # 先用 road_map 定位方向
         direction = None
         if rid in road_map:
-            # 查找该rid对应的路口，找到匹配的方向
             info = road_map[rid]
             if intersection_id == info[0] or (len(info) > 2 and intersection_id == info[2]):
                 direction = info[1] if intersection_id == info[0] else info[3]
-        
-        # 检查rid是否在online_map_info中，如果是则获取方向
+        # 再从 online_map_info 补齐方向
         if rid in online_map_info and direction is None:
-            cross_directions = online_map_info[rid]
-            if intersection_id in cross_directions:
-                direction = cross_directions[intersection_id]
-        
-        intersection_to_rid_lambda_new[intersection_id].append((rid, direction))
+            direction = online_direction(online_map_info[rid], intersection_id)
+        add_rid_direction(intersection_id, rid, direction)
 
 # 处理road_map中的rid
 for rid, info in road_map.items():
@@ -299,54 +333,24 @@ for rid, info in road_map.items():
         intersection_id1 = info[0]
         direction1 = info[1]
         
-        # 添加到第一个路口
-        if intersection_id1 not in intersection_to_rid_lambda_new:
-            intersection_to_rid_lambda_new[intersection_id1] = []
-        
-        # 检查是否已存在，避免重复
-        exists = False
-        for existing_rid, _ in intersection_to_rid_lambda_new[intersection_id1]:
-            if existing_rid == rid:
-                exists = True
-                break
-        
-        if not exists:
-            intersection_to_rid_lambda_new[intersection_id1].append((rid, direction1))
-        
+        add_rid_direction(intersection_id1, rid, direction1)
         # 如果有第二个路口ID，也添加
         if len(info) >= 4 and info[2] != "0":
-            intersection_id2 = info[2]
-            direction2 = info[3]
-            
-            if intersection_id2 not in intersection_to_rid_lambda_new:
-                intersection_to_rid_lambda_new[intersection_id2] = []
-            
-            # 检查是否已存在，避免重复
-            exists = False
-            for existing_rid, _ in intersection_to_rid_lambda_new[intersection_id2]:
-                if existing_rid == rid:
-                    exists = True
-                    break
-            
-            if not exists:
-                intersection_to_rid_lambda_new[intersection_id2].append((rid, direction2))
+            add_rid_direction(info[2], rid, info[3])
 
 # 处理online_map_info中的rid
+# 值有两种形态：{路口ID: 方向} 字典，或 ["路口ID", "方向", "路口ID2", "方向2"] 列表；
+# 与 lib/Global_intersection_coordinate 的读取逻辑保持一致。
 for rid, cross_directions in online_map_info.items():
-    for intersection_id, direction in cross_directions.items():
-        # 添加到对应的路口
-        if intersection_id not in intersection_to_rid_lambda_new:
-            intersection_to_rid_lambda_new[intersection_id] = []
-        
-        # 检查是否已存在，避免重复
-        exists = False
-        for existing_rid, _ in intersection_to_rid_lambda_new[intersection_id]:
-            if existing_rid == rid:
-                exists = True
-                break
-        
-        if not exists:
-            intersection_to_rid_lambda_new[intersection_id].append((rid, direction))
+    if isinstance(cross_directions, dict):
+        cross_pairs = list(cross_directions.items())
+    else:
+        cross_pairs = [(cross_directions[0], cross_directions[1])]
+        if len(cross_directions) >= 4 and str(cross_directions[2]) != "0":
+            cross_pairs.append((cross_directions[2], cross_directions[3]))
+
+    for intersection_id, direction in cross_pairs:
+        add_rid_direction(intersection_id, rid, direction)
 
 # 保存结果到py文件
 with open("intersection_to_rid_lambda.py", "w") as f:

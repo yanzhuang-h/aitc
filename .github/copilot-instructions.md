@@ -30,6 +30,7 @@ safety/               确定性安全门（协调后结构、上下界、fallbac
 app/                  配置(config.py) + 路径(paths.py) + 核心模型(core/models) + 工具(core/tools)
 web/index.html        单文件前端页面
 lib/                  算法与算法配置层（DQN 等；可改，改动须保持行为兼容）
+tools/                离线脚本（配置检查 / 在线配置生成 / 接口文档生成）
 test/                 自动化测试 + 手工回放客户端
 ```
 
