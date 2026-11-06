@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """生成《AITC 对外 HTTP 接口说明》Word 文档。
 
-用法：.venv/bin/python gen_api_docs.py（依赖 python-docx，需先安装）
-输出：docs/对外HTTP接口说明.docx
+用法：.venv/bin/python tools/gen_api_docs.py（依赖 python-docx，需先安装）
+输出：仓库根目录下 docs/对外HTTP接口说明.docx（与调用时的当前目录无关）
 """
 
 from __future__ import annotations
@@ -14,7 +14,8 @@ from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.oxml.ns import qn
 import os
 
-OUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs")
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+OUT_DIR = os.path.join(ROOT, "docs")
 OUT_FILE = os.path.join(OUT_DIR, "对外HTTP接口说明.docx")
 
 BASE = "http://127.0.0.1:8088"

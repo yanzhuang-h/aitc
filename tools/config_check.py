@@ -1,6 +1,13 @@
 import json
+import sys
 from datetime import datetime
 from collections import defaultdict
+from pathlib import Path
+
+# 本文件位于 tools/，把仓库根目录加入 sys.path，才能导入 Lambdas 与 lib
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from Lambdas import *
 def check_lambda_configurations():
@@ -330,7 +337,7 @@ def generate_text_report(report, filename):
 # 运行检查
 if __name__ == "__main__":
     # 需要先导入原始配置数据
-    exec(open('Lambdas.py').read())
+    exec((ROOT / "Lambdas.py").read_text(encoding="utf-8"))
     
     report = check_lambda_configurations()
     

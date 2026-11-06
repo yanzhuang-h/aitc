@@ -51,3 +51,9 @@ test/extend_data/
 test/online_data/
 
 ./todo-done
+
+# 离线脚本产物（tools/config_check.py、tools/gen_online_config.py）
+lambda_config_check_report_*.json
+lambda_config_summary_*.txt
+intersection_to_rid_lambda.py
+new_online_data_map_lambda.py
