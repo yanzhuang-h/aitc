@@ -133,10 +133,13 @@ def summarize_model_attempts(traces, prices=None):
     )
     cost = None
     if complete and prices:
+        # 写成局部变量而不是内联字面量：Cython 3 会常量折叠这个列表，
+        # 生成引用未定义 __pyx_cur_scope 的 C 代码，导致 .so 编译失败。
+        priced_tokens = [('prompt_cache_hit_tokens', 'cache_hit'),
+                         ('prompt_cache_miss_tokens', 'cache_miss'),
+                         ('completion_tokens', 'output')]
         cost = str(sum(Decimal(usage.get(token, 0)) * Decimal(prices[price]) / Decimal(1_000_000)
-                       for token, price in [('prompt_cache_hit_tokens', 'cache_hit'),
-                                            ('prompt_cache_miss_tokens', 'cache_miss'),
-                                            ('completion_tokens', 'output')]))
+                       for token, price in priced_tokens))
     return {'attempts': len(attempts), 'statuses': dict(statuses),
             'valid_action_rate': statuses['valid_action'] / len(attempts) if attempts else None,
             'latency_p50_ms': latencies[math.ceil(len(latencies)*.5)-1] if latencies else None,
