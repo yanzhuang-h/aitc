@@ -1,6 +1,12 @@
 import json
 import sys
 import os
+
+# 本文件已移入 legacy/：先把仓库根目录加入 sys.path，再导入 time_schedule 包
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
 import logging
 from chinese_calendar import is_workday
 from datetime import date, datetime, timedelta
@@ -11,11 +17,8 @@ import threading
 from urllib.parse import urlparse
 from time_schedule.get_sch_for_cross import get_sch_for_cross,update_FIne_turn_for_cross
 from time_schedule.updata_road import updata_road_func
-# 添加项目根目录到系统路径
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-# 导入路径配置
-from path_config import PROJECT_ROOT, get_path, LOG_DIR
+# 导入路径配置（同在 legacy/ 下）
+from legacy.path_config import PROJECT_ROOT, get_path, LOG_DIR
 from lib.road_state import get_road_state_config, validate_and_save_road_state
 
 # 配置路径

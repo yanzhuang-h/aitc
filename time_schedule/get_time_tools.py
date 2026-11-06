@@ -2,7 +2,7 @@ import time
 import json
 import os
 import numpy as np
-from path_config import get_path
+from legacy.path_config import get_path
 
 # 待确认的重复键: "13G2O0C6CL013G2A0C6CL00" "13G2A0C6CL013G1A0C6CL00"
 
