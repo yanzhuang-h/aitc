@@ -14,8 +14,8 @@
     "scope": "fixed workday morning; not field-performance validation or every event/time branch"
   },
   "config_sources": {
-    "lib/wwx.json": "163c286056a69505c5d256a2fcd9b0fc4cc887cbec181e18469accb933696cd3",
-    "lib/experience_pool/new_wwx.json": "ed95c2e2f881b4cacb8de6fac3f9d896d65b57703a9b9f2dc9ba2a979aa07a1a",
+    "lib/offline_experience.json": "163c286056a69505c5d256a2fcd9b0fc4cc887cbec181e18469accb933696cd3",
+    "lib/experience_pool/online_experience.json": "ed95c2e2f881b4cacb8de6fac3f9d896d65b57703a9b9f2dc9ba2a979aa07a1a",
     "lib/cross_info.json": "c56b24a59cead015972fff0bb104cf41de82ff007dcf0aca5534fc6c63ab6173",
     "lib/road_info.json": "6d6fd91697dd43184fb10909d046bfdd30d40ebf1d57e1058d098a66132c20d2",
     "lib/road_state.json": "f4fb03afe0928bca4a50b03b92777195eb1fc49c5f0c9c1693f693002feb692e",

@@ -212,9 +212,9 @@ def run_worker(options, mode):
 
     settings = RuntimeSettings.from_environment().validate()
     configuration_files = {}
-    for name in ('intersection_result_config.json', 'lib/wwx.json', 'lib/cross_info.json',
+    for name in ('intersection_result_config.json', 'lib/offline_experience.json', 'lib/cross_info.json',
                  'lib/road_info.json', 'lib/road_state.json', 'lib/floating_value.json',
-                 'lib/green_wave_corridors.json', 'lib/experience_pool/new_wwx.json'):
+                 'lib/green_wave_corridors.json', 'lib/experience_pool/online_experience.json'):
         with Path(name).open('rb') as file:
             configuration_files[name] = hashlib.file_digest(file, 'sha256').hexdigest()
     use_model = mode == 'v2' and options['model']

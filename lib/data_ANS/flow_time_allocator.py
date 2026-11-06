@@ -46,7 +46,7 @@ DEFAULT_MAX_STAGE_GAP_SECONDS = 3
 DEFAULT_SAFE_FALLBACK_GREEN_TIME = 30
 
 LIB_DIR = Path(__file__).resolve().parents[1]
-DEFAULT_EXPERIENCE_PATH = LIB_DIR / "experience_pool" / "new_wwx.json"
+DEFAULT_EXPERIENCE_PATH = LIB_DIR / "experience_pool" / "online_experience.json"
 DEFAULT_CROSS_INFO_PATH = LIB_DIR / "cross_info.json"
 
 PHASE_DIRECTION_MAP = {

@@ -199,8 +199,8 @@ def _run_paths(source_date):
         "normalization_report": artifact_dir / "normalization_report.json",
         "candidates": artifact_dir / "near_capacity_candidates.json",
         "pool_report": artifact_dir / "pool_update_report.json",
-        "full_pool": state_dir / "experience_pool_full.json",
-        "rolling_table": state_dir / "rolling_experience_table.json",
+        "full_pool": state_dir / "online_experience_samples.json",
+        "rolling_table": state_dir / "online_experience_rolling.json",
     }
 
 
@@ -251,7 +251,7 @@ def run_experience_pool_day(source_date, *, release_settings=None):
 
     runtime_path = _configured_path(
         "AITC_EXPERIENCE_RUNTIME_TABLE",
-        DEFAULT_STATE_DIR / "new_wwx.json",
+        DEFAULT_STATE_DIR / "online_experience.json",
     )
     cross_info_path = _configured_path(
         "AITC_EXPERIENCE_CROSS_INFO",

@@ -1231,15 +1231,15 @@ def _build_parser():
     parser.add_argument("--candidates", required=True)
     parser.add_argument(
         "--full-pool",
-        default=os.path.join(pool_dir, "experience_pool_full.json"),
+        default=os.path.join(pool_dir, "online_experience_samples.json"),
     )
     parser.add_argument(
         "--old-table",
-        default=os.path.join(pool_dir, "new_wwx.json"),
+        default=os.path.join(pool_dir, "online_experience.json"),
     )
     parser.add_argument(
         "--output",
-        default=os.path.join(pool_dir, "experience_pool_table.json"),
+        default=os.path.join(pool_dir, "online_experience_candidate.json"),
     )
     parser.add_argument("--report")
     parser.add_argument("--percentile", type=float, default=DEFAULT_PERCENTILE)
