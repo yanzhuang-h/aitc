@@ -190,7 +190,12 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
         experience_manifest_path=settings.experience_release.active_manifest_path,
     )
     # 长期仓库（datahub/runtime/runtime/*.jsonl，供历史查询）
-    repository = LongTermMemory(root=settings.runtime_data_dir)
+    # 逐条落 JSONL 会占用接收线程（旧实现每条记录都可能整文件重写），默认关闭。
+    repository = (
+        LongTermMemory(root=settings.runtime_data_dir)
+        if settings.persist_runtime_data
+        else None
+    )
     # 溢出告警表：初始结构与 map_lambda 一致，按「路口×方向」记录最新告警
     overflow_warning_map = copy.deepcopy(Lambdas.map_lambda)
     quality_monitor = DataQualityMonitor()

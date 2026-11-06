@@ -317,11 +317,12 @@ class RuntimeSettings:
     # ── 调度 ──
     prediction_hour: int = 3              # 每日预测执行时刻（时）
     prediction_minute: int = 0            # 每日预测执行时刻（分）
-    enable_config_sync: bool = False      # Nacos 配置同步开关（当前默认关闭）
+    enable_config_sync: bool = True       # Nacos 配置同步开关（与 2.65 一致默认开启；未配 NACOS_PASSWORD 时各任务自行跳过）
     enable_prediction_scheduler: bool = True   # 每日流量/排队预测调度开关
     enable_experience_pool_scheduler: bool = True  # 经验池调度开关
 
     # ── 落盘路径 ──
+    persist_runtime_data: bool = False    # 是否逐条落 JSONL 运行仓库（高频写，默认关闭；AITC_RUNTIME_PERSIST）
     runtime_data_dir: Path = Path("datahub/runtime")      # 长期历史仓库（jsonl）
     runtime_output_dir: Path = Path("logs_data")             # 兼容日志输出目录
     prediction_data_dir: Path = Path("logs_data")            # 预测历史与每日预测输出目录
@@ -365,7 +366,7 @@ class RuntimeSettings:
             RunMode.REPLAY: {
                 "tcp_host": cls.tcp_host,
                 "http_host": cls.http_host,
-                "enable_config_sync": cls.enable_config_sync,
+                "enable_config_sync": False,
                 "enable_prediction_scheduler": False,
             },
             RunMode.DEVELOPMENT: {
@@ -396,6 +397,7 @@ class RuntimeSettings:
             runtime_data_dir=_read_path("AITC_RUNTIME_DATA_DIR", cls.runtime_data_dir),
             runtime_output_dir=_read_path("AITC_RUNTIME_OUTPUT_DIR", cls.runtime_output_dir),
             prediction_data_dir=_read_path("AITC_PREDICTION_DATA_DIR", cls.prediction_data_dir),
+            persist_runtime_data=_read_bool("AITC_RUNTIME_PERSIST", cls.persist_runtime_data),
             enable_config_sync=_read_bool("AITC_ENABLE_CONFIG_SYNC", mode_defaults["enable_config_sync"]),
             enable_prediction_scheduler=_read_bool("AITC_ENABLE_PREDICTION_SCHEDULER", mode_defaults["enable_prediction_scheduler"]),
             enable_experience_pool_scheduler=_read_bool("AITC_EXPERIENCE_POOL_ENABLED", cls.enable_experience_pool_scheduler),

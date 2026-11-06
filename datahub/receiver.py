@@ -88,12 +88,16 @@ class RuntimeDataReceiver(LoggingMixin):
         )
         self.writer.write(classified.kind, classified.item)
         if self.repository is not None:
-            self.repository.store_runtime_data(
-                classified.kind,
-                classified.item,
-                source=classified.source.value,
-                intersection_id=self._resolve_intersection_id(classified.item),
-            )
+            try:
+                self.repository.store_runtime_data(
+                    classified.kind,
+                    classified.item,
+                    source=classified.source.value,
+                    intersection_id=self._resolve_intersection_id(classified.item),
+                )
+            except Exception:
+                # 落盘失败不能反压或中断接收链路；日志留痕后继续处理。
+                self._error("运行时数据落盘失败，接收继续", exc_info=True)
         return classified
 
     def _update_runtime_state(self, classified: ClassifiedData) -> None:
