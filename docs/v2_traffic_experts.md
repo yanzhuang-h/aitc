@@ -12,7 +12,7 @@ HEAD 与 origin/main；修改前主测试 210 项全部通过。数据接口见
 `agents/experts` 提供四个明确的专家入口，不新增基类、模型客户端或工具注册框架。
 
 ```python
-from agent.experts import VideoExpert, RadarExpert, InternetExpert, EVExpert
+from agents.experts import VideoExpert, RadarExpert, InternetExpert, EVExpert
 
 video = VideoExpert(datahub, flow_duration_seconds=settings.flow_duration_seconds)
 state = video.extract("1300068")   # ExpertTrafficState
@@ -144,7 +144,7 @@ EVExpert 的 TODO 是确认真实 EV/V2X 接入契约与设备映射。二者不
 输入与真实仓库配置，不代表实地性能验收。
 
 ```bash
-.venv/bin/python -m compileall -q infra runtime agent app test
+.venv/bin/python -m compileall -q app datahub control agents models safety runtime infra test
 .venv/bin/python -m unittest discover -s test -p 'test_*.py'
 .venv/bin/python -m unittest discover -s lib/control_functions/tests -p 'test_*.py'
 .venv/bin/python -m unittest discover -s lib/control_functions/global_processors/tests -p 'test_*.py'

@@ -62,7 +62,7 @@ AITC_CONTROL_AGENT_ROADS=1300068
 未知路口在启动时拒绝。初次联调使用回放入口，验证通过后再设置周期增强开关。
 
 ```bash
-.venv/bin/python -m compileall -q infra runtime agent app test
+.venv/bin/python -m compileall -q app datahub control agents models safety runtime infra test
 .venv/bin/python -m pip check
 .venv/bin/python -m unittest discover -s test -p 'test_*.py'
 .venv/bin/python -m unittest discover -s lib/data_ANS/tests -p 'test_*.py'

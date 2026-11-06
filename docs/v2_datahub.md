@@ -170,7 +170,7 @@ limit、TTL 边界、截断标记、设备/别名/多路口路段关联、未知
 绿波/互联网跨轮状态。它仍是固定工作日早高峰的合成输入回放，不代表实地性能验收。
 
 ```bash
-.venv/bin/python -m compileall -q infra runtime agent app test
+.venv/bin/python -m compileall -q app datahub control agents models safety runtime infra test
 .venv/bin/python -m unittest discover -s test -p 'test_*.py'
 .venv/bin/python -m unittest discover -s lib/control_functions/tests -p 'test_*.py'
 .venv/bin/python -m unittest discover -s lib/control_functions/global_processors/tests -p 'test_*.py'

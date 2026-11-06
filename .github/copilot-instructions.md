@@ -22,9 +22,12 @@ AITC 交通信号控制系统，正在进行企业级重构：**Qwen 大模型�
 ```text
 Server_AITC.py        纯启动入口（日志/信号/application.run()）
 runtime/              运行编排：application / tcp_server / http_server / decision_pipeline / prediction_*
-datahub/           数据底座：memory/(短/长/查询) + 接收/分类/契约/质量/仓库/聚合/输出/配置/同步
-agents/                QwenAgent（符号路由 + Qwen 编排）、DataQueryTools
-app/                  配置(config.py) + 核心模型(core/models) + 工具(core/tools) + LLM 客户端(infrastructure/llm)
+datahub/              数据底座：memory/(短/长/查询) + 接收/分类/契约/质量/仓库/聚合/输出/配置/同步
+agents/               LangGraph 图 + QwenAgent（符号路由 + Qwen 编排）+ 领域专家 experts/ + HTTP harness
+control/              控制契约、Baseline 策略、协调/单点/异常/下发骨架
+models/               统一模型网关（Qwen / DeepSeek / Mock / Disabled，OpenAI-compatible 客户端）
+safety/               确定性安全门（协调后结构、上下界、fallback 校验）
+app/                  配置(config.py) + 路径(paths.py) + 核心模型(core/models) + 工具(core/tools)
 web/index.html        单文件前端页面
 lib/                  算法与算法配置层（DQN 等；可改，改动须保持行为兼容）
 test/                 自动化测试 + 手工回放客户端
@@ -42,7 +45,7 @@ test/                 自动化测试 + 手工回放客户端
 ## 常用命令
 ```bash
 # WSL 开发环境（仓库根目录下执行，.venv）
-.venv/bin/python -m compileall -q infra runtime agent app
+.venv/bin/python -m compileall -q app datahub control agents models safety runtime infra
 .venv/bin/python -m unittest discover -s test -p "test_*.py" -v
 
 # Linux 服务器（llm 环境）

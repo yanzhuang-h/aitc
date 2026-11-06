@@ -128,7 +128,7 @@ Qwen 不可达、Mock、Disabled 的实际 186 路口完整输出；单独模型
 改变这条控制链。既有两轮控制阶段和 TCP 黄金回放继续使用未修改的 fixture。
 
 ```bash
-.venv/bin/python -m compileall -q infra runtime agent app test
+.venv/bin/python -m compileall -q app datahub control agents models safety runtime infra test
 .venv/bin/python -m unittest discover -s test -p 'test_*.py'
 .venv/bin/python -m unittest discover -s lib/control_functions/tests -p 'test_*.py'
 .venv/bin/python -m unittest discover -s lib/control_functions/global_processors/tests -p 'test_*.py'

@@ -13,7 +13,7 @@
 
 ## 当前控制链
 
-`create_application()` 创建 `agent.graph.ControlGraph`，与周期管线共享同一个
+`create_application()` 创建 `agents.graph.ControlGraph`，与周期管线共享同一个
 DataHub、Video/Radar 专家和 BaselineController。`app.decision_graph` 与
 `app.decision_pipeline.decision_graph` 是同一实例。原 HTTP `AgentHarness` 继续
 负责意图协议；周期控制使用新图，不重写原 HTTP 接口。
@@ -142,7 +142,7 @@ None 预测、已知故障重试/回退、未知故障与 selector 异常传播�
 旧聚合函数，现场完整事件窗口的吞吐量需另行实测。
 
 ```bash
-.venv/bin/python -m compileall -q infra runtime agent app test
+.venv/bin/python -m compileall -q app datahub control agents models safety runtime infra test
 .venv/bin/python -m unittest discover -s test -p 'test_*.py'
 .venv/bin/python -m unittest discover -s lib/control_functions/tests -p 'test_*.py'
 .venv/bin/python -m unittest discover -s lib/control_functions/global_processors/tests -p 'test_*.py'

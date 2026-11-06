@@ -157,7 +157,7 @@ AITC_CONTROL_AGENT_ENABLED=true .venv/bin/python Server_AITC.py
 模型超时与不可达情况下的实际 186 路口输出与 Disabled 模式一致。
 
 ```bash
-.venv/bin/python -m compileall -q infra runtime agent app test
+.venv/bin/python -m compileall -q app datahub control agents models safety runtime infra test
 .venv/bin/python -m unittest discover -s test -p 'test_*.py'
 .venv/bin/python -m unittest discover -s lib/data_ANS/tests -p 'test_*.py'
 .venv/bin/python -m unittest discover -s lib/control_functions/tests -p 'test_*.py'

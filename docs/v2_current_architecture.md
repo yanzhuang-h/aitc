@@ -1,6 +1,6 @@
 # AITC V2 当前架构总览
 
-核对日期：2026-10-14。Phase 9 已通过 PR #46 合入 main，
+核对日期：2026-10-14；2026-11-06 补充 2026-10-22 包结构重构后的路径对照。Phase 9 已通过 PR #46 合入 main，
 本轮 Phase 10 的实施基线为 `7612ee9`。本文描述 Phase 0–10 的实际接线；
 阶段发布状态以 GitHub PR 为准，各阶段文档保留当时的验证记录。
 
@@ -54,6 +54,37 @@ flowchart TD
 Video/Radar 为图的路由提供证据，原策略继续接收完整控制请求，包含预测、
 多源观测及上一轮协调状态；专家摘要不能替换这些业务输入。互联网 `online_map`
 单独保留在后续全局协调输入中。
+
+## 代码结构（2026-10-22 重构后）
+
+PR #50–#53 完成顶层分包，协议、报文与控制行为不变；`Server_AITC.py` 仍只负责启动，
+依赖装配仍在 `runtime/application.py`。
+
+```text
+aitc/
+├── Server_AITC.py      # 生产入口：日志、信号绑定、application.run()
+├── app/                # 运行配置与路径、跨模块模型、控制工具适配
+├── datahub/            # 交通数据中心（PR #50）
+├── control/            # 控制契约、Baseline 策略、协调/单点/异常（PR #53）
+├── agents/             # LangGraph、认知层、领域专家、HTTP Agent（PR #51）
+├── models/             # 统一模型网关（PR #52）
+├── safety/             # 确定性安全门（PR #53）
+├── runtime/            # 装配、TCP/HTTP 服务、决策管线、回放与采集
+├── infra/              # 日志 mixin 与模型权重目录
+├── lib/                # 原算法与配置资产（selector、经验池、时刻表）
+└── test/               # 主测试套件
+```
+
+| 重构前 | 现在 | PR |
+|---|---|---|
+| `infra/data/`（`datahub.py`） | `datahub/`（`service.py`） | #50 |
+| `agent/` | `agents/` | #51 |
+| `app/infrastructure/llm/` | `models/` | #52 |
+| `app/core/control/` | `control/` | #53 |
+| `app/core/control/safety_engine.py`、`safety_schemas.py`、`interfaces/safety.py` | `safety/service.py`、`schemas.py`、`interfaces.py` | #53 |
+
+Phase 0–10 各阶段文档保留当时的路径与验证记录，引用旧路径时按上表换算；
+搬家没有改变配时、安全、追踪和下发行为，回归由主套件与回放覆盖。
 
 ## 代码在哪里
 
