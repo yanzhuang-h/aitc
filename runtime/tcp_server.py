@@ -144,7 +144,11 @@ class TcpRuntimeServer(LoggingMixin):
             return
 
         if isinstance(payload, (dict, list)):
-            self.ingestor.ingest_tcp(payload)
+            # 单条数据异常只丢弃该条，不能关闭整条 TCP 连接（否则平台重连期间整段数据丢失）。
+            try:
+                self.ingestor.ingest_tcp(payload)
+            except Exception:
+                self._error("Failed to ingest payload; connection kept", exc_info=True)
         else:
             self._warning("Unsupported data format.")
 

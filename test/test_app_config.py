@@ -25,7 +25,8 @@ class RuntimeSettingsTest(unittest.TestCase):
         self.assertEqual(settings.http_port, 8088)
         self.assertEqual(settings.decision_interval_seconds, 50)
         self.assertEqual(settings.prediction_hour, 3)
-        self.assertFalse(settings.enable_config_sync)
+        self.assertTrue(settings.enable_config_sync)
+        self.assertFalse(settings.persist_runtime_data)
 
     def test_environment_overrides_runtime_settings(self):
         with patch.dict(os.environ, {
@@ -63,12 +64,12 @@ class RuntimeSettingsTest(unittest.TestCase):
         self.assertEqual(settings.run_mode, RunMode.PRODUCTION)
         self.assertEqual(settings.tcp_host, "0.0.0.0")
         self.assertEqual(settings.http_host, "0.0.0.0")
-        self.assertFalse(settings.enable_config_sync)
-
-    def test_nacos_sync_requires_explicit_opt_in(self):
-        with patch.dict(os.environ, {"AITC_ENABLE_CONFIG_SYNC": "true"}, clear=True):
-            settings = RuntimeSettings.from_environment().validate()
         self.assertTrue(settings.enable_config_sync)
+
+    def test_nacos_sync_can_be_disabled_explicitly(self):
+        with patch.dict(os.environ, {"AITC_ENABLE_CONFIG_SYNC": "false"}, clear=True):
+            settings = RuntimeSettings.from_environment().validate()
+        self.assertFalse(settings.enable_config_sync)
 
     def test_dotenv_file_supports_plain_llm_names(self):
         with tempfile.TemporaryDirectory() as tmp:

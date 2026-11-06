@@ -20,6 +20,8 @@ class RuntimeRepository:
             raise ValueError("max_records_per_kind must be positive")
         self.store = store
         self.max_records_per_kind = max_records_per_kind
+        # 小容量配置（测试）保持逐条裁剪；生产容量改为批量裁剪，避免每条记录都重写文件。
+        self._trim_batch = 1000 if max_records_per_kind >= 1000 else 0
         self._lock = threading.RLock()
         self._record_counts: dict[str, int] = {}
 
@@ -45,10 +47,13 @@ class RuntimeRepository:
             self.store.append_jsonl(name, record)
             count = self._record_counts.get(kind_name)
             if count is None:
+                # 首次写入才扫描一次文件，之后只维护内存计数。
                 count = len(self.store.read_jsonl(name))
             else:
                 count += 1
-            if count > self.max_records_per_kind:
+            # 批量裁剪：超过保留量一个批次才重写文件。
+            # 旧实现每条记录都读全量再写回，超过 1 万条后单条耗时 50ms+，会拖死接收线程。
+            if count > self.max_records_per_kind + self._trim_batch:
                 records = self.store.read_jsonl(name)[-self.max_records_per_kind:]
                 self.store.write_jsonl(name, records)
                 count = len(records)

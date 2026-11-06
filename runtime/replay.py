@@ -223,6 +223,7 @@ def run_worker(options, mode):
         raise ReplayError('Projected cloud call budget exceeds --max-cloud-calls')
     settings = replace(settings, llm_enabled=use_model, llm_required=False, control_agent=control,
                        runtime_data_dir=root/'history', runtime_output_dir=root/'output',
+                       persist_runtime_data=True,
                        prediction_data_dir=Path(options['prediction_dir']) if options['prediction_dir'] else root/'prediction',
                        control_snapshot_dir=root/'snapshots', control_snapshot_enabled=False,
                        enable_config_sync=False, enable_prediction_scheduler=False, enable_experience_pool_scheduler=False)
