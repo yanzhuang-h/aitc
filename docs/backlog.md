@@ -41,7 +41,7 @@
 | C1（#4） | 配置文件路径硬编码 | `control/synergy/green_wave_api_adapter.py`、`phase_check.py`、`time_schedule/get_sch_for_cross.py` 写死路径 | ✅ 已落地：`app/paths.py` 集中路径 + 环境变量覆盖（`AITC_*_PATH`）；后续可继续收敛其余散落路径 | 低 |
 | C2（#10） | 流动窗口默认值易误解 | `DEFAULT_FLOW_DURATION_SECONDS=300` 与运行配置 150 不一致（运行时会被注入覆盖） | 去默认值（必填）或注明"仅占位" | 低 |
 | C3（#9） | 两套 JSON 存储实现 | `lib/_local_json_store.py` 与 `datahub/storage.py::JsonFileStore` 功能重复 | 只记录不合并（跨 lib 边界风险高） | 低 |
-| C4（#8） | 遗留路径与服务 | `path_config.py`（62）+ 根目录 `time_schedule.py`（688，Flask）仅旧服务引用 | 确认无外部调用后移 `legacy/` | 中 |
+| C4（#8） | 遗留路径与服务 | ✅ 已完成（2026-11-06）：根目录 `time_schedule.py`（旧 Flask 服务，长期被同名 `time_schedule/` 包遮蔽）与 `path_config.py` 已移入 `legacy/`；`path_config.PROJECT_ROOT` 按新位置修正，`time_schedule/get_time_tools.py`（当前无调用方）改为从 `legacy.path_config` 导入 | 运行链路径统一由 `app/paths.py` 负责 | 中 |
 | C5（#6/#7） | 根目录离线脚本混放 | ✅ 已完成（2026-11-06）：`config_check.py`、`gen_online_config.py`、`gen_api_docs.py` 已移入 `tools/`，补齐仓库根目录 sys.path 与文档输出路径，生成产物加入 `.gitignore`；`intersection_to_rid_lambda.py`/`new_online_data_map_lambda.py`、`magic_hand.py` 此前已删除 | 新增离线脚本一律放 `tools/`，用法见 `tools/README.md` | 低 |
 | C6（#2） | 配置默认值单一来源 | ✅ 已完成：`RuntimeSettings` 字段默认值即唯一来源，`from_environment` 统一用 `cls.<字段>` 回退 | — | ✅ |
 | C7（#3） | logs_data 默认参数 | 生产路径已全部显式注入 settings；默认值仅服务单测/独立脚本 | ✅ 保留占位默认 + 注释注明注入点 | ✅ |

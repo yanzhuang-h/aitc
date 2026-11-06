@@ -1,4 +1,4 @@
-# path_config.py
+# path_config.py（legacy：仅旧时间表服务使用，运行链路径已由 app/paths.py 接管）
 import os
 import sys
 import logging
@@ -12,8 +12,8 @@ def get_project_root():
         # 打包后的执行路径
         return os.path.dirname(sys.executable)
     else:
-        # 正常开发路径
-        return os.path.dirname(os.path.abspath(__file__))
+        # 正常开发路径：本文件已移入 legacy/，上两级才是仓库根目录
+        return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # 项目根目录
 PROJECT_ROOT = get_project_root()
