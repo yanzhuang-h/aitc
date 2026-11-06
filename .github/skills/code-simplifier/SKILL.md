@@ -29,7 +29,7 @@ Follow the project standards defined in `.github/copilot-instructions.md` and `d
 - 日志使用 `logging` 分级，禁止裸 `print`；
 - `lib/` 可改，但默认只做包装、边界调整与去冗余，保持行为与报文格式兼容；
 - 顺手清理同一文件内触手可及的冗余（重复默认值、重复样板），不做跨模块搬家；
-- 验证统一用：`.venv/bin/python -m compileall -q infra runtime agent app` +
+- 验证统一用：`.venv/bin/python -m compileall -q app datahub control agents models safety runtime infra` +
   `.venv/bin/python -m unittest discover -s test -p "test_*.py"`。
 
 ### 3. Enhance Clarity

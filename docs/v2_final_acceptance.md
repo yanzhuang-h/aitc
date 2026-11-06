@@ -63,7 +63,7 @@ DataHub、历史、模型摘要和追踪中保留，不改写传给原算法的�
 从仓库根目录、使用已安装 requirements.txt 的 Python 环境运行：
 
 ```bash
-.venv/bin/python -m compileall -q infra runtime agent app test
+.venv/bin/python -m compileall -q app datahub control agents models safety runtime infra test
 .venv/bin/python -m pip check
 .venv/bin/python -m unittest discover -s test -p 'test_*.py'
 .venv/bin/python -m unittest discover -s lib/data_ANS/tests -p 'test_*.py'

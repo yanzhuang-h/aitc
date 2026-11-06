@@ -7,7 +7,7 @@
 <!-- 按模块列出主要变更点；涉及行为变化请明确写出 -->
 
 ## 验证方式与结果
-- [ ] 编译通过：`python -m compileall -q infra runtime agent app`
+- [ ] 编译通过：`python -m compileall -q app datahub control agents models safety runtime infra`
 - [ ] 测试通过：`python -m unittest discover -s test -p "test_*.py"`
 - [ ] CI 通过（PR 页面自动运行：compile-and-test）
 - [ ] 手工验证（回放客户端 / 前端页面 / 服务器环境）：

@@ -34,7 +34,7 @@ git switch -c feature/xxx
 
 ```bash
 # WSL 开发环境（仓库根目录下执行，.venv）
-.venv/bin/python -m compileall -q infra runtime agent app
+.venv/bin/python -m compileall -q app datahub control agents models safety runtime infra
 .venv/bin/python -m unittest discover -s test -p "test_*.py"
 
 # Linux 服务器（llm 环境）
@@ -85,8 +85,12 @@ git fetch --prune
 
 `.github/workflows/ci.yml` 在每次 PR 与 main 推送时自动运行：
 
-1. 编译检查：`python -m compileall -q infra runtime agent app`
-2. 单元测试：`python -m unittest discover -s test -p "test_*.py"`
+1. 编译检查：`python -m compileall -q app datahub control agents models safety runtime infra`
+2. 依赖一致性检查：`python -m pip check`
+3. 主测试套件：`python -m unittest discover -s test -p "test_*.py"`
+4. 经验模块回归测试：`python -m unittest discover -s lib/data_ANS/tests -p "test_*.py"`
+5. 控制函数回归测试：`python -m unittest discover -s lib/control_functions/tests -p "test_*.py"`
+6. 全局处理器回归测试：`python -m unittest discover -s lib/control_functions/global_processors/tests -p "test_*.py"`
 
 查看方式（PR 页面会自动显示检查状态）：
 

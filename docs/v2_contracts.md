@@ -105,7 +105,7 @@ CI 的现有 `unittest discover -s test` 会递归发现 `test/unit/` 和 `test/
 阶段验证命令：
 
 ```bash
-.venv/bin/python -m compileall -q infra runtime agent app test
+.venv/bin/python -m compileall -q app datahub control agents models safety runtime infra test
 .venv/bin/python -m unittest discover -s test -p 'test_*.py'
 .venv/bin/python -m unittest discover -s lib/control_functions/tests -p 'test_*.py'
 .venv/bin/python -m unittest discover -s lib/control_functions/global_processors/tests -p 'test_*.py'

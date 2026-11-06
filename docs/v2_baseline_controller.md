@@ -115,7 +115,7 @@ LLM 配置和 HTTP Agent 行为本阶段未改动；默认 `llm_required=false` 
 1 error，没有新增失败。回放另在 UTC 与 Asia/Shanghai 环境验证通过。
 
 ```bash
-.venv/bin/python -m compileall -q infra runtime agent app test
+.venv/bin/python -m compileall -q app datahub control agents models safety runtime infra test
 .venv/bin/python -m unittest discover -s test -p 'test_*.py'
 .venv/bin/python -m unittest discover -s lib/control_functions/tests -p 'test_*.py'
 .venv/bin/python -m unittest discover -s lib/control_functions/global_processors/tests -p 'test_*.py'
