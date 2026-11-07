@@ -1,0 +1,157 @@
+{
+  "schema_version": 1,
+  "roads": {
+    "2272": {
+      "enabled": true,
+      "cameras": {}
+    },
+    "2620": {
+      "enabled": true,
+      "cameras": {}
+    },
+    "1300039": {
+      "enabled": true,
+      "cameras": {}
+    },
+    "1300067": {
+      "enabled": true,
+      "cameras": {}
+    },
+    "1300068": {
+      "enabled": true,
+      "cameras": {}
+    },
+    "1300069": {
+      "enabled": true,
+      "cameras": {}
+    },
+    "1300070": {
+      "enabled": true,
+      "cameras": {}
+    },
+    "1300086": {
+      "enabled": true,
+      "cameras": {}
+    },
+    "1300087": {
+      "enabled": true,
+      "cameras": {}
+    },
+    "1300089": {
+      "enabled": true,
+      "cameras": {}
+    },
+    "1300094": {
+      "enabled": true,
+      "cameras": {}
+    },
+    "1300108": {
+      "enabled": true,
+      "cameras": {}
+    },
+    "1300120": {
+      "enabled": true,
+      "cameras": {}
+    },
+    "1300147": {
+      "enabled": true,
+      "cameras": {}
+    },
+    "1300153": {
+      "enabled": true,
+      "cameras": {}
+    },
+    "1300166": {
+      "enabled": true,
+      "cameras": {}
+    },
+    "1300179": {
+      "enabled": true,
+      "cameras": {}
+    },
+    "1300229": {
+      "enabled": true,
+      "cameras": {}
+    },
+    "1300230": {
+      "enabled": true,
+      "cameras": {}
+    },
+    "1300239": {
+      "enabled": true,
+      "cameras": {}
+    },
+    "1300253": {
+      "enabled": true,
+      "cameras": {}
+    },
+    "1300255": {
+      "enabled": true,
+      "cameras": {}
+    },
+    "1300306": {
+      "enabled": true,
+      "cameras": {}
+    },
+    "1300358": {
+      "enabled": true,
+      "cameras": {}
+    },
+    "1300362": {
+      "enabled": true,
+      "cameras": {}
+    },
+    "1300364": {
+      "enabled": true,
+      "cameras": {}
+    },
+    "1300409": {
+      "enabled": true,
+      "cameras": {}
+    },
+    "1700125": {
+      "enabled": true,
+      "cameras": {}
+    },
+    "1700448": {
+      "enabled": true,
+      "cameras": {
+        "R": "110077",
+        "L": "110078"
+      }
+    },
+    "1700449": {
+      "enabled": true,
+      "cameras": {
+        "R": "110079",
+        "L": "110080",
+        "U": "110081"
+      }
+    },
+    "1700450": {
+      "enabled": true,
+      "cameras": {
+        "R": "110082",
+        "L": "110083"
+      }
+    },
+    "1700542": {
+      "enabled": true,
+      "cameras": {
+        "R": "110073",
+        "D": "110074",
+        "L": "110075",
+        "U": "110076"
+      }
+    },
+    "1700545": {
+      "enabled": true,
+      "cameras": {
+        "R": "110084",
+        "D": "110085",
+        "L": "110086",
+        "U": "110087"
+      }
+    }
+  }
+}
