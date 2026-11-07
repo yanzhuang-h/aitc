@@ -1,7 +1,9 @@
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import lib.control_registry as registry_module
 from lib.control_registry import (
@@ -94,6 +96,22 @@ class ControlRegistryTest(unittest.TestCase):
         second = load_registry(DEFAULT_REGISTRY)
         self.assertIn("1700542", second)
         self.assertIsNot(first, second)
+
+    def test_allocator_targets_follow_registry_when_env_unset(self):
+        from lib.data_ANS import flow_allocator_shadow as shadow
+
+        with patch.dict(
+            os.environ,
+            {
+                "AITC_FLOW_ALLOCATOR_PILOT_ROADS": "",
+                "AITC_FLOW_ALLOCATOR_SHADOW_ROADS": "",
+            },
+        ):
+            targets = shadow._target_road_ids()
+        self.assertEqual(
+            targets,
+            frozenset(load_registry(DEFAULT_REGISTRY, use_cache=False)),
+        )
 
 
 if __name__ == "__main__":

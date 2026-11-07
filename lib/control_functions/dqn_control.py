@@ -1,10 +1,32 @@
 """Stable function interface around the existing DQN selector."""
 
+import logging
 from typing import Any
 
+from lib.control_registry import ControlRegistryError, is_enabled
 from lib.DQN_Select import DQN_select
+from lib.data_ANS.flow_allocator_shadow import select_pilot_schedule
 
 from .types import ControlResult, IntersectionControlRequest
+
+LOGGER = logging.getLogger("AITC.ControlFunctions")
+
+
+def _apply_pilot_selector(request: IntersectionControlRequest, plan: Any) -> Any:
+    """统一挂载试点分配器；注册表未登记或不可用时保持原方案。"""
+    try:
+        enabled = is_enabled(request.cross_id)
+    except ControlRegistryError as error:
+        LOGGER.warning("control registry unavailable, pilot selector skipped: %s", error)
+        return plan
+    if not enabled:
+        return plan
+    return select_pilot_schedule(
+        request.cross_id,
+        plan,
+        request.flow_map,
+        request.extend_map,
+    )
 
 
 def call_dqn_select(request: IntersectionControlRequest) -> tuple[Any, Any, Any, Any]:
@@ -12,8 +34,9 @@ def call_dqn_select(request: IntersectionControlRequest) -> tuple[Any, Any, Any,
 
     所有调用方（决策管线、Agent 工具等）都通过 ``IntersectionControlRequest``
     传参；底层 ``DQN_select`` 的位置参数顺序只在本文维护一处。
+    试点分配器也在这里统一挂载：注册表登记且启用的路口才会接管。
     """
-    return DQN_select(
+    plan, coordinate_map, model_info_list, experience_info = DQN_select(
         request.traffic_vector,
         request.queue_vector,
         request.traffic_vector_duration2,
@@ -30,6 +53,7 @@ def call_dqn_select(request: IntersectionControlRequest) -> tuple[Any, Any, Any,
         request.cross_id,
         request.boyan_map,
     )
+    return _apply_pilot_selector(request, plan), coordinate_map, model_info_list, experience_info
 
 
 def validate_control_plan(plan):

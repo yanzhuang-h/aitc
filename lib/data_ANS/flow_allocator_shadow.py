@@ -75,6 +75,25 @@ def _shadow_enabled():
     return str(value).strip().lower() not in {"0", "false", "no", "off"}
 
 
+def _registry_road_ids():
+    """注册表中 enabled 的路口；注册表不可用时返回空集合。"""
+    try:
+        from lib.control_registry import load_registry
+    except ModuleNotFoundError:  # Supports direct execution from this directory.
+        try:
+            from control_registry import load_registry
+        except ModuleNotFoundError:
+            return frozenset()
+    try:
+        return frozenset(
+            road_id
+            for road_id, registration in load_registry().items()
+            if registration.enabled
+        )
+    except Exception:
+        return frozenset()
+
+
 def _target_road_ids():
     configured = os.environ.get("AITC_FLOW_ALLOCATOR_PILOT_ROADS", "").strip()
     if not configured:
@@ -82,13 +101,16 @@ def _target_road_ids():
             "AITC_FLOW_ALLOCATOR_SHADOW_ROADS",
             "",
         ).strip()
-    if not configured:
-        return DEFAULT_TARGET_ROAD_IDS
-    return frozenset(
-        item.strip()
-        for item in configured.split(",")
-        if item.strip()
-    )
+    if configured:
+        return frozenset(
+            item.strip()
+            for item in configured.split(",")
+            if item.strip()
+        )
+    registered = _registry_road_ids()
+    if registered:
+        return registered
+    return DEFAULT_TARGET_ROAD_IDS
 
 
 def _pilot_mode():
