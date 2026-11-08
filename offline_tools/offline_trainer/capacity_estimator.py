@@ -57,6 +57,14 @@ def _time_seconds(value):
     return value
 
 
+def _load_json(path, default=None):
+    """加载 JSON 文件；文件不存在时返回 default。"""
+    if not os.path.isfile(path):
+        return default
+    with open(path, "r", encoding="utf-8") as file:
+        return json.load(file)
+
+
 def _write_json_atomic(path, data):
     directory = os.path.dirname(os.path.abspath(path))
     os.makedirs(directory, exist_ok=True)
