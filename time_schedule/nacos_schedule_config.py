@@ -145,6 +145,7 @@ def _write_json_atomic(data, path):
             temp_file.write("\n")
             temp_file.flush()
             os.fsync(temp_file.fileno())
+            os.chmod(temp_file.name, 0o644)
         os.replace(temp_path, path)
     finally:
         if temp_path and os.path.exists(temp_path):

@@ -86,6 +86,7 @@ def _save_floating_value(data, path=FLOATING_VALUE_PATH):
         temp_file.write("\n")
         temp_file.flush()
         os.fsync(temp_file.fileno())
+        os.chmod(temp_file.name, 0o644)
 
     os.replace(temp_path, path)
     _cache_mtime = None

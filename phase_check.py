@@ -106,6 +106,7 @@ def replace_intersection_result_config(data, path=INTERSECTION_CONFIG_PATH):
             temp_file.write("\n")
             temp_file.flush()
             os.fsync(temp_file.fileno())
+            os.chmod(temp_file.name, 0o644)
         os.replace(temp_path, path)
     finally:
         if temp_path and os.path.exists(temp_path):
