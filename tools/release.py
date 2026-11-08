@@ -52,6 +52,7 @@ PROTECT_DIRS = [
     "runtime",
     "infra",
     "legacy",
+    "offline_tools/offline_trainer",
 ]
 
 # ---- 顶层业务模块也要编译；Server_AITC.py 是启动入口，必须保持可执行源码 ----
@@ -137,6 +138,8 @@ CRITICAL_IMPORTS = [
     "Queue_predict",
     "Lambdas",
     "phase_check",
+    "offline_tools.offline_trainer",
+    "offline_tools.offline_trainer.cli",
 ]
 
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d{4}\.\d+$")
