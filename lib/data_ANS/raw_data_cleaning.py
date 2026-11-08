@@ -482,3 +482,70 @@ def clean_stage_inputs(
     if report_path:
         _write_json_atomic(report_path, report)
     return clean_extend, report
+
+
+def compress_phase_intervals(phase_dict):
+    """
+    【函数作用】
+    把连续秒级阶段表压缩成阶段执行区间。
+
+    【返回】
+    [
+        {
+            "stage": 阶段号,
+            "start": 开始时间,
+            "end": 结束时间,
+            "duration": 执行时间秒数
+        }
+    ]
+    """
+    if not phase_dict:
+        return []
+
+    intervals = []
+
+    items = sorted(phase_dict.items(), key=lambda x: x[0])
+
+    cur_stage = None
+    cur_start = None
+    last_ts = None
+
+    for ts, stage in items:
+        ts = int(ts)
+        stage = str(stage)
+
+        if cur_stage is None:
+            cur_stage = stage
+            cur_start = ts
+            last_ts = ts
+            continue
+
+        if stage == cur_stage and ts == last_ts + 1:
+            last_ts = ts
+            continue
+
+        intervals.append({
+            "stage": cur_stage,
+            "start": cur_start,
+            "end": last_ts,
+            "duration": last_ts - cur_start + 1
+        })
+
+        cur_stage = stage
+        cur_start = ts
+        last_ts = ts
+
+    if cur_stage is not None:
+        intervals.append({
+            "stage": cur_stage,
+            "start": cur_start,
+            "end": last_ts,
+            "duration": last_ts - cur_start + 1
+        })
+
+    last_index = len(intervals) - 1
+    for index, interval in enumerate(intervals):
+        interval["layer_index"] = index
+        interval["data_boundary_partial"] = index in (0, last_index)
+
+    return intervals

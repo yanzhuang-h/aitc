@@ -404,7 +404,7 @@ def bundle_wheels(root: Path, wheels_dir: Path, download: bool) -> dict:
 
 
 def sanitize_module_name(path: Path, root: Path) -> tuple[str, bool]:
-    """py 相对路径 → 模块名；非法标识符做字符净化（如 buqi_new2.0）。"""
+    """py 相对路径 → 模块名；非法标识符做字符净化（如 a.b 形式）。"""
     rel = path.relative_to(root)
     dirs = [p for p in rel.parts[:-1]]
     stem = rel.stem

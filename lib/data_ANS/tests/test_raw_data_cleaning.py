@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from lib.data_ANS.E_T_new import compress_phase_intervals
+from lib.data_ANS.raw_data_cleaning import compress_phase_intervals
 from lib.data_ANS.raw_data_cleaning import (
     DEFAULT_MAX_STAGE_GAP_SECONDS,
     clean_training_inputs,
