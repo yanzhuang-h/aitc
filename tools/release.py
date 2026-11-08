@@ -356,6 +356,22 @@ def prune(root: Path) -> list[str]:
 # --------------------------------------------------------------------------
 # 5. 编译加密
 # --------------------------------------------------------------------------
+def write_env_file(root: Path, run_mode: str, bind_host: str) -> dict:
+    """写入生产运行配置；打包后无需运维再手改监听地址。"""
+    step("4c/8 生成运行配置 .env")
+    lines = [
+        "# 由 tools/release.py 生成；需要调整时直接改本文件后重启服务",
+        "AITC_RUN_MODE=%s" % run_mode,
+        "AITC_TCP_HOST=%s" % bind_host,
+        "AITC_HTTP_HOST=%s" % bind_host,
+        "",
+    ]
+    (root / ".env").write_text("\n".join(lines), encoding="utf-8")
+    log("  AITC_RUN_MODE=%s  AITC_TCP_HOST=%s  AITC_HTTP_HOST=%s"
+        % (run_mode, bind_host, bind_host))
+    return {"run_mode": run_mode, "tcp_host": bind_host, "http_host": bind_host}
+
+
 def bundle_wheels(root: Path, wheels_dir: Path, download: bool) -> dict:
     """把离线依赖 wheel 一并打进发布包，目标机器可 --no-index 直接安装。"""
     step("4b/8 打包离线依赖")
@@ -724,6 +740,11 @@ def main() -> int:
     parser.add_argument("--download-wheels", action="store_true",
                         help="打包前用 pip download 重新生成 wheel（需要联网）")
     parser.add_argument("--no-wheels", action="store_true", help="不打包离线依赖")
+    parser.add_argument("--run-mode", default="production",
+                        help="写入包内 .env 的运行模式（默认 production）")
+    parser.add_argument("--bind-host", default="0.0.0.0",
+                        help="写入包内 .env 的监听地址（默认 0.0.0.0，即所有网卡）")
+    parser.add_argument("--no-env", action="store_true", help="不生成包内 .env")
     args = parser.parse_args()
 
     started = time.time()
@@ -736,6 +757,7 @@ def main() -> int:
         try:
             root = stage(version, workdir)
             prune(root)
+            env = None if args.no_env else write_env_file(root, args.run_mode, args.bind_host)
             wheels = None
             if not args.no_wheels:
                 wheels = bundle_wheels(root, Path(args.wheels_dir), args.download_wheels)
@@ -765,6 +787,7 @@ def main() -> int:
             "protect": build,
             "checks": checks,
             "wheels": wheels,
+            "env": env,
             "tests": tests,
             "artifact": {"file": out_zip.name, "bytes": zip_size, "sha256": zip_sha},
             "elapsed_seconds": round(time.time() - started, 1),
