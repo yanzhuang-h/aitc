@@ -12,6 +12,15 @@ from urllib.parse import parse_qs, urlparse
 from datahub.classifier import DataKind
 from infra.logging import LoggingMixin
 
+CONFIG_PATH_PREFIXES = (
+    "/road_info",
+    "/cross_info",
+    "/cross_info_config",
+    "/intersection_schedule",
+    "/online_intersection_config",
+    "/floating_value",
+)
+
 
 class HttpRuntimeServer(LoggingMixin):
     """管理 HTTP 数据入口，并提供单路口方案查询页面。"""
@@ -167,7 +176,7 @@ class HttpRuntimeServer(LoggingMixin):
                 if path == "/green_wave/delete":
                     self._handle_green_wave_post("delete", body)
                     return
-                if path.startswith(("/road_info", "/cross_info")) and self._try_handle_config("POST", body):
+                if path.startswith(CONFIG_PATH_PREFIXES) and self._try_handle_config("POST", body):
                     return
                 # 兜底：除已知路由外，任意路径的 POST 都视为雷达/博研数据上报
                 # （历史协议兼容：设备直打任意路径，body 为 dict/list 即接入管线）
@@ -200,6 +209,8 @@ class HttpRuntimeServer(LoggingMixin):
                 if self._reject_cross_origin_request():
                     return
                 path = urlparse(self.path).path
+                if self._try_handle_config("DELETE", None):
+                    return
                 if path.startswith("/green_wave/"):
                     segment = path[len("/green_wave/"):]
                     if segment in ("validate", "update", "delete"):
@@ -264,7 +275,7 @@ class HttpRuntimeServer(LoggingMixin):
                 if path == "/api/agent/query":
                     self._send_json(405, {"error": "Use POST for autonomous agent query requests"})
                     return
-                if path.startswith(("/road_info", "/cross_info")) and self._try_handle_config("GET", None):
+                if path.startswith(CONFIG_PATH_PREFIXES) and self._try_handle_config("GET", None):
                     return
                 self._send_json(200, runtime_server._health_payload())
 
@@ -348,7 +359,7 @@ class HttpRuntimeServer(LoggingMixin):
 
             def _try_handle_config(self, method, body) -> bool:
                 try:
-                    outcome = runtime_server.config_service.handle_request(method, urlparse(self.path).path, body)
+                    outcome = runtime_server.config_service.handle_request(method, self.path, body)
                 except Exception:
                     runtime_server._error("配置接口处理失败", exc_info=True)
                     self._send_json(500, {"status": "error", "reason": "internal server error"})

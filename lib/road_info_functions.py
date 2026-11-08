@@ -94,6 +94,40 @@ def query_road_info(payload):
         return {}
 
 
+def list_road_infos(full=False):
+    data = read_json_object(ROAD_INFO_PATH)
+    if full:
+        return {"status": "success", "count": len(data), "items": copy.deepcopy(data)}
+    return {"status": "success", "count": len(data), "items": sorted(data)}
+
+
+def validate_and_save_road_info(payload, dry_run=False):
+    try:
+        cross_id = _normalize_cross_id(payload)
+        road_info = _normalize_road_info(payload)
+
+        with _write_lock:
+            data = read_json_object(ROAD_INFO_PATH)
+            operation = "updated" if cross_id in data else "created"
+            if not dry_run:
+                data[cross_id] = road_info
+                write_json_object(ROAD_INFO_PATH, data)
+
+        return {
+            "status": "validated" if dry_run else "success",
+            "saved": not dry_run,
+            "Cross_id": cross_id,
+            "message": "validation success" if dry_run else "save success",
+            "items": [{
+                "Cross_id": cross_id,
+                "saved": not dry_run,
+                "file": {"path": "lib/road_info.json", "operation": operation},
+            }],
+        }
+    except Exception as error:
+        return _error(error)
+
+
 def add_road_info(payload):
     try:
         cross_id = _normalize_cross_id(payload)
@@ -124,5 +158,28 @@ def update_road_info(payload):
             write_json_object(ROAD_INFO_PATH, data)
 
         return _success(cross_id, "updated")
+    except Exception as error:
+        return _error(error)
+
+
+def delete_road_info(cross_id, dry_run=False):
+    try:
+        cross_id = str(cross_id).strip()
+        if not cross_id.isdigit():
+            raise ValueError("Cross_id must be numeric")
+
+        with _write_lock:
+            data = read_json_object(ROAD_INFO_PATH)
+            existed = cross_id in data
+            if existed and not dry_run:
+                del data[cross_id]
+                write_json_object(ROAD_INFO_PATH, data)
+
+        return {
+            "status": "validated" if dry_run else "success",
+            "saved": not dry_run,
+            "deleted": existed,
+            "Cross_id": cross_id,
+        }
     except Exception as error:
         return _error(error)
