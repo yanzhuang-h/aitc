@@ -3338,7 +3338,18 @@ def get_online_intersection_config(cross_id):
     rid_rows = []
     missing_from_cache = []
 
-    for rid, direction in intersection_to_rid_lambda.get(cross_id, []):
+    pairs = None
+    try:
+        from lib.online_intersection_config import load_online_overrides
+        override = load_online_overrides().get(cross_id)
+        if override is not None:
+            pairs = [(str(row["rid"]), str(row["direction"])) for row in override]
+    except Exception:
+        pairs = None
+    if pairs is None:
+        pairs = intersection_to_rid_lambda.get(cross_id, [])
+
+    for rid, direction in pairs:
         rid = str(rid)
         in_cache = rid in online_data_map_lambda
         row = {
@@ -3359,8 +3370,6 @@ def get_online_intersection_config(cross_id):
         ],
         "missing_from_online_data_map_lambda": missing_from_cache,
     }
-
-
 device_to_location={
   "radar-ximenzi-333-01":('1300271','D'),
   "radar-ximenzi-333-02":('1300271','R'),
