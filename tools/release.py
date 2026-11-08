@@ -746,10 +746,10 @@ def main() -> int:
             stamp = time.localtime(info["committed_at"])[:6]
             out_zip = RELEASES / (pkg + ".zip")
             zip_sha, zip_size = make_zip(root, out_zip, stamp)
-            deploy_src = REPO / "tools" / "deploy.sh"
-            if deploy_src.is_file():
-                shutil.copy2(deploy_src, RELEASES / "deploy.sh")
-                log("  部署脚本: %s" % (RELEASES / "deploy.sh"))
+            env_src = REPO / "tools" / "update_env.sh"
+            if env_src.is_file():
+                shutil.copy2(env_src, RELEASES / "update_env.sh")
+                log("  环境脚本: %s" % (RELEASES / "update_env.sh"))
         finally:
             if not args.keep_staging:
                 shutil.rmtree(workdir, ignore_errors=True)
