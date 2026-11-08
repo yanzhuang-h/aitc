@@ -37,6 +37,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 RELEASES = REPO.parent / "releases"
 LEDGER = RELEASES / ".release-ledger.json"
+WHEELS_DIR = REPO / "dist" / "offline_wheels"
 
 # ---- 需要编译加密的包（递归全部 .py，__init__.py 保持源码）----
 PROTECT_DIRS = [
@@ -355,6 +356,37 @@ def prune(root: Path) -> list[str]:
 # --------------------------------------------------------------------------
 # 5. 编译加密
 # --------------------------------------------------------------------------
+def bundle_wheels(root: Path, wheels_dir: Path, download: bool) -> dict:
+    """把离线依赖 wheel 一并打进发布包，目标机器可 --no-index 直接安装。"""
+    step("4b/8 打包离线依赖")
+    if download:
+        wheels_dir.mkdir(parents=True, exist_ok=True)
+        run([
+            sys.executable, "-m", "pip", "download",
+            "-r", str(REPO / "requirements.txt"), "-d", str(wheels_dir),
+            "--only-binary=:all:", "--platform", "manylinux2014_x86_64",
+            "--python-version", "311", "--implementation", "cp", "--abi", "cp311",
+        ], cwd=REPO)
+    if not wheels_dir.is_dir():
+        raise ReleaseError(
+            "找不到离线依赖目录 %s；先执行 tools/release.py --download-wheels，"
+            "或把 wheel 放进该目录" % wheels_dir
+        )
+    wheels = sorted(wheels_dir.glob("*.whl"))
+    if not wheels:
+        raise ReleaseError("离线依赖目录没有 .whl：%s" % wheels_dir)
+    dest = root / "offline_wheels"
+    if dest.exists():
+        shutil.rmtree(dest)
+    dest.mkdir(parents=True)
+    for wheel in wheels:
+        shutil.copy2(wheel, dest / wheel.name)
+    shutil.copy2(REPO / "requirements.txt", dest / "requirements.txt")
+    size = sum(item.stat().st_size for item in dest.iterdir())
+    log("  %d 个 wheel，%.1f MB" % (len(wheels), size / 1024 / 1024))
+    return {"dir": "offline_wheels", "wheels": len(wheels), "bytes": size}
+
+
 def sanitize_module_name(path: Path, root: Path) -> tuple[str, bool]:
     """py 相对路径 → 模块名；非法标识符做字符净化（如 buqi_new2.0）。"""
     rel = path.relative_to(root)
@@ -687,6 +719,11 @@ def main() -> int:
     parser.add_argument("--tag", action="store_true", help="成功后在 git 里打 v<版本> 标签")
     parser.add_argument("--skip-tests", action="store_true",
                         help="跳过发布前回归测试（不建议，编译后行为可能与源码不一致）")
+    parser.add_argument("--wheels-dir", default=str(WHEELS_DIR),
+                        help="离线依赖 wheel 目录（默认 dist/offline_wheels）")
+    parser.add_argument("--download-wheels", action="store_true",
+                        help="打包前用 pip download 重新生成 wheel（需要联网）")
+    parser.add_argument("--no-wheels", action="store_true", help="不打包离线依赖")
     args = parser.parse_args()
 
     started = time.time()
@@ -699,6 +736,9 @@ def main() -> int:
         try:
             root = stage(version, workdir)
             prune(root)
+            wheels = None
+            if not args.no_wheels:
+                wheels = bundle_wheels(root, Path(args.wheels_dir), args.download_wheels)
             build = protect(root, args.jobs)
             checks = verify(root, build)
             tests = ({"summary": "skipped（--skip-tests）", "elapsed": 0}
@@ -706,6 +746,10 @@ def main() -> int:
             stamp = time.localtime(info["committed_at"])[:6]
             out_zip = RELEASES / (pkg + ".zip")
             zip_sha, zip_size = make_zip(root, out_zip, stamp)
+            deploy_src = REPO / "tools" / "deploy.sh"
+            if deploy_src.is_file():
+                shutil.copy2(deploy_src, RELEASES / "deploy.sh")
+                log("  部署脚本: %s" % (RELEASES / "deploy.sh"))
         finally:
             if not args.keep_staging:
                 shutil.rmtree(workdir, ignore_errors=True)
@@ -720,6 +764,7 @@ def main() -> int:
                           "platform": sys.platform},
             "protect": build,
             "checks": checks,
+            "wheels": wheels,
             "tests": tests,
             "artifact": {"file": out_zip.name, "bytes": zip_size, "sha256": zip_sha},
             "elapsed_seconds": round(time.time() - started, 1),
