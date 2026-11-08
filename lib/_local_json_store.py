@@ -32,6 +32,7 @@ def write_json_object(path, data):
             temp_file.write("\n")
             temp_file.flush()
             os.fsync(temp_file.fileno())
+            os.chmod(temp_file.name, 0o644)
 
         os.replace(temp_path, path)
     finally:

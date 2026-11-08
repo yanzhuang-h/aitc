@@ -97,6 +97,7 @@ def _write_schedule(path, data):
             file.write("\n")
             file.flush()
             os.fsync(file.fileno())
+            os.chmod(file.name, 0o644)
         os.replace(temp_path, path)
     finally:
         if temp_path and os.path.exists(temp_path):
