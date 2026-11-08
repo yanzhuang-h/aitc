@@ -104,7 +104,8 @@ def _write_schedule(path, data):
 
 
 def _file_label(path):
-    return str(path).replace(os.sep, "/")
+    project_root = os.path.dirname(os.path.dirname(str(SCHEDULE_DIR)))
+    return os.path.relpath(str(path), project_root).replace(os.sep, "/")
 
 
 def _success(cross_id, day_type, path, operation, dry_run):

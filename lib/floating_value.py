@@ -346,7 +346,7 @@ def validate_floating_value_update(
 ):
     normalized = _normalize_floating_update_payload(payload)
     data = _read_floating_value_uncached(path)
-    _validate_stored_records(data, check_rules=check_rules)
+    _validate_stored_records(data, check_rules=False)
     rule_check = (
         _check_floating_update_rules(normalized)
         if check_rules
@@ -400,7 +400,7 @@ def update_floating_value(
 
     with _write_lock:
         data = _read_floating_value_uncached(path)
-        _validate_stored_records(data, check_rules=check_rules)
+        _validate_stored_records(data, check_rules=False)
         record = {
             "Cross_id": normalized["cross_id"],
             "Change_id": normalized["change_id"],
