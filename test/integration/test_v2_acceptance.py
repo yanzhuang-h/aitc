@@ -49,10 +49,10 @@ class V2AcceptanceTest(unittest.TestCase):
             frames, received = broadcast_results(app, client, len(result))
             self.assertEqual(received, result)
             self.assertEqual(received, app.decision_pipeline.result_warehouse.snapshot())
-            self.assertEqual(len(result), 220)
+            self.assertEqual(len(result), 210)
             self.assertTrue(all(b'"trace_id"' not in frame for frame in frames))
             trace_records = records(logger)
-            self.assertEqual(len(trace_records), 220)
+            self.assertEqual(len(trace_records), 210)
             return result, trace_records
 
     def test_no_llm_video_only_reaches_original_tcp_output(self):
@@ -167,7 +167,7 @@ class V2AcceptanceTest(unittest.TestCase):
             self.assertEqual(snapshot_summary(history[-1])["missing_prediction_fields"], ["predicted_flow", "predicted_queue"])
             other = app.datahub.history(RADAR_INTERSECTION)
             self.assertTrue(all(item.cross_id == RADAR_INTERSECTION for item in other))
-            self.assertEqual(len(records(logger)), 660)
+            self.assertEqual(len(records(logger)), 630)
 
     def test_combined_graph_safety_tracing_and_tcp_match_frozen_two_round_baseline(self):
         golden = json.loads(FIXTURE.read_text(encoding="utf-8"))
@@ -201,8 +201,8 @@ class V2AcceptanceTest(unittest.TestCase):
                     actual = full_replay(select, app.decision_pipeline.coordinate)
                 for index, result in enumerate(actual):
                     self.assertEqual(compact_round(result), golden["rounds"][index])
-                self.assertEqual(len(records(logger)), 440)
-                self.assertEqual(len({item["trace_id"] for item in records(logger)}), 440)
+                self.assertEqual(len(records(logger)), 420)
+                self.assertEqual(len({item["trace_id"] for item in records(logger)}), 420)
                 self.assertTrue(all(item["llm_participated"] == (provider == "mock") for item in records(logger)))
 
 

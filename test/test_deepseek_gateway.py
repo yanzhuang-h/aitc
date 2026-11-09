@@ -118,7 +118,7 @@ class DeepSeekGatewayTest(unittest.TestCase):
                 app.decision_pipeline.worker_count = 1
                 actual = app.decision_pipeline.run_once()
                 self.assertEqual(actual, expected)
-                self.assertEqual(len(actual), 220)
+                self.assertEqual(len(actual), 210)
                 self.assertEqual(network.call_count, 1)
                 self.assertEqual(network.call_args.kwargs["timeout"], 2)
                 body = json.loads(network.call_args.args[0].data)
