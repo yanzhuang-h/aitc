@@ -3,10 +3,12 @@ import json
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib import parse, request
+from urllib.error import HTTPError
 
 from time_schedule.nacos_schedule_config import (
     MANIFEST_PATH,
     build_time_schedule_configs,
+    save_time_schedule_manifest,
     validate_time_schedule_manifest,
 )
 
@@ -41,10 +43,18 @@ class NacosSchedulePublisher:
         )
         with request.urlopen(req, timeout=self.timeout) as response:
             payload = json.loads(response.read().decode("utf-8"))
-        data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
-        self.access_token = data.get("accessToken") or payload.get("accessToken")
-        if not self.access_token:
+        token = payload.get("accessToken")
+        if isinstance(payload.get("data"), dict):
+            token = payload["data"].get("accessToken") or token
+        if not token:
             raise ValueError("Nacos login response does not contain an access token")
+        self.access_token = token
+
+    def _headers(self):
+        return {
+            "Authorization": f"Bearer {self.access_token}",
+            "accessToken": self.access_token,
+        }
 
     def publish(self, data_id, content, description):
         if not self.access_token:
@@ -65,8 +75,7 @@ class NacosSchedulePublisher:
             data=body,
             method="POST",
             headers={
-                "Authorization": f"Bearer {self.access_token}",
-                "accessToken": self.access_token,
+                **self._headers(),
                 "Content-Type": "application/x-www-form-urlencoded",
             },
         )
@@ -75,6 +84,93 @@ class NacosSchedulePublisher:
         if payload.get("code") not in {None, 0, 200} or payload.get("data") is False:
             raise ValueError(payload.get("message") or str(payload))
         return True
+
+    def fetch_config(self, data_id):
+        """读取 Nacos 上的配置内容；不存在时返回 None。"""
+        if not self.access_token:
+            self.login()
+        query = parse.urlencode({
+            "dataId": data_id,
+            "groupName": self.group,
+            "namespaceId": self.namespace,
+        })
+        req = request.Request(
+            f"{self.console_url}/v3/console/cs/config?{query}",
+            headers=self._headers(),
+        )
+        try:
+            with request.urlopen(req, timeout=self.timeout) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        except HTTPError as error:
+            if error.code == 404:
+                return None
+            raise
+
+        if payload.get("code") not in {None, 0, 200}:
+            return None
+        data = payload.get("data")
+        if isinstance(data, dict) and isinstance(data.get("content"), str):
+            return data["content"]
+        return None
+
+
+def _normalized(content):
+    try:
+        return json.dumps(
+            json.loads(content),
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    except (TypeError, ValueError):
+        return content
+
+
+def build_merged_manifest(publisher, local_manifest, configs, selected):
+    """把本地清单与 Nacos 现有清单合并：同名覆盖，异名保留。"""
+    remote_manifest = None
+    remote_content = publisher.fetch_config("time_schedule_manifest.json")
+    if remote_content:
+        try:
+            remote_manifest = validate_time_schedule_manifest(
+                json.loads(remote_content)
+            )
+        except (TypeError, ValueError):
+            remote_manifest = None
+
+    items = dict(remote_manifest["items"]) if remote_manifest else {}
+    for cross_id, local_item in local_manifest["items"].items():
+        if cross_id not in items:
+            items[cross_id] = dict(local_item)
+
+    changed = []
+    for cross_id in sorted(selected):
+        local_item = local_manifest["items"][cross_id]
+        data_id = local_item["data_id"]
+        local_content = json.dumps(
+            configs[data_id], ensure_ascii=False, indent=2
+        )
+
+        remote_config = publisher.fetch_config(data_id)
+        remote_version = items.get(cross_id, {}).get("version", 0)
+        if remote_config is None or _normalized(remote_config) != _normalized(local_content):
+            version = max(local_item["version"], remote_version) + 1
+            changed.append(cross_id)
+        else:
+            version = max(local_item["version"], remote_version)
+
+        items[cross_id] = {"data_id": data_id, "version": version}
+
+    base_version = max(
+        local_manifest["version"],
+        remote_manifest["version"] if remote_manifest else 1,
+    )
+    merged_version = base_version + (1 if changed else 0)
+    merged = validate_time_schedule_manifest({
+        "schema_version": 1,
+        "version": merged_version,
+        "items": items,
+    })
+    return merged, changed
 
 
 def main(argv=None):
@@ -114,6 +210,11 @@ def main(argv=None):
 
     publisher = NacosSchedulePublisher()
     publisher.login()
+
+    merged_manifest, changed = build_merged_manifest(
+        publisher, manifest, configs, selected
+    )
+
     failures = []
     with ThreadPoolExecutor(max_workers=max(args.workers, 1)) as executor:
         futures = {}
@@ -144,12 +245,14 @@ def main(argv=None):
 
     publisher.publish(
         "time_schedule_manifest.json",
-        json.dumps(manifest, ensure_ascii=False, indent=2),
+        json.dumps(merged_manifest, ensure_ascii=False, indent=2),
         "路口时间表版本清单；修改路口配置后最后更新此文件",
     )
+    save_time_schedule_manifest(merged_manifest)
     print(
-        f"published manifest version {manifest['version']} "
-        f"after {len(selected)} route configs"
+        f"published manifest version {merged_manifest['version']} "
+        f"after {len(selected)} route configs "
+        f"(changed {len(changed)}, kept {len(merged_manifest['items']) - len(selected)})"
     )
     return 0
 
