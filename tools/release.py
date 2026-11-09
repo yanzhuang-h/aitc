@@ -360,7 +360,8 @@ def prune(root: Path) -> list[str]:
 # 5. 编译加密
 # --------------------------------------------------------------------------
 def write_env_file(root: Path, run_mode: str, bind_host: str,
-                   nacos_url: str | None, nacos_username: str) -> dict:
+                   nacos_url: str | None, nacos_username: str,
+                   nacos_context_path: str = "") -> dict:
     """写入生产运行配置；打包后无需运维再手改监听地址与 Nacos 地址。"""
     step("4c/8 生成运行配置 .env")
     lines = [
@@ -375,19 +376,22 @@ def write_env_file(root: Path, run_mode: str, bind_host: str,
             "# 生产 Nacos；NACOS_PASSWORD 由现场在启动环境中设置，不写入发布包",
             "NACOS_SERVER_URL=%s" % nacos_url,
             "NACOS_USERNAME=%s" % nacos_username,
+            "NACOS_CONTEXT_PATH=%s" % nacos_context_path,
         ])
     lines.append("")
     (root / ".env").write_text("\n".join(lines), encoding="utf-8")
     log("  AITC_RUN_MODE=%s  AITC_TCP_HOST=%s  AITC_HTTP_HOST=%s"
         % (run_mode, bind_host, bind_host))
     if nacos_url:
-        log("  NACOS_SERVER_URL=%s  NACOS_USERNAME=%s" % (nacos_url, nacos_username))
+        log("  NACOS_SERVER_URL=%s  NACOS_USERNAME=%s  NACOS_CONTEXT_PATH=%s"
+            % (nacos_url, nacos_username, nacos_context_path))
     return {
         "run_mode": run_mode,
         "tcp_host": bind_host,
         "http_host": bind_host,
         "nacos_url": nacos_url,
         "nacos_username": nacos_username if nacos_url else None,
+        "nacos_context_path": nacos_context_path if nacos_url else None,
     }
 
 
@@ -768,6 +772,8 @@ def main() -> int:
                         help="写入包内 .env 的 Nacos 地址（默认生产内网）")
     parser.add_argument("--nacos-username", default="nacos",
                         help="写入包内 .env 的 Nacos 用户名")
+    parser.add_argument("--nacos-context-path", default="",
+                        help="写入包内 .env 的 Nacos contextPath（根路径留空）")
     parser.add_argument("--no-nacos", action="store_true",
                         help="包内 .env 不写 Nacos 配置")
     args = parser.parse_args()
@@ -786,6 +792,7 @@ def main() -> int:
                 root, args.run_mode, args.bind_host,
                 None if args.no_nacos else args.nacos_url,
                 args.nacos_username,
+                args.nacos_context_path,
             )
             wheels = None
             if not args.no_wheels:

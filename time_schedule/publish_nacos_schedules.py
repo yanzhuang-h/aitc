@@ -18,6 +18,7 @@ class NacosSchedulePublisher:
         self.server_url = os.getenv(
             "NACOS_SERVER_URL", "http://124.174.23.231:8080"
         ).rstrip("/")
+        self.context_path = os.getenv("NACOS_CONTEXT_PATH", "/nacos").rstrip("/")
         self.console_url = os.getenv(
             "NACOS_CONSOLE_URL", "http://124.174.23.231:8080"
         ).rstrip("/")
@@ -36,7 +37,7 @@ class NacosSchedulePublisher:
             "password": self.password,
         }).encode("utf-8")
         req = request.Request(
-            f"{self.server_url}/nacos/v3/auth/user/login",
+            f"{self.server_url}{self.context_path}/v3/auth/user/login",
             data=body,
             method="POST",
             headers={"Content-Type": "application/x-www-form-urlencoded"},
@@ -71,7 +72,7 @@ class NacosSchedulePublisher:
             "appName": "AITC",
         }).encode("utf-8")
         req = request.Request(
-            f"{self.console_url}/v3/console/cs/config?{query}",
+            f"{self.console_url}{self.context_path}/v3/console/cs/config?{query}",
             data=body,
             method="POST",
             headers={
@@ -95,7 +96,7 @@ class NacosSchedulePublisher:
             "namespaceId": self.namespace,
         })
         req = request.Request(
-            f"{self.console_url}/v3/console/cs/config?{query}",
+            f"{self.console_url}{self.context_path}/v3/console/cs/config?{query}",
             headers=self._headers(),
         )
         try:

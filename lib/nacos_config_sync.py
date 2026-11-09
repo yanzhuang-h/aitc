@@ -32,6 +32,8 @@ class NacosConfigSync:
         self.server_url = os.getenv(
             "NACOS_SERVER_URL", "http://124.174.23.231:8080"
         ).rstrip("/")
+        # 部分 Nacos 3 部署把 contextPath 设为根（空），旧版默认 /nacos
+        self.context_path = os.getenv("NACOS_CONTEXT_PATH", "/nacos").rstrip("/")
         self.username = os.getenv("NACOS_USERNAME", "nacos")
         self.password = os.getenv("NACOS_PASSWORD", "")
         self.namespace = os.getenv("NACOS_NAMESPACE", "public")
@@ -126,7 +128,7 @@ class NacosConfigSync:
             "password": self.password,
         }).encode("utf-8")
         payload = self._request_json(
-            "/nacos/v3/auth/user/login",
+            f"{self.context_path}/v3/auth/user/login",
             method="POST",
             data=body,
         )
@@ -142,36 +144,68 @@ class NacosConfigSync:
             self._login()
 
         selected_data_id = data_id or self.data_id
+        try:
+            return self._get_config_sdk(selected_data_id)
+        except (error.HTTPError, ValueError):
+            # Nacos 3 部分部署只暴露控制台 API，SDK 端点返回 404/500
+            return self._get_config_console(
+                selected_data_id, retry_login=retry_login
+            )
+
+    def _get_config_sdk(self, data_id):
         query = parse.urlencode({
-            "dataId": selected_data_id,
+            "dataId": data_id,
             "groupName": self.group,
             "namespaceId": self.namespace,
             "accessToken": self._access_token,
         })
-        try:
-            payload = self._request_json(f"/nacos/v3/client/cs/config?{query}")
-        except error.HTTPError as exc:
-            if exc.code not in {401, 403} or not retry_login:
-                raise
-            self._access_token = None
-            self._login()
-            return self._get_config(retry_login=False, data_id=selected_data_id)
-
-        if payload.get("code") in {401, 403} and retry_login:
-            self._access_token = None
-            self._login()
-            return self._get_config(retry_login=False, data_id=selected_data_id)
+        payload = self._request_json(
+            f"{self.context_path}/v3/client/cs/config?{query}"
+        )
         if payload.get("code") not in {None, 0, 200}:
             raise ValueError(f"Nacos returned error: {payload.get('message') or payload}")
         data = payload.get("data")
         return data if isinstance(data, dict) else payload
 
-    def _request_json(self, path, method="GET", data=None):
+    def _get_config_console(self, data_id, retry_login=True):
+        query = parse.urlencode({
+            "dataId": data_id,
+            "groupName": self.group,
+            "namespaceId": self.namespace,
+        })
+        try:
+            payload = self._request_json(
+                f"{self.context_path}/v3/console/cs/config?{query}",
+                headers={
+                    "Authorization": f"Bearer {self._access_token}",
+                    "accessToken": self._access_token,
+                },
+            )
+        except error.HTTPError as exc:
+            if exc.code in {401, 403} and retry_login:
+                self._access_token = None
+                self._login()
+                return self._get_config_console(data_id, retry_login=False)
+            raise
+
+        if payload.get("code") in {401, 403} and retry_login:
+            self._access_token = None
+            self._login()
+            return self._get_config_console(data_id, retry_login=False)
+        if payload.get("code") not in {None, 0, 200}:
+            raise ValueError(f"Nacos returned error: {payload.get('message') or payload}")
+        data = payload.get("data")
+        return data if isinstance(data, dict) else payload
+
+    def _request_json(self, path, method="GET", data=None, headers=None):
+        merged = {"Content-Type": "application/x-www-form-urlencoded"}
+        if headers:
+            merged.update(headers)
         req = request.Request(
             f"{self.server_url}{path}",
             data=data,
             method=method,
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            headers=merged,
         )
         with request.urlopen(req, timeout=self.timeout) as response:
             return json.loads(response.read().decode("utf-8"))
