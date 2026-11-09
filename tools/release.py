@@ -361,7 +361,8 @@ def prune(root: Path) -> list[str]:
 # --------------------------------------------------------------------------
 def write_env_file(root: Path, run_mode: str, bind_host: str,
                    nacos_url: str | None, nacos_username: str,
-                   nacos_context_path: str = "") -> dict:
+                   nacos_context_path: str = "",
+                   nacos_password: str = "") -> dict:
     """写入生产运行配置；打包后无需运维再手改监听地址与 Nacos 地址。"""
     step("4c/8 生成运行配置 .env")
     lines = [
@@ -373,18 +374,21 @@ def write_env_file(root: Path, run_mode: str, bind_host: str,
     if nacos_url:
         lines.extend([
             "",
-            "# 生产 Nacos；NACOS_PASSWORD 由现场在启动环境中设置，不写入发布包",
+            "# 生产 Nacos（发布包仅内部运维使用）",
             "NACOS_SERVER_URL=%s" % nacos_url,
             "NACOS_USERNAME=%s" % nacos_username,
             "NACOS_CONTEXT_PATH=%s" % nacos_context_path,
+            "NACOS_PASSWORD=%s" % nacos_password,
         ])
     lines.append("")
     (root / ".env").write_text("\n".join(lines), encoding="utf-8")
     log("  AITC_RUN_MODE=%s  AITC_TCP_HOST=%s  AITC_HTTP_HOST=%s"
         % (run_mode, bind_host, bind_host))
     if nacos_url:
-        log("  NACOS_SERVER_URL=%s  NACOS_USERNAME=%s  NACOS_CONTEXT_PATH=%s"
-            % (nacos_url, nacos_username, nacos_context_path))
+        log("  NACOS_SERVER_URL=%s  NACOS_USERNAME=%s  NACOS_CONTEXT_PATH=%s  "
+            "NACOS_PASSWORD=%s"
+            % (nacos_url, nacos_username, nacos_context_path,
+               "***" if nacos_password else ""))
     return {
         "run_mode": run_mode,
         "tcp_host": bind_host,
@@ -392,6 +396,7 @@ def write_env_file(root: Path, run_mode: str, bind_host: str,
         "nacos_url": nacos_url,
         "nacos_username": nacos_username if nacos_url else None,
         "nacos_context_path": nacos_context_path if nacos_url else None,
+        "nacos_password_set": bool(nacos_password),
     }
 
 
@@ -774,6 +779,8 @@ def main() -> int:
                         help="写入包内 .env 的 Nacos 用户名")
     parser.add_argument("--nacos-context-path", default="",
                         help="写入包内 .env 的 Nacos contextPath（根路径留空）")
+    parser.add_argument("--nacos-password", default="Sys@2026!Pwd",
+                        help="写入包内 .env 的 Nacos 密码（默认生产共享密码）")
     parser.add_argument("--no-nacos", action="store_true",
                         help="包内 .env 不写 Nacos 配置")
     args = parser.parse_args()
@@ -793,6 +800,7 @@ def main() -> int:
                 None if args.no_nacos else args.nacos_url,
                 args.nacos_username,
                 args.nacos_context_path,
+                args.nacos_password,
             )
             wheels = None
             if not args.no_wheels:
