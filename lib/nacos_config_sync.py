@@ -1,3 +1,5 @@
+"""Nacos 运行期配置同步：拉取并原子写入本地配置文件。"""
+
 import hashlib
 import json
 import logging
@@ -24,7 +26,7 @@ from time_schedule.nacos_schedule_config import (
 LOGGER = logging.getLogger(__name__)
 
 
-class NacosFloatingValueSync:
+class NacosConfigSync:
     def __init__(self, path=FLOATING_VALUE_PATH):
         self.path = path
         self.server_url = os.getenv(
@@ -175,7 +177,7 @@ class NacosFloatingValueSync:
             return json.loads(response.read().decode("utf-8"))
 
 
-class NacosIntersectionResultConfigSync(NacosFloatingValueSync):
+class NacosIntersectionResultConfigSync(NacosConfigSync):
     def __init__(self, path=INTERSECTION_CONFIG_PATH):
         super().__init__(path=path)
         self.data_id = os.getenv(
@@ -213,7 +215,7 @@ class NacosIntersectionResultConfigSync(NacosFloatingValueSync):
         return True
 
 
-class NacosRoadStateSync(NacosFloatingValueSync):
+class NacosRoadStateSync(NacosConfigSync):
     def __init__(self, path=ROAD_STATE_PATH):
         super().__init__(path=path)
         self.data_id = os.getenv(
@@ -251,7 +253,7 @@ class NacosRoadStateSync(NacosFloatingValueSync):
         return True
 
 
-class NacosTimeScheduleSync(NacosFloatingValueSync):
+class NacosTimeScheduleSync(NacosConfigSync):
     def __init__(self, schedule_dir=SCHEDULE_DIR, manifest_path=MANIFEST_PATH):
         super().__init__(path=str(schedule_dir))
         self.manifest_path = str(manifest_path)

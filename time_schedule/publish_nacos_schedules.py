@@ -14,7 +14,7 @@ from time_schedule.nacos_schedule_config import (
 class NacosSchedulePublisher:
     def __init__(self):
         self.server_url = os.getenv(
-            "NACOS_SERVER_URL", "http://11.82.117.81:8848"
+            "NACOS_SERVER_URL", "http://11.82.117.81:8080"
         ).rstrip("/")
         self.console_url = os.getenv(
             "NACOS_CONSOLE_URL", "http://11.82.117.81:8080"

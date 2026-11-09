@@ -5,8 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from lib.nacos_floating_value import (
-    NacosFloatingValueSync,
+from lib.nacos_config_sync import (
+    NacosConfigSync,
     NacosIntersectionResultConfigSync,
     NacosRoadStateSync,
     NacosTimeScheduleSync,
@@ -18,7 +18,7 @@ class ConfigSyncManager:
 
     def __init__(self, tasks: Mapping[str, Any] | None = None) -> None:
         self.tasks = dict(tasks) if tasks is not None else {
-            "floating_value": NacosFloatingValueSync(),
+            "floating_value": NacosConfigSync(),
             "intersection_result": NacosIntersectionResultConfigSync(),
             "road_state": NacosRoadStateSync(),
             "time_schedule": NacosTimeScheduleSync(),
