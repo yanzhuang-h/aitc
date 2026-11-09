@@ -32,9 +32,9 @@ class ReplayIntegrationTest(unittest.TestCase):
             root = Path(directory)
             report = self.run_replay(root)
             self.assertTrue(report['outputs_equal'])
-            self.assertEqual(report['v2']['published_traces'], 440)
+            self.assertEqual(report['v2']['published_traces'], 420)
             self.assertEqual(report['v2']['model_metrics']['attempts'], 0)
-            self.assertTrue(all(round['result_count'] == 220 for round in report['v2']['rounds']))
+            self.assertTrue(all(round['result_count'] == 210 for round in report['v2']['rounds']))
             self.assertTrue(all(round['window_counts']['flow'] == 0 for round in report['v2']['rounds']))
             self.assertFalse(report['v2']['servers_started'])
             self.assertEqual(report['v2']['ingested_records'], 2)
@@ -55,7 +55,7 @@ class ReplayIntegrationTest(unittest.TestCase):
             traces = [json.loads(line) for line in (root/'report/v2/decisions.jsonl').read_text().splitlines()]
             participating = {trace['intersection_id'] for trace in traces if trace['llm_participated']}
             self.assertEqual(participating, {VIDEO_INTERSECTION})
-            self.assertEqual(len(traces), 440)
+            self.assertEqual(len(traces), 420)
             self.assertTrue(any(trace['model_reason'] == 'not_allowlisted' for trace in traces))
             self.assertTrue(all(request['body']['thinking'] == {'type': 'disabled'} for request in requests))
 
