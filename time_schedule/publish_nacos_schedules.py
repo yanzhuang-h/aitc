@@ -201,8 +201,12 @@ def main(argv=None):
         data_id.removeprefix("time_schedule_").removesuffix(".json")
         for data_id in configs
     }
-    if expected_ids != config_ids:
-        raise ValueError("local manifest items do not match local schedule configs")
+    missing_ids = expected_ids - config_ids
+    if missing_ids:
+        raise ValueError(
+            "local manifest items missing schedule configs: "
+            + ", ".join(sorted(missing_ids))
+        )
 
     selected = set(args.only) if args.only else expected_ids
     unknown = selected - expected_ids
