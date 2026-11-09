@@ -145,7 +145,7 @@ class ModelGatewayIntegrationTest(unittest.TestCase):
                 app.start()
                 app.decision_pipeline.worker_count = 1
                 outputs.append(app.decision_pipeline.run_once())
-                self.assertEqual(len(outputs[-1]), 210)
+                self.assertEqual(len(outputs[-1]), 220)
                 self.assertEqual(outputs[-1], app.decision_pipeline.result_warehouse.snapshot())
                 # qwen 只有启动检查，其失败不引入周期图中的模型调用。
                 self.assertEqual(network.call_count, 1 if provider == "qwen" else 0)
