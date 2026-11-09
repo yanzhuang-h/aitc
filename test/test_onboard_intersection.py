@@ -25,8 +25,13 @@ def _literal_of(path, name):
         for target in node.targets:
             if isinstance(target, ast.Name) and target.id == name:
                 value = node.value
-                if isinstance(value, ast.Call) and isinstance(value.func, ast.Attribute):
-                    value = value.func.value
+                if isinstance(value, ast.Call):
+                    if isinstance(value.func, ast.Attribute):
+                        value = value.func.value
+                    elif isinstance(value.func, ast.Name) and value.args:
+                        inner = value.args[0]
+                        if isinstance(inner, (ast.Set, ast.List, ast.Tuple, ast.Dict)):
+                            value = inner
                 return ast.literal_eval(value)
     raise AssertionError(f"{name} not found in {path}")
 
@@ -35,12 +40,16 @@ class OnboardIntersectionTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
-        (self.root / "lib").mkdir()
+        (self.root / "lib" / "data_ANS").mkdir(parents=True)
         shutil.copy(ROOT / "Lambdas.py", self.root / "Lambdas.py")
         shutil.copy(ROOT / "lib" / "DQN_Select.py", self.root / "lib" / "DQN_Select.py")
         shutil.copy(
             ROOT / "lib" / "Global_intersection_coordinate.py",
             self.root / "lib" / "Global_intersection_coordinate.py",
+        )
+        shutil.copy(
+            ROOT / "lib" / "data_ANS" / "flow_allocator_shadow.py",
+            self.root / "lib" / "data_ANS" / "flow_allocator_shadow.py",
         )
         self.cross_info = self.root / "cross_info.json"
         self.cross_info.write_text(
@@ -64,9 +73,7 @@ class OnboardIntersectionTest(unittest.TestCase):
         config_lambda = _literal_of(self.root / "Lambdas.py", "config_lambda")
         for key, values in config_lambda.items():
             self.assertIn("999999", {str(item) for item in values}, key)
-            self.assertEqual(
-                list(map(str, values)).count("999999"), 1, key
-            )
+            self.assertEqual(list(map(str, values)).count("999999"), 1, key)
 
         intersections = _literal_of(self.root / "Lambdas.py", "intersection_list")
         self.assertIn("999999", {str(item) for item in intersections})
@@ -84,9 +91,17 @@ class OnboardIntersectionTest(unittest.TestCase):
         )
         self.assertIn(999999, video_flow)
 
+        pilot_roads = _literal_of(
+            self.root / "lib" / "data_ANS" / "flow_allocator_shadow.py",
+            "DEFAULT_TARGET_ROAD_IDS",
+        )
+        self.assertIn("999999", {str(item) for item in pilot_roads})
+
         dqn_text = (self.root / "lib" / "DQN_Select.py").read_text(encoding="utf-8-sig")
         self.assertIn("def DQN_select_999999(", dqn_text)
         self.assertIn("cross_id == '999999'", dqn_text)
+        function_body = dqn_text.split("def DQN_select_999999(", 1)[1].split("\ndef ", 1)[0]
+        self.assertIn("select_pilot_schedule", function_body)
 
     def test_onboard_is_idempotent(self):
         self._apply()

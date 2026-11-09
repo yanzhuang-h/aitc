@@ -8,6 +8,7 @@
   5. lib/DQN_Select.py 的 if cross_id in Cross_Video 分发分支
   6. lib/DQN_Select.py 的 DQN_select_<id> 函数（从模板克隆）
   7. lib/Global_intersection_coordinate.py 的 video_flow_road 集合
+  8. lib/data_ANS/flow_allocator_shadow.py 的 DEFAULT_TARGET_ROAD_IDS（在线学习试点集合）
 
 用法：
   python tools/onboard_intersection.py --cross 999999 --dry-run
@@ -49,8 +50,13 @@ def _find_assign(tree: ast.Module, name: str) -> ast.Assign:
 
 def _container(assign: ast.Assign) -> ast.AST:
     value = assign.value
-    if isinstance(value, ast.Call) and isinstance(value.func, ast.Attribute):
-        return value.func.value
+    if isinstance(value, ast.Call):
+        if isinstance(value.func, ast.Attribute):
+            return value.func.value
+        if isinstance(value.func, ast.Name) and value.args:
+            inner = value.args[0]
+            if isinstance(inner, (ast.Set, ast.List, ast.Tuple, ast.Dict)):
+                return inner
     return value
 
 
@@ -240,6 +246,20 @@ def _insert_set(text: str, var_name: str, cross_ids: list[str]) -> tuple[str, li
     return text, changes
 
 
+def _insert_str_set(text: str, var_name: str, cross_ids: list[str]) -> tuple[str, list[str]]:
+    changes = []
+    for cross_id in cross_ids:
+        tree = ast.parse(text)
+        assign = _find_assign(tree, var_name)
+        node = _container(assign)
+        existing = {str(_literal(item)) for item in node.elts}
+        if cross_id in existing:
+            continue
+        text = _insert_lines(text, node, [f"'{cross_id}',"])
+        changes.append(f"{var_name} += {cross_id}")
+    return text, changes
+
+
 def plan_edits(root: Path, cross_entries: dict[str, dict], template: str) -> dict[str, tuple[str, list[str]]]:
     cross_ids = sorted(cross_entries)
 
@@ -259,10 +279,17 @@ def plan_edits(root: Path, cross_entries: dict[str, dict], template: str) -> dic
     coord_text = coord_path.read_text(encoding="utf-8-sig")
     coord_text, c7 = _insert_set(coord_text, "video_flow_road", cross_ids)
 
+    shadow_path = root / "lib/data_ANS/flow_allocator_shadow.py"
+    shadow_text = shadow_path.read_text(encoding="utf-8-sig")
+    shadow_text, c8 = _insert_str_set(
+        shadow_text, "DEFAULT_TARGET_ROAD_IDS", cross_ids
+    )
+
     return {
         str(lambdas_path): (lambdas_text, c1 + c2 + c3),
         str(dqn_path): (dqn_text, c4 + c5 + c6),
         str(coord_path): (coord_text, c7),
+        str(shadow_path): (shadow_text, c8),
     }
 
 
@@ -272,13 +299,23 @@ def main(argv=None) -> int:
     parser.add_argument("--cross-info", default="lib/cross_info.json",
                         help="包含新路口配置的 cross_info.json")
     parser.add_argument("--root", default=".", help="仓库根目录")
-    parser.add_argument("--template", default="1300047",
-                        help="用于克隆 DQN 函数的现有路口")
+    parser.add_argument("--template", default="2272",
+                        help="用于克隆 DQN 函数的现有路口（默认 2272，走在线学习分配器）")
     parser.add_argument("--apply", action="store_true", help="写入文件（默认只预览）")
     args = parser.parse_args(argv)
 
     root = Path(args.root).resolve()
     cross_entries = _load_cross_entries(root / args.cross_info, args.cross)
+    template_text = (root / "lib/DQN_Select.py").read_text(encoding="utf-8-sig")
+    if f"def DQN_select_{args.template}(" in template_text and (
+        "select_pilot_schedule" not in template_text.split(
+            f"def DQN_select_{args.template}(", 1
+        )[1].split("\ndef ", 1)[0]
+    ):
+        print(
+            f"警告：模板 {args.template} 不使用在线学习分配器，"
+            "新路口将依赖 offline_experience 经验表；免训练上线请用默认模板 2272。"
+        )
     edits = plan_edits(root, cross_entries, args.template)
 
     changed_files = 0
@@ -302,6 +339,10 @@ def main(argv=None) -> int:
 
     if args.apply and changed_files:
         print("已写入；请执行 python -m py_compile 与测试后重新打包。")
+        print(
+            "提示：如目标部署设置了 AITC_FLOW_ALLOCATOR_PILOT_ROADS，"
+            "需要把新路口追加进该环境变量，否则在线学习分配器不会接管。"
+        )
     return 0
 
 
