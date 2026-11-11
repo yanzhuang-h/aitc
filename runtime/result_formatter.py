@@ -3,10 +3,33 @@
 from __future__ import annotations
 
 import copy
+import json
 import random
+from pathlib import Path
 from typing import Any
 
 from app.core.models import DecisionResult
+
+_PLAN_OVERRIDES_PATH = Path(__file__).resolve().parents[1] / "lib" / "plan_id_overrides.json"
+_PLAN_OVERRIDES_CACHE = {"signature": None, "data": {}}
+
+
+def _plan_id_for(intersection_id: str, default: Any) -> Any:
+    """按路口覆盖对外 programID（平台方案号从 1 开始）。"""
+    try:
+        stat = _PLAN_OVERRIDES_PATH.stat()
+    except OSError:
+        return default
+    signature = (stat.st_mtime_ns, stat.st_size)
+    if signature != _PLAN_OVERRIDES_CACHE["signature"]:
+        try:
+            data = json.loads(_PLAN_OVERRIDES_PATH.read_text(encoding="utf-8-sig"))
+        except (OSError, ValueError):
+            data = {}
+        _PLAN_OVERRIDES_CACHE["data"] = data if isinstance(data, dict) else {}
+        _PLAN_OVERRIDES_CACHE["signature"] = signature
+    overrides = _PLAN_OVERRIDES_CACHE["data"]
+    return overrides.get(str(intersection_id), default)
 
 
 def format_result(
@@ -23,7 +46,7 @@ def format_result(
             "tlLogic": {
                 "id": intersection_id,
                 "type": "NoType",
-                "programID": result_to_send[9],
+                "programID": _plan_id_for(intersection_id, result_to_send[9]),
                 "phase": build_phase(result_to_send),
             }
         },
