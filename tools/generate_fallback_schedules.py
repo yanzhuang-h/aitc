@@ -70,14 +70,16 @@ def generate(root: Path, cross_ids: list[str] | None, apply: bool) -> int:
         if workday.exists() and weekend.exists():
             continue
 
-        state_config = road_info[cross_id].get("0")
+        states = road_info[cross_id]
+        state_key = "0" if "0" in states else sorted(states)[0]
+        state_config = states.get(state_key)
         if not isinstance(state_config, dict):
-            print(f"[skip] {cross_id}: road_info 缺少 state 0")
+            print(f"[skip] {cross_id}: road_info 缺少可用状态")
             continue
 
         vector = _fallback_vector(state_config)
         payload = _schedule(vector)
-        print(f"[plan] {cross_id}: {vector[:8]}")
+        print(f"[plan] {cross_id} state={state_key}: {vector[:8]}")
         created += 1
         if not apply:
             continue

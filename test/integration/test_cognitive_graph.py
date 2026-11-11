@@ -214,7 +214,7 @@ class CognitiveGraphIntegrationTest(unittest.TestCase):
                 with patch.object(app.model_gateway.provider.client, "chat", side_effect=failure) as chat:
                     actual = app.decision_pipeline.run_once()
                 self.assertEqual(actual, expected)
-                self.assertEqual(len(actual), 220)
+                self.assertEqual(len(actual), 234)
                 self.assertEqual(chat.call_count, 1)
 
     def test_enabled_cognition_preserves_two_round_control_and_tcp_golden(self):
@@ -247,7 +247,7 @@ class CognitiveGraphIntegrationTest(unittest.TestCase):
         golden = json.loads(FIXTURE.read_text(encoding="utf-8"))
         for index, result in enumerate(actual):
             self.assertEqual(compact_round(result), golden["rounds"][index])
-        self.assertEqual(len(decisions), 440)
+        self.assertEqual(len(decisions), 468)
         self.assertTrue(any(item.cognition is None for item in decisions))
         reviewed = [item for item in decisions if item.cognition is not None]
         self.assertTrue(reviewed)
