@@ -36,19 +36,6 @@ def _literal_of(path, name):
     raise AssertionError(f"{name} not found in {path}")
 
 
-SOURCE_FILES = (
-    'Lambdas.py',
-    'lib/DQN_Select.py',
-    'lib/Global_intersection_coordinate.py',
-    'lib/data_ANS/flow_allocator_shadow.py',
-)
-SOURCE_AVAILABLE = all((ROOT / name).is_file() for name in SOURCE_FILES)
-
-
-@unittest.skipUnless(
-    SOURCE_AVAILABLE,
-    '源码已被 Cython 编译为 .so（发布包回归阶段跳过本测试）',
-)
 class OnboardIntersectionTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -63,6 +50,10 @@ class OnboardIntersectionTest(unittest.TestCase):
         shutil.copy(
             ROOT / "lib" / "data_ANS" / "flow_allocator_shadow.py",
             self.root / "lib" / "data_ANS" / "flow_allocator_shadow.py",
+        )
+        shutil.copy(
+            ROOT / "lib" / "data_ANS" / "experience_runtime.py",
+            self.root / "lib" / "data_ANS" / "experience_runtime.py",
         )
         self.cross_info = self.root / "cross_info.json"
         self.cross_info.write_text(
@@ -109,6 +100,17 @@ class OnboardIntersectionTest(unittest.TestCase):
             "DEFAULT_TARGET_ROAD_IDS",
         )
         self.assertIn("999999", {str(item) for item in pilot_roads})
+
+        collection = _literal_of(
+            self.root / "lib" / "data_ANS" / "experience_runtime.py",
+            "DEFAULT_POOL_COLLECTION_ROAD_IDS",
+        )
+        update = _literal_of(
+            self.root / "lib" / "data_ANS" / "experience_runtime.py",
+            "DEFAULT_TABLE_UPDATE_ROAD_IDS",
+        )
+        self.assertIn("999999", {str(item) for item in collection})
+        self.assertIn("999999", {str(item) for item in update})
 
         dqn_text = (self.root / "lib" / "DQN_Select.py").read_text(encoding="utf-8-sig")
         self.assertIn("def DQN_select_999999(", dqn_text)
