@@ -237,7 +237,7 @@ class RecordingSocket:
 
 
 def full_replay(selector=call_dqn_select, coordinator=global_control.coordinate):
-    """Run 220 selectors and all legacy processors twice with retained state."""
+    """Run 234 selectors and all legacy processors twice with retained state."""
     rounds = []
     with isolated_runtime():
         previous_coordinate = {}
