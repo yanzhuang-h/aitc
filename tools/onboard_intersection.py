@@ -285,11 +285,21 @@ def plan_edits(root: Path, cross_entries: dict[str, dict], template: str) -> dic
         shadow_text, "DEFAULT_TARGET_ROAD_IDS", cross_ids
     )
 
+    experience_path = root / "lib/data_ANS/experience_runtime.py"
+    experience_text = experience_path.read_text(encoding="utf-8-sig")
+    experience_text, c9 = _insert_str_set(
+        experience_text, "DEFAULT_POOL_COLLECTION_ROAD_IDS", cross_ids
+    )
+    experience_text, c10 = _insert_str_set(
+        experience_text, "DEFAULT_TABLE_UPDATE_ROAD_IDS", cross_ids
+    )
+
     return {
         str(lambdas_path): (lambdas_text, c1 + c2 + c3),
         str(dqn_path): (dqn_text, c4 + c5 + c6),
         str(coord_path): (coord_text, c7),
         str(shadow_path): (shadow_text, c8),
+        str(experience_path): (experience_text, c9 + c10),
     }
 
 
