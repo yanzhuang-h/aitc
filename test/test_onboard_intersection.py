@@ -118,6 +118,11 @@ class OnboardIntersectionTest(unittest.TestCase):
         function_body = dqn_text.split("def DQN_select_999999(", 1)[1].split("\ndef ", 1)[0]
         self.assertIn("select_pilot_schedule", function_body)
 
+        overrides = json.loads(
+            (self.root / "lib" / "plan_id_overrides.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(overrides["999999"], 1)
+
     def test_onboard_is_idempotent(self):
         self._apply()
         first = (self.root / "Lambdas.py").read_text(encoding="utf-8-sig")

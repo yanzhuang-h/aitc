@@ -312,6 +312,8 @@ def main(argv=None) -> int:
     parser.add_argument("--template", default="2272",
                         help="用于克隆 DQN 函数的现有路口（默认 2272，走在线学习分配器）")
     parser.add_argument("--apply", action="store_true", help="写入文件（默认只预览）")
+    parser.add_argument("--program-id", type=int, default=1,
+                        help="写入 lib/plan_id_overrides.json 的平台方案号（默认 1）")
     args = parser.parse_args(argv)
 
     root = Path(args.root).resolve()
@@ -346,6 +348,22 @@ def main(argv=None) -> int:
                 fromfile=path, tofile=path + " (new)", lineterm="",
             )
             print("\n".join(list(diff)[:80]))
+
+    if args.apply:
+        overrides_path = root / "lib" / "plan_id_overrides.json"
+        overrides = {}
+        if overrides_path.is_file():
+            try:
+                overrides = json.loads(overrides_path.read_text(encoding="utf-8-sig"))
+            except ValueError:
+                overrides = {}
+        for cross_id in cross_entries:
+            overrides[str(cross_id)] = int(args.program_id)
+        overrides_path.write_text(
+            json.dumps(overrides, ensure_ascii=False, indent=4) + "\n",
+            encoding="utf-8",
+        )
+        print(f"方案号覆盖: {overrides_path}（新增 {len(cross_entries)} 个路口 -> {args.program_id}）")
 
     if args.apply and changed_files:
         print("已写入；请执行 python -m py_compile 与测试后重新打包。")
