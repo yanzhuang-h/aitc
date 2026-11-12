@@ -6,6 +6,7 @@ import math
 import os
 import tempfile
 import threading
+from pathlib import Path
 # -*- coding: utf-8 -*-
 
 from app.paths import INTERSECTION_RESULT_CONFIG_PATH as INTERSECTION_CONFIG_PATH
@@ -119,6 +120,51 @@ def replace_intersection_result_config(data, path=INTERSECTION_CONFIG_PATH):
 
 intersection_result_config = load_intersection_result_config()
 
+_ROAD_INFO_CACHE = {"signature": None, "data": {}}
+
+
+def _load_road_info_config():
+    from app.paths import ROAD_INFO_PATH
+
+    path = Path(ROAD_INFO_PATH)
+    try:
+        stat = path.stat()
+    except OSError:
+        return {}
+    signature = (stat.st_mtime_ns, stat.st_size)
+    if signature != _ROAD_INFO_CACHE["signature"]:
+        try:
+            data = json.loads(path.read_text(encoding="utf-8-sig"))
+        except ValueError:
+            data = {}
+        _ROAD_INFO_CACHE["data"] = data if isinstance(data, dict) else {}
+        _ROAD_INFO_CACHE["signature"] = signature
+    return _ROAD_INFO_CACHE["data"]
+
+
+def _road_info_plan_rules(inter_id, plan_id):
+    """用 road_info 的 min/max 兜底生成安全规则（Nacos 配置优先）。"""
+    states = _load_road_info_config().get(str(inter_id))
+    if not isinstance(states, dict):
+        return None
+    state = states.get(str(plan_id))
+    if not isinstance(state, dict):
+        return None
+    phases = state.get("phase") or []
+    minimums = state.get("min_pass_time") or []
+    maximums = state.get("max_pass_time") or []
+    rules = {}
+    for index, phase in enumerate(phases[:9]):
+        if not phase:
+            continue
+        low = int(minimums[index]) if index < len(minimums) else 0
+        high = int(maximums[index]) if index < len(maximums) else 0
+        if high < low:
+            high = low
+        rules[str(index)] = [low, high]
+    return rules or None
+
+
 def phase_check(current_result, *, config_snapshot=None):
     """
     适配平铺字典格式的数据校验
@@ -136,14 +182,7 @@ def phase_check(current_result, *, config_snapshot=None):
             "modifications": []
         }
 
-        # 1. 检查路口是否存在于配置中
-        if inter_id not in config_snapshot:
-            res["check_status"] = 1
-            res["msg"] = "Intersection missing in config"
-            report[inter_id] = res
-            continue
-
-        # 2. 提取方案号 (数组第10位，即索引9)
+        # 1. 先提取方案号（数组第10位，即索引9）
         # 使用 int() 转换是为了防止 0.0 这种浮点数导致 Key 匹配失败
         try:
             plan_id = str(int(phase_list[9]))
@@ -153,11 +192,23 @@ def phase_check(current_result, *, config_snapshot=None):
             report[inter_id] = res
             continue
 
-        # 3. 获取对应方案的规则
-        plan_rules = config_snapshot[inter_id].get(plan_id)
+        # 2. 优先用 Nacos 配置；缺失时用 road_info 的 min/max 兜底
+        plan_rules = None
+        if inter_id in config_snapshot:
+            plan_rules = config_snapshot[inter_id].get(plan_id)
         if not plan_rules:
-            res["check_status"] = 2
-            res["msg"] = f"Plan {plan_id} not found for this intersection"
+            plan_rules = _road_info_plan_rules(inter_id, plan_id)
+            if plan_rules:
+                res["msg"] = "OK (road_info fallback)"
+
+        # 3. 两边都没有才报缺失
+        if not plan_rules:
+            if inter_id not in config_snapshot:
+                res["check_status"] = 1
+                res["msg"] = "Intersection missing in config"
+            else:
+                res["check_status"] = 2
+                res["msg"] = f"Plan {plan_id} not found for this intersection"
             report[inter_id] = res
             continue
 

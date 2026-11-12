@@ -108,10 +108,10 @@
       "sha256": {
         "before_coordinate": "b42cd58400d7f5fe6f56db841bec61c602dffac0f763964137aedf2952a7d908",
         "after_coordinate": "719d4d9935720c8dcce81e724d7e4c0e5a7370ef3d08802bcc14199e936f1a1a",
-        "after_phase_check": "636bd6e6d1a25777fc54fcaa113cfe38d452c57a1ac648c4804bccde0c1fc1c8",
-        "phase_report": "9bb19c61ffdbc9a7a17d911f94a34ec45eb183bf4c0e4ba58f83e22cb8eb7e10",
-        "payloads": "021509b309581d54695dfad0d4de665d09ed72a2c41cc1e6b62472c285365288",
-        "tcp_bytes": "d6d8fb0eaee688cb8b35876c63ce6a329c5511bf86ef60a5f8014fbdff09e1e3",
+        "after_phase_check": "5edef03c9755ecd190649e11f02cdaed06d8dabb99f1c18ac81e172bb5d75550",
+        "phase_report": "f51b2c1a7af198076780e7979636fb14daead9ba1296e0901471d54a37ef1deb",
+        "payloads": "82200c375f5059f24f30e7f8a33137d11ea82b1f79bea4193f9ce6aa536e9639",
+        "tcp_bytes": "bf1c44c0bf8b0a53b3cd7128497a5b22cf66a1acd96a97411d9c07690fb27fcc",
         "green_wave_state": "00dff5975ba031e7e3b3508e134c9229ce8707da212e51e228f96d3b6adb1a7d",
         "internet_state": "84fb15b77549dac5f26b24ed27d8513fb522cca47852ff42fba11141b96130bc"
       },
@@ -121,8 +121,8 @@
           "after_coordinate": [53, 54, 40, 11, 0, 0, 0, 0, 0, 16],
           "after_phase_check": [53, 54, 40, 11, 0, 0, 0, 0, 0, 16],
           "phase_report": {
-            "check_status": 2,
-            "msg": "Plan 16 not found for this intersection",
+            "check_status": 0,
+            "msg": "OK (road_info fallback)",
             "modifications": []
           },
           "payload": {
@@ -229,11 +229,13 @@
         "1300086": {
           "before_coordinate": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
           "after_coordinate": [66, 29, 68, 52, 0, 0, 0, 0, 0, 0],
-          "after_phase_check": [66, 29, 68, 52, 0, 0, 0, 0, 0, 0],
+          "after_phase_check": [66, 29, 65, 52, 0, 0, 0, 0, 0, 0],
           "phase_report": {
-            "check_status": 2,
-            "msg": "Plan 0 not found for this intersection",
-            "modifications": []
+            "check_status": 0,
+            "msg": "OK (road_info fallback)",
+            "modifications": [
+              "Phase 2: 68 -> 65"
+            ]
           },
           "payload": {
             "additional": {
@@ -249,7 +251,7 @@
                     "duration": 29
                   },
                   {
-                    "duration": 68
+                    "duration": 65
                   },
                   {
                     "duration": 52
@@ -617,10 +619,10 @@
       "sha256": {
         "before_coordinate": "b42cd58400d7f5fe6f56db841bec61c602dffac0f763964137aedf2952a7d908",
         "after_coordinate": "6a89f404a6e7c14fdbfe543aa4bff06241b2f7107941c2eee7863dc5a0c574f4",
-        "after_phase_check": "ff6839d1cdef124205f0707645c5a165f73b53cb6c69d5104bba57abbfbfb5db",
-        "phase_report": "236bb8e4cf6332e98cafc000d62fc9eacf5d1d9348c47bbc86d7e9679cf8f716",
-        "payloads": "43143ccdd1d8a19abdecfc26a68553161fc5b18b3fa8af0a76f1eaf0120bcb8a",
-        "tcp_bytes": "c991f0c78c94c6eee8003e0883e075ed93b25f5eedd69ef2db48f8ec6fdbb104",
+        "after_phase_check": "0f7bea5dabf79c73db09d3ceb29e2f2b9120f47e7809516699aa142109ac4856",
+        "phase_report": "e85b61721f54cdfbbd75cf741b381560e44a6a8ce0c1036a361f8c3333b98761",
+        "payloads": "e2bcacf90caa51587602e3953b5d7a7d02810db833f0f2a9fe76b8471244dc69",
+        "tcp_bytes": "ad60dbedd1892a79b69d0d84a334c9120106c8942503faa4538f0786966152de",
         "green_wave_state": "518ed6b4055a2d8ac33d18c32294be1b9308e3d9599e7d515335b5016cca21bd",
         "internet_state": "84fb15b77549dac5f26b24ed27d8513fb522cca47852ff42fba11141b96130bc"
       },
@@ -630,8 +632,8 @@
           "after_coordinate": [53, 54, 40, 11, 0, 0, 0, 0, 0, 16],
           "after_phase_check": [53, 54, 40, 11, 0, 0, 0, 0, 0, 16],
           "phase_report": {
-            "check_status": 2,
-            "msg": "Plan 16 not found for this intersection",
+            "check_status": 0,
+            "msg": "OK (road_info fallback)",
             "modifications": []
           },
           "payload": {
@@ -738,11 +740,13 @@
         "1300086": {
           "before_coordinate": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
           "after_coordinate": [66, 29, 68, 52, 0, 0, 0, 0, 0, 0],
-          "after_phase_check": [66, 29, 68, 52, 0, 0, 0, 0, 0, 0],
+          "after_phase_check": [66, 29, 65, 52, 0, 0, 0, 0, 0, 0],
           "phase_report": {
-            "check_status": 2,
-            "msg": "Plan 0 not found for this intersection",
-            "modifications": []
+            "check_status": 0,
+            "msg": "OK (road_info fallback)",
+            "modifications": [
+              "Phase 2: 68 -> 65"
+            ]
           },
           "payload": {
             "additional": {
@@ -758,7 +762,7 @@
                     "duration": 29
                   },
                   {
-                    "duration": 68
+                    "duration": 65
                   },
                   {
                     "duration": 52
