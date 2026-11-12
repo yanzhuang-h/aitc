@@ -359,7 +359,6 @@ def run_experience_pool_day(source_date, *, release_settings=None):
     active_validation = validate_experience_table(
         active_table,
         cross_info,
-        required_road_ids=update_roads,
         allow_legacy_records=True,
     )
     if not active_validation["valid"]:
@@ -472,7 +471,9 @@ def run_experience_pool_day(source_date, *, release_settings=None):
             versions_dir=str(release_settings.versions_dir.resolve()),
             manifest_path=str(release_settings.active_manifest_path),
             release_kind="daily_experience_pool",
-            required_road_ids=update_roads,
+            required_road_ids=[
+                road for road in update_roads if road in updated_table
+            ],
             allow_legacy_records=True,
             source_metadata={
                 "source_date": source_date_text,
