@@ -130,7 +130,9 @@ def main(argv=None) -> int:
     else:
         print(f"\n未在 {args.log} 找到 fallback_source 字段")
 
-    table = root / "lib" / "experience_pool" / "online_experience.json"
+    from app.paths import EXPERIENCE_POOL_DIR
+
+    table = EXPERIENCE_POOL_DIR / "online_experience.json"
     if table.is_file():
         import datetime
 

@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 import os
 from pathlib import Path
+
+from app.paths import LOGS_DIR
 from typing import Any, Callable, Literal, TypeVar
 
 from pydantic import AliasChoices, Field, StrictBool, StrictInt, field_validator, model_validator
@@ -338,9 +340,9 @@ class RuntimeSettings:
     # ── 落盘路径 ──
     persist_runtime_data: bool = False    # 是否逐条落 JSONL 运行仓库（高频写，默认关闭；AITC_RUNTIME_PERSIST）
     runtime_data_dir: Path = Path("datahub/runtime")      # 长期历史仓库（jsonl）
-    runtime_output_dir: Path = Path("logs_data")             # 兼容日志输出目录
-    prediction_data_dir: Path = Path("logs_data")            # 预测历史与每日预测输出目录
-    control_snapshot_dir: Path = Path("logs_data/control_snapshots")  # 控制快照目录
+    runtime_output_dir: Path = LOGS_DIR             # 兼容日志输出目录
+    prediction_data_dir: Path = LOGS_DIR            # 预测历史与每日预测输出目录
+    control_snapshot_dir: Path = LOGS_DIR / "control_snapshots"  # 控制快照目录
 
     # ── LLM（OpenAI 兼容接入） ──
     llm_enabled: bool = ModelSettings.model_fields["enabled"].default

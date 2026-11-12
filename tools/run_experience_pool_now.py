@@ -88,7 +88,9 @@ def main(argv=None) -> int:
         for path in report.get("missing_files", []):
             print("  -", path)
 
-    table = root / "lib" / "experience_pool" / "online_experience.json"
+    from app.paths import EXPERIENCE_POOL_DIR
+
+    table = EXPERIENCE_POOL_DIR / "online_experience.json"
     if table.is_file():
         mtime = dt.datetime.fromtimestamp(table.stat().st_mtime)
         print(f"经验表: {table}（更新于 {mtime:%Y-%m-%d %H:%M:%S}）")

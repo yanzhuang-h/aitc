@@ -36,10 +36,10 @@ from lib.data_ANS.raw_feedback_normalizer import (
 LOGGER = logging.getLogger("ExperiencePoolRuntime")
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 LIB_DIR = PROJECT_ROOT / "lib"
-LOGS_DIR = PROJECT_ROOT / "logs_data"
+from app.paths import EXPERIENCE_POOL_DIR, LOGS_DIR
 # Persistent pool memory belongs with the deployed model assets. Large daily
 # diagnostics remain under logs_data and can be cleaned independently.
-DEFAULT_STATE_DIR = LIB_DIR / "experience_pool"
+DEFAULT_STATE_DIR = EXPERIENCE_POOL_DIR
 DEFAULT_ARTIFACT_DIR = LOGS_DIR / "experience_pool" / "daily"
 DEFAULT_MIN_SAMPLE_COUNT = 30
 DEFAULT_SOURCE_DAY_DELAY = 2
