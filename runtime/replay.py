@@ -16,6 +16,8 @@ import logging
 import math
 import os
 from pathlib import Path
+
+from app.paths import LOGS_DIR
 import random
 import subprocess
 import sys
@@ -336,7 +338,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--tcp', action='append', default=[], help='JSONL TCP capture; repeatable')
     parser.add_argument('--http', action='append', default=[], help='JSONL HTTP capture; repeatable')
-    parser.add_argument('--output', type=Path, default=Path('logs_data/replay') / datetime.now().strftime('%Y%m%d-%H%M%S'))
+    parser.add_argument('--output', type=Path, default=LOGS_DIR / 'replay' / datetime.now().strftime('%Y%m%d-%H%M%S'))
     parser.add_argument('--rounds', type=int, default=3)
     parser.add_argument('--interval', type=float, default=120, help='historical seconds per decision round')
     parser.add_argument('--pace-seconds', type=float, default=0, help='wall-clock pause between model rounds')
