@@ -43,7 +43,12 @@ def main(argv=None) -> int:
 
     import os
 
-    roads = ",".join(item.strip() for item in args.roads.split(",") if item.strip())
+    if args.roads.strip().lower() == "all":
+        overrides_path = root / "lib" / "plan_id_overrides.json"
+        overrides = json.loads(overrides_path.read_text(encoding="utf-8-sig"))
+        roads = ",".join(sorted(str(item) for item in overrides))
+    else:
+        roads = ",".join(item.strip() for item in args.roads.split(",") if item.strip())
     os.environ["AITC_EXPERIENCE_POOL_ROADS"] = roads
     os.environ["AITC_EXPERIENCE_TABLE_UPDATE_ROADS"] = roads
     os.environ["AITC_EXPERIENCE_POOL_MIN_SAMPLES"] = str(max(1, args.min_samples))
