@@ -312,8 +312,8 @@ def main(argv=None) -> int:
     parser.add_argument("--template", default="2272",
                         help="用于克隆 DQN 函数的现有路口（默认 2272，走在线学习分配器）")
     parser.add_argument("--apply", action="store_true", help="写入文件（默认只预览）")
-    parser.add_argument("--program-id", type=int, default=1,
-                        help="写入 lib/plan_id_overrides.json 的平台方案号（默认 1）")
+    parser.add_argument("--program-id", type=int, default=None,
+                        help="写入 lib/plan_id_overrides.json 的平台方案号（默认取 road_info 第一个状态键）")
     args = parser.parse_args(argv)
 
     root = Path(args.root).resolve()
@@ -357,8 +357,20 @@ def main(argv=None) -> int:
                 overrides = json.loads(overrides_path.read_text(encoding="utf-8-sig"))
             except ValueError:
                 overrides = {}
+        road_info = {}
+        road_info_path = root / "lib" / "road_info.json"
+        if road_info_path.is_file():
+            try:
+                road_info = json.loads(road_info_path.read_text(encoding="utf-8-sig"))
+            except ValueError:
+                road_info = {}
         for cross_id in cross_entries:
-            overrides[str(cross_id)] = int(args.program_id)
+            if args.program_id is not None:
+                program_id = int(args.program_id)
+            else:
+                states = road_info.get(str(cross_id), {})
+                program_id = int(sorted(states)[0]) if states else 1
+            overrides[str(cross_id)] = program_id
         overrides_path.write_text(
             json.dumps(overrides, ensure_ascii=False, indent=4) + "\n",
             encoding="utf-8",
