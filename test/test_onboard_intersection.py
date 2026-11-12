@@ -36,6 +36,20 @@ def _literal_of(path, name):
     raise AssertionError(f"{name} not found in {path}")
 
 
+SOURCE_FILES = (
+    "Lambdas.py",
+    "lib/DQN_Select.py",
+    "lib/Global_intersection_coordinate.py",
+    "lib/data_ANS/flow_allocator_shadow.py",
+    "lib/data_ANS/experience_runtime.py",
+)
+SOURCE_AVAILABLE = all((ROOT / name).is_file() for name in SOURCE_FILES)
+
+
+@unittest.skipUnless(
+    SOURCE_AVAILABLE,
+    "源码已被 Cython 编译为 .so（发布包回归阶段跳过本测试）",
+)
 class OnboardIntersectionTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
