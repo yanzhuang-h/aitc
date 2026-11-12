@@ -8,11 +8,13 @@ import json
 from pathlib import Path
 from typing import Any, Iterable
 
+from app.paths import LOGS_DIR
+
 
 class FilePredictionRepository:
     """兼容既有文件格式的预测数据仓库实现。"""
 
-    def __init__(self, root: str | Path = "logs_data") -> None:
+    def __init__(self, root: str | Path = LOGS_DIR) -> None:
         # 占位默认：生产路径由装配层注入 settings.prediction_data_dir（AITC_PREDICTION_DATA_DIR）
         self.root = Path(root)
 

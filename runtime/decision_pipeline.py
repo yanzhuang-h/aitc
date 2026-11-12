@@ -12,6 +12,8 @@ import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable
+
+from app.paths import LOGS_DIR
 from uuid import uuid4
 
 from control.policies import BaselineController
@@ -47,7 +49,7 @@ class PeriodicDecisionPipeline(LoggingMixin):
         logger: Any | None = None,
         control_snapshot_enabled: bool = False,
         # 占位默认：生产路径由装配层注入 settings.control_snapshot_dir（AITC_CONTROL_SNAPSHOT_DIR）
-        control_snapshot_dir: str | os.PathLike = "logs_data/control_snapshots",
+        control_snapshot_dir: str | os.PathLike = LOGS_DIR / "control_snapshots",
         control_policy: BaselineController | None = None,
         datahub: TrafficDataHub | None = None,
         decision_graph: Any | None = None,

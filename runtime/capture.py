@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
+
+from app.paths import LOGS_DIR
 import socket
 import socketserver
 import threading
@@ -111,7 +113,7 @@ def main():
     parser.add_argument('--host', default='127.0.0.1')
     parser.add_argument('--tcp-port', type=int, default=65433)
     parser.add_argument('--http-port', type=int, default=8089)
-    parser.add_argument('--output', type=Path, default=Path('logs_data/capture')/datetime.now().strftime('%Y%m%d-%H%M%S'))
+    parser.add_argument('--output', type=Path, default=LOGS_DIR / 'capture' / datetime.now().strftime('%Y%m%d-%H%M%S'))
     args = parser.parse_args()
     for port in (args.tcp_port, args.http_port):
         if not 1 <= port <= 65535:

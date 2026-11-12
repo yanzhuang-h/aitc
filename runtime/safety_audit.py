@@ -4,6 +4,8 @@ from collections import Counter
 import json
 from pathlib import Path
 
+from app.paths import LOGS_DIR
+
 from control.adapters import signal_plan_from_legacy
 from safety.service import ControlSafetyEngine
 
@@ -50,7 +52,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', type=Path, default=Path('intersection_result_config.json'))
     parser.add_argument('--schedules', type=Path, default=Path('time_schedule/schedule_json'))
-    parser.add_argument('--output', type=Path, default=Path('logs_data/replay/safety_inventory.json'))
+    parser.add_argument('--output', type=Path, default=LOGS_DIR / 'replay' / 'safety_inventory.json')
     args = parser.parse_args()
     config = json.loads(args.config.read_text())
     if not isinstance(config, dict):
