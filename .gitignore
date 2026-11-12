@@ -57,3 +57,6 @@ lambda_config_check_report_*.json
 lambda_config_summary_*.txt
 intersection_to_rid_lambda.py
 new_online_data_map_lambda.py
+
+# 本地共享目录软链
+/logs_data

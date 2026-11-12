@@ -25,7 +25,9 @@ def _load_dotenv_for_paths() -> None:
         key, _, value = line.partition("=")
         key = key.strip()
         value = value.strip().strip("'\"")
-        if key and key not in os.environ:
+        # 这里只提前加载路径根目录，其他配置仍交给 app.config 的 dotenv 处理，
+        # 避免测试/默认值被 .env 里的 AITC_TCP_HOST 等覆盖。
+        if key == "AITC_DATA_ROOT" and key not in os.environ:
             os.environ[key] = value
 
 
