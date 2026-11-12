@@ -13,6 +13,25 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
+def _load_dotenv_for_paths() -> None:
+    """路径模块被最早导入，先加载项目根目录 .env，保证 AITC_DATA_ROOT 生效。"""
+    env_path = PROJECT_ROOT / ".env"
+    if not env_path.is_file():
+        return
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip().strip("'\"")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+_load_dotenv_for_paths()
+
+
 def _resolve(env_name: str, default: Path) -> Path:
     value = os.getenv(env_name)
     if value is None or not value.strip():
