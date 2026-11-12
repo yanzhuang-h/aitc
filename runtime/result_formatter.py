@@ -32,6 +32,34 @@ def _plan_id_for(intersection_id: str, default: Any) -> Any:
     return overrides.get(str(intersection_id), default)
 
 
+def _empty_plan_timetable_fallback(intersection_id: str, result_to_send: list[Any]) -> list[Any]:
+    """已配置平台方案号的新路口，如果相位全零，用时刻表填充后再下发。"""
+    if any(value != 0 for value in result_to_send[:8]):
+        return result_to_send
+    if _plan_id_for(intersection_id, None) is None:
+        return result_to_send
+    try:
+        from datetime import datetime
+
+        from lib.AITC_tool import Get_time_map
+
+        schedule = Get_time_map(intersection_id)
+        if not isinstance(schedule, dict):
+            return result_to_send
+        vector = schedule.get(str(datetime.now().hour)) or next(iter(schedule.values()), None)
+        if vector is None:
+            return result_to_send
+        fallback = [int(value) for value in list(vector)[:10]]
+        while len(fallback) < 10:
+            fallback.append(0)
+        if any(fallback[:8]):
+            fallback[9] = result_to_send[9]
+            return fallback
+    except Exception:
+        return result_to_send
+    return result_to_send
+
+
 def format_result(
     intersection_id: str,
     result_to_send: list[Any],
@@ -41,6 +69,7 @@ def format_result(
     lambdas_module: Any,
 ) -> dict[str, Any]:
     """保持既有报文结构，将单路口决策格式化为发送结果。"""
+    result_to_send = _empty_plan_timetable_fallback(intersection_id, result_to_send)
     payload = {
         "additional": {
             "tlLogic": {
