@@ -652,7 +652,8 @@ def allocate_from_runtime_data(
     if road_id not in cross_info:
         raise KeyError(f"cross_info does not contain road {road_id}")
     if road_id not in experience_table:
-        raise KeyError(f"experience table does not contain road {road_id}")
+        # 新路口尚未积累经验：用空表走 30 秒安全兜底，而不是让整个评估报错。
+        experience_table = {road_id: {}}
 
     cross_config = cross_info[road_id]
     stage_map, extend_stats = normalize_runtime_extend(
