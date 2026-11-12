@@ -24,6 +24,19 @@ GREEN_WAVE_CORRIDORS_PATH = _resolve(
     "AITC_GREEN_WAVE_CORRIDORS_PATH",
     PROJECT_ROOT / "lib" / "green_wave_corridors.json",
 )
+# 运行期可变状态根目录：默认仍在版本目录，生产通过 AITC_DATA_ROOT 指向 ../shared
+_DATA_ROOT_ENV = os.getenv("AITC_DATA_ROOT", "").strip()
+DATA_ROOT = Path(_DATA_ROOT_ENV) if _DATA_ROOT_ENV else PROJECT_ROOT
+LOGS_DIR = DATA_ROOT / "logs_data"
+# 未配置共享目录时保持旧布局 lib/experience_pool，避免本地/旧部署行为变化
+EXPERIENCE_POOL_DIR = (
+    DATA_ROOT / "experience_pool"
+    if _DATA_ROOT_ENV
+    else PROJECT_ROOT / "lib" / "experience_pool"
+)
+EXPERIENCE_ARTIFACT_DIR = LOGS_DIR / "experience_pool" / "daily"
+SHADOW_LOG_DIR = LOGS_DIR / "shadow"
+
 INTERSECTION_RESULT_CONFIG_PATH = _resolve(
     "AITC_INTERSECTION_RESULT_CONFIG_PATH",
     PROJECT_ROOT / "intersection_result_config.json",

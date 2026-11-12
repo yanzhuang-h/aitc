@@ -370,6 +370,8 @@ def write_env_file(root: Path, run_mode: str, bind_host: str,
         "AITC_RUN_MODE=%s" % run_mode,
         "AITC_TCP_HOST=%s" % bind_host,
         "AITC_HTTP_HOST=%s" % bind_host,
+        "AITC_DATA_ROOT=../shared",
+        "AITC_EXPERIENCE_VERSIONS_DIR=../shared/experience_versions",
     ]
     if nacos_url:
         lines.extend([
