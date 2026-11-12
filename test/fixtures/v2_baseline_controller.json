@@ -109,7 +109,7 @@
         "before_coordinate": "b42cd58400d7f5fe6f56db841bec61c602dffac0f763964137aedf2952a7d908",
         "after_coordinate": "719d4d9935720c8dcce81e724d7e4c0e5a7370ef3d08802bcc14199e936f1a1a",
         "after_phase_check": "5edef03c9755ecd190649e11f02cdaed06d8dabb99f1c18ac81e172bb5d75550",
-        "phase_report": "f51b2c1a7af198076780e7979636fb14daead9ba1296e0901471d54a37ef1deb",
+        "phase_report": "3dedaab8ce7e268db48ed83374da778eede18e18f0733355e21cc05e1d4d994a",
         "payloads": "82200c375f5059f24f30e7f8a33137d11ea82b1f79bea4193f9ce6aa536e9639",
         "tcp_bytes": "bf1c44c0bf8b0a53b3cd7128497a5b22cf66a1acd96a97411d9c07690fb27fcc",
         "green_wave_state": "00dff5975ba031e7e3b3508e134c9229ce8707da212e51e228f96d3b6adb1a7d",
@@ -388,8 +388,8 @@
           "after_coordinate": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
           "after_phase_check": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
           "phase_report": {
-            "check_status": 1,
-            "msg": "Intersection missing in config",
+            "check_status": 2,
+            "msg": "Empty phase plan",
             "modifications": []
           },
           "payload": {
@@ -620,7 +620,7 @@
         "before_coordinate": "b42cd58400d7f5fe6f56db841bec61c602dffac0f763964137aedf2952a7d908",
         "after_coordinate": "6a89f404a6e7c14fdbfe543aa4bff06241b2f7107941c2eee7863dc5a0c574f4",
         "after_phase_check": "0f7bea5dabf79c73db09d3ceb29e2f2b9120f47e7809516699aa142109ac4856",
-        "phase_report": "e85b61721f54cdfbbd75cf741b381560e44a6a8ce0c1036a361f8c3333b98761",
+        "phase_report": "ce0b064b4b0efd64fb527bba8fb230b4e4373e21663c9d3dbf961f97b5822634",
         "payloads": "e2bcacf90caa51587602e3953b5d7a7d02810db833f0f2a9fe76b8471244dc69",
         "tcp_bytes": "ad60dbedd1892a79b69d0d84a334c9120106c8942503faa4538f0786966152de",
         "green_wave_state": "518ed6b4055a2d8ac33d18c32294be1b9308e3d9599e7d515335b5016cca21bd",
@@ -899,8 +899,8 @@
           "after_coordinate": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
           "after_phase_check": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
           "phase_report": {
-            "check_status": 1,
-            "msg": "Intersection missing in config",
+            "check_status": 2,
+            "msg": "Empty phase plan",
             "modifications": []
           },
           "payload": {

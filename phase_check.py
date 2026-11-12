@@ -192,7 +192,14 @@ def phase_check(current_result, *, config_snapshot=None):
             report[inter_id] = res
             continue
 
-        # 2. 优先用 Nacos 配置；缺失时用 road_info 的 min/max 兜底
+        # 2. 空方案直接判无效，交给安全门走时刻表兜底，避免下发全零相位
+        if not any(value != 0 for value in phase_list[:8]):
+            res["check_status"] = 2
+            res["msg"] = "Empty phase plan"
+            report[inter_id] = res
+            continue
+
+        # 3. 优先用 Nacos 配置；缺失时用 road_info 的 min/max 兜底
         plan_rules = None
         if inter_id in config_snapshot:
             plan_rules = config_snapshot[inter_id].get(plan_id)
