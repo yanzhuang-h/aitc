@@ -987,8 +987,7 @@ def blend_eligible_lane_updates(
 ):
     """Blend only explicitly eligible lane cells into an existing table.
 
-    Missing roads, directions, time points, and lanes never become zero and are
-    never created implicitly. The bootstrap table remains the complete shape.
+    已存在的路口不会隐式新增方向/时间点；新路口首次进入时允许用候选点建表。
     """
     old_weight = float(old_weight)
     new_weight = float(new_weight)
@@ -1013,6 +1012,15 @@ def blend_eligible_lane_updates(
                     .get(direction, {})
                     .get(str(green_time))
                 )
+                if old_flow is None and road_id not in old_table and new_flow is not None:
+                    # 新路口首次进入经验池：用候选点直接建表，后续再按权重融合。
+                    result.setdefault(road_id, {}).setdefault(direction, {})[
+                        str(green_time)
+                    ] = _normalize_flow_vector(new_flow)
+                    stats["new_road_points_seeded"] += 1
+                    stats["lane_values_changed"] += len(lane_indexes)
+                    changed_points.add((road_id, direction, str(green_time)))
+                    continue
                 if old_flow is None or new_flow is None:
                     stats["missing_old_or_p80_points"] += 1
                     stats["lane_values_preserved"] += len(lane_indexes)
