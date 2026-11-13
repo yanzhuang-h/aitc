@@ -18,6 +18,23 @@ class CacheProcessorTest(unittest.TestCase):
         self.assertEqual(record["pass"]["L"][0], 1)
         self.assertEqual(record["count"]["L"], 1)
 
+    def test_bad_flow_record_does_not_discard_later_valid_records(self):
+        good = {"jtll_ddbh": "1", "ycsb_cdbh": "0", "ts": 1_700_000_000_000}
+        for bad in ({}, None, {**good, "ts": "invalid"},
+                    {**good, "ycsb_cdbh": "99"}):
+            with self.subTest(bad=bad):
+                flow, flow_map = cache_processor.process_flow_data([good, bad, good], Lambdas)
+                self.assertEqual(flow["1300068"], [2,0,0,0])
+                self.assertEqual(flow_map["1300068"]["1700000000"]["pass"]["L"][0], 2)
+
+    def test_negative_lane_is_rejected_instead_of_indexing_from_end(self):
+        good = {"jtll_ddbh": "1", "ycsb_cdbh": "0", "ts": 1_700_000_000_000}
+        flow, flow_map = cache_processor.process_flow_data([
+            {**good, "ycsb_cdbh": "-1"}, good,
+        ], Lambdas)
+        self.assertEqual(flow["1300068"], [1,0,0,0])
+        self.assertEqual(flow_map["1300068"]["1700000000"]["pass"]["L"][-1], 0)
+
     def test_queue_aggregates_lane_queue_and_vehicle_count(self):
         lengths, queue_map = cache_processor.process_queue_data([
             {

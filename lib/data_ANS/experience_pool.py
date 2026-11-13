@@ -474,6 +474,22 @@ class ExperiencePool:
             for value in self._state.get("processed_source_dates", [])
         }
 
+    def get_processed_road_ids(self, source_date):
+        """读取已处理路口范围，旧状态从经验池记录的日期恢复。
+
+        无法恢复历史范围时返回 None，保留原有跳过行为，避免未知范围重复混表。
+        """
+        source_date = str(source_date)
+        report = self._state.get("daily_runs", {}).get(source_date, {})
+        if "processed_road_ids" in report:
+            return set(report["processed_road_ids"])
+        roads = {road for road, directions in self._roads.items()
+                 if any(record.get("date") == source_date
+                        for times in directions.values()
+                        for lanes in times.values()
+                        for records in lanes.values() for record in records)}
+        return roads or None
+
     def record_daily_run(self, source_date, run_report):
         source_date = str(source_date)
         processed = self.get_processed_source_dates()
@@ -1114,12 +1130,21 @@ def run_daily_pool_update(
     processed_source_dates = full_pool.get_processed_source_dates()
     for data_day in sorted(candidates_by_date):
         daily_candidates = candidates_by_date[data_day]
+        previous_roads = set()
         if data_day in processed_source_dates:
-            daily_reports[data_day] = {
-                "status": "already_applied",
-                "expected_samples": _candidate_sample_count(daily_candidates),
-            }
-            continue
+            previous_roads = full_pool.get_processed_road_ids(data_day)
+            if previous_roads is not None:
+                daily_candidates = copy.deepcopy(daily_candidates)
+                daily_candidates["roads"] = {
+                    road: value for road, value in daily_candidates["roads"].items()
+                    if road not in previous_roads
+                }
+            if previous_roads is None or not daily_candidates.get("roads"):
+                daily_reports[data_day] = {
+                    "status": "already_applied",
+                    "expected_samples": _candidate_sample_count(candidates_by_date[data_day]),
+                }
+                continue
 
         expected_samples = _candidate_sample_count(daily_candidates)
         accumulation_stats = full_pool.add_candidate_samples(daily_candidates)
@@ -1182,6 +1207,7 @@ def run_daily_pool_update(
             status = "pool_updated_table_updated"
         daily_report = {
             "status": status,
+            "processed_road_ids": sorted(previous_roads | set(daily_candidates["roads"])),
             "expected_samples": expected_samples,
             "candidate_lane_cells": len(all_updated_lane_keys),
             "update_allowed_lane_cells": len(updated_lane_keys),

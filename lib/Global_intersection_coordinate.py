@@ -1346,9 +1346,9 @@ def coordinate(result_action_map, coordinate_map_set, online_data_map, OverFlow,
             ),
             Get_time_map,
         )
-        if flow_report["success"]:
+        if flow_report["success"] or flow_report.get("road_group") == "49":
             result_action_map[Cross_id] = flow_plan
-        else:
+        if not flow_report["success"]:
             print("error_cross", Cross_id)
         continue
     result_action_map = apply_special_intersection_adjustments(

@@ -311,6 +311,33 @@ class ExperiencePoolTests(unittest.TestCase):
             self.assertEqual(rerun_report["days"]["d1"]["status"], "already_applied")
             self.assertEqual(rerun_report["days"]["d2"]["status"], "already_applied")
 
+    def test_same_day_can_add_new_roads_without_reblending_existing_roads(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            candidate_path, pool_path = root/"candidate.json", root/"pool.json"
+            old_path, output_path = root/"old.json", root/"output.json"
+            old_path.write_text("{}")
+            first = _candidate("d1", 10, 100)
+            candidate_path.write_text(json.dumps(first))
+            args = tuple(str(p) for p in (candidate_path, pool_path, old_path, output_path))
+            first_table, _ = run_daily_pool_update(*args, min_sample_count=1)
+            # 同时覆盖仅有整日标记的旧经验池迁移。
+            pool = json.loads(pool_path.read_text())
+            del pool["state"]["daily_runs"]["d1"]["processed_road_ids"]
+            pool_path.write_text(json.dumps(pool))
+            more = _candidate("d1", 30, 100)
+            first["roads"]["1300086"] = more["roads"]["1300069"]
+            candidate_path.write_text(json.dumps(first))
+            updated, report = run_daily_pool_update(*args, min_sample_count=1)
+            self.assertEqual(updated["1300069"], first_table["1300069"])
+            self.assertIn("1300086", updated)
+            self.assertEqual(report["days"]["d1"]["processed_road_ids"], ["1300069", "1300086"])
+            pool_before = json.loads(pool_path.read_text())
+            rerun, report = run_daily_pool_update(*args, min_sample_count=1)
+            self.assertEqual(rerun, updated)
+            self.assertEqual(report["days"]["d1"]["status"], "already_applied")
+            self.assertEqual(json.loads(pool_path.read_text())["roads"], pool_before["roads"])
+
     def test_collection_only_road_is_stored_but_cannot_change_table(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

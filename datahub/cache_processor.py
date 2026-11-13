@@ -20,43 +20,51 @@ def process_flow_data(cache, lambdas_module):
     intersection_flow = copy.deepcopy(lambdas_module.intersection_flow_lambda)
 
 
-    try:
-        for flow_data in cache:
-            ddbh = int(flow_data["jtll_ddbh"])  # 地点编号
-            cdbh = int(flow_data["ycsb_cdbh"])  #车道编号
-            start_time_second=str(int(flow_data["ts"])//1000)
-            # 获取路口编号和方向
+    counters = collections.Counter()
+    accepted_by_road = collections.Counter()
+    for flow_data in cache:
+        counters["input_records"] += 1
+        try:
+            ddbh = int(flow_data["jtll_ddbh"])
+            raw_lane = flow_data["ycsb_cdbh"]
+            if isinstance(raw_lane, (bool, float)):
+                counters["invalid_lane"] += 1
+                continue
+            cdbh = int(raw_lane)
+            start_time_second = str(int(flow_data["ts"]) // 1000)
             mapping = location_to_intersection.get(ddbh)
             if mapping is None:
-                # print(f"Flow data processing warning:Unknown location ID: {ddbh}")
+                counters["unmapped_detector"] += 1
                 continue
-
             intersection_id, direction = mapping
-            if lambdas_module.aibi_to_xinkongji.__contains__(intersection_id):
-                intersection_id=lambdas_module.aibi_to_xinkongji.get(intersection_id)
+            if intersection_id in lambdas_module.aibi_to_xinkongji:
+                intersection_id = lambdas_module.aibi_to_xinkongji[intersection_id]
             if intersection_id not in flow_map:
-                # print(f"Flow data processing warning:Unknown intersection ID: {intersection_id}")
+                counters["unregistered_intersection"] += 1
+                continue
+            template = lambdas_module.flow_map_single_intersection_lambda
+            lanes = template["pass"].get(direction)
+            if direction not in ("L", "R", "U", "D") or lanes is None:
+                counters["invalid_direction"] += 1
+                continue
+            if cdbh < 0 or cdbh >= len(lanes):
+                counters["invalid_lane"] += 1
                 continue
             if start_time_second not in flow_map[intersection_id]:
-                flow_map[intersection_id][start_time_second] = copy.deepcopy(lambdas_module.flow_map_single_intersection_lambda)
-            
-            flow_map[intersection_id][start_time_second]["pass"][direction][cdbh]+=1
-            flow_map[intersection_id][start_time_second]["count"][direction]+=1
-
-            if direction == "L":
-                intersection_flow[intersection_id][0] += 1
-            elif direction == "R":
-                intersection_flow[intersection_id][1] += 1
-            elif direction == "U":
-                intersection_flow[intersection_id][2] += 1
-            elif direction == "D":
-                intersection_flow[intersection_id][3] += 1
-            else:
-                logger.warning("Unknown flow direction: %s", direction)
-    except KeyError as e:
-        logger.error(f"Missing key in flow data: {e}")
-    except Exception as e:
-        logger.error(f"Error processing flow data: {e}")
+                flow_map[intersection_id][start_time_second] = copy.deepcopy(template)
+            bucket = flow_map[intersection_id][start_time_second]
+            bucket["pass"][direction][cdbh] += 1
+            bucket["count"][direction] += 1
+            intersection_flow[intersection_id][("L", "R", "U", "D").index(direction)] += 1
+            counters["accepted"] += 1
+            accepted_by_road[intersection_id] += 1
+        except (KeyError, TypeError, ValueError, OverflowError):
+            # 单条异常记录不能中断其余缓存的统计，避免后续路口被统计为假零流量。
+            counters["malformed_record"] += 1
+            continue
+    logger.info("flow_aggregation %s", json.dumps({
+        "counts": dict(counters), "accepted_by_road": dict(accepted_by_road),
+    }, separators=(",", ":")))
     # 返回最终的二维流量统计数组
 
     return intersection_flow,flow_map

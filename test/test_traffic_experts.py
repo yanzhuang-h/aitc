@@ -216,7 +216,8 @@ class TrafficExpertTest(unittest.TestCase):
                 self.assertEqual(cached, [payload])
                 self.assertIs(type(cached[0]["ycsb_cdbh"]), type(lane))
                 legacy_vector, _legacy_map = cache_processor.process_flow_data(cached, Lambdas)
-                self.assertEqual(legacy_vector[VIDEO_INTERSECTION], [1, 0, 0, 0])
+                # 保留原始缓存，但非法车道号不再被截断或作为列表负索引统计。
+                self.assertEqual(legacy_vector[VIDEO_INTERSECTION], [0, 0, 0, 0])
 
     def test_invalid_queue_lane_types_are_missing_without_changing_legacy_data(self):
         for lane in (True, 1.5, -1):
