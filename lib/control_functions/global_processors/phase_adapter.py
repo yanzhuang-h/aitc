@@ -6,7 +6,14 @@
 
 import math
 
-from lib.data_ANS.cycle_quality import PHASE_DIRECTION_MAP
+from lib.data_ANS.cycle_quality import PHASE_DIRECTION_MAP as TRAINING_PHASE_DIRECTION_MAP
+
+# 同义相位沿用训练侧方向语义；分段对放由重复相位共同分担累计需求。
+PHASE_DIRECTION_MAP = {**TRAINING_PHASE_DIRECTION_MAP,
+    "DU": ("U", "D"), "RL": ("L", "R"),
+    "UD1": ("U", "D"), "UD2": ("U", "D"),
+    "LR1": ("L", "R"), "LR2": ("L", "R"), "P": (),
+}
 
 
 def phase_bounds(state_config):
@@ -43,6 +50,22 @@ def phase_bounds(state_config):
         minimums.append(low)
         maximums.append(high)
     return phases, minimums, maximums
+
+
+def complete_phase_cycle(times, minimums, maximums, minimum_cycle=60):
+    """沿用最小周期规则，但逐相位受有效上下界约束；容量不足时明确记录缺口。"""
+    times = [max(low, min(high, int(value)))
+             for value, low, high in zip(times, minimums, maximums)]
+    added = 0
+    while sum(times) < minimum_cycle:
+        eligible = [i for i, value in enumerate(times) if value < maximums[i]]
+        if not eligible:
+            break
+        index = min(eligible, key=lambda i: (times[i] - minimums[i], i))
+        times[index] += 1
+        added += 1
+    return times, {"cycle_extension_seconds": added,
+                   "unmet_minimum_cycle_seconds": max(0, minimum_cycle-sum(times))}
 
 
 def allocate_phase_times(demand, state_config):
@@ -82,7 +105,11 @@ def allocate_phase_times(demand, state_config):
         for direction in movements[index]:
             if direction in served:
                 served[direction] += 1
+    times, cycle_audit = complete_phase_cycle(times, minimums, maximums)
+    served = {direction: sum(times[i] for i, dirs in enumerate(movements)
+                             if direction in dirs) for direction in targets}
     return times, {
+        **cycle_audit,
         "phase_names": phases,
         "minimums": minimums,
         "maximums": maximums,

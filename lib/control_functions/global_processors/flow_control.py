@@ -4,7 +4,7 @@ import json
 import logging
 
 from lib.road_groups import TONGZHOU_49, road_group
-from lib.control_functions.global_processors.phase_adapter import allocate_phase_times, phase_bounds
+from lib.control_functions.global_processors.phase_adapter import allocate_phase_times, phase_bounds, complete_phase_cycle
 
 LOGGER = logging.getLogger("FlowControl")
 
@@ -137,7 +137,9 @@ def _process_tongzhou_intersection(cross_id, current_plan, road_config, hour,
                 phases, lows, highs = phase_bounds(road_config[state])
                 times = [max(low, min(high, int(vector[i])))
                          for i, (low, high) in enumerate(zip(lows, highs))]
-                audit = {"phase_names": phases, "minimums": lows, "maximums": highs}
+                times, cycle_audit = complete_phase_cycle(times, lows, highs)
+                audit = {"phase_names": phases, "minimums": lows, "maximums": highs,
+                         **cycle_audit}
                 report["fallback"] = "time_schedule"
             else:
                 times, audit = allocate_phase_times(demand, road_config[state])
@@ -156,8 +158,29 @@ def _process_tongzhou_intersection(cross_id, current_plan, road_config, hour,
         return plan, report
     except Exception as exc:
         report["error"] = f"{type(exc).__name__}: {exc}"
-        # 转换失败时不能把原方向向量当作相位时间下发。
-        return [0] * 10, report
+        # 转换失败时只允许回退至经过边界校验的默认方案；不把方向向量当相位下发。
+        try:
+            default = "1"
+            phases, lows, highs = phase_bounds(road_config[default])
+            try:
+                vector = list(schedule_loader(int(cross_id))[str(hour)])
+                if len(vector) != 10:
+                    raise ValueError("invalid fallback timetable")
+                times = vector[:len(phases)]
+                fallback = "validated_default_timetable"
+            except (KeyError, TypeError, ValueError, OSError):
+                times = lows
+                fallback = "validated_default_minimums"
+            times, cycle_audit = complete_phase_cycle(times, lows, highs)
+            plan = times + [0] * (10-len(times))
+            plan[9] = 1
+            report.update({"success": True, "state": default, "fallback": fallback,
+                           "phase_names": phases, "minimums": lows, "maximums": highs,
+                           **cycle_audit})
+            return plan, report
+        except Exception as fallback_error:
+            report["fallback_error"] = f"{type(fallback_error).__name__}: {fallback_error}"
+            return [0] * 10, report
 
 
 def process_flow_intersection(cross_id, current_plan, road_config, hour,
@@ -169,7 +192,8 @@ def process_flow_intersection(cross_id, current_plan, road_config, hour,
                              forced_state_selector, schedule_loader)
     report["road_group"] = road_group(cross_id)
     report["input_direction_vector"] = original
-    report["output_phase_vector"] = list(plan)
+    report["adapted_phase_vector"] = list(plan)
+    report["is_final"] = False
     if report["road_group"] is not None:
         LOGGER.info("flow_control %s", json.dumps(report, separators=(",", ":")))
     return plan, report

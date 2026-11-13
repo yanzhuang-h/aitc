@@ -1346,9 +1346,11 @@ def coordinate(result_action_map, coordinate_map_set, online_data_map, OverFlow,
             ),
             Get_time_map,
         )
-        if flow_report["success"] or flow_report.get("road_group") == "49":
+        if flow_report["success"]:
             result_action_map[Cross_id] = flow_plan
-        if not flow_report["success"]:
+        elif flow_report.get("road_group") == "49":
+            raise ValueError(f"路口 {Cross_id} 没有经过验证的相位方案: {flow_report}")
+        else:
             print("error_cross", Cross_id)
         continue
     result_action_map = apply_special_intersection_adjustments(
@@ -1541,7 +1543,7 @@ def coordinate(result_action_map, coordinate_map_set, online_data_map, OverFlow,
         for z in range(0,8):
             result_action_map[i][z] =   int(result_action_map[i][z])
 
-    result_action_map, floating_value_report = finalize_plan_values(result_action_map)
+    result_action_map, floating_value_report = finalize_plan_values(result_action_map, road_info=road_info)
     print(f"floating value report:{json.dumps(floating_value_report, ensure_ascii=False)}")
 
     for i in result_action_map:

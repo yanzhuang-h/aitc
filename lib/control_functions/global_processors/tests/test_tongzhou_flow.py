@@ -118,7 +118,7 @@ class TongzhouFlowTests(unittest.TestCase):
             {"1": config(["LR", "UD"]), "2": config(["U", "D", "LR"])}, 17,
             lambda road, state: "2", lambda road: self.fail("wrong program timetable"))
         self.assertTrue(report["success"])
-        self.assertEqual(plan[:3], [5,5,5])
+        self.assertEqual(plan[:3], [20,20,20])
         self.assertEqual(report["fallback"], "forced_program_minimums")
 
     def test_formatter_preserves_selected_platform_program(self):
@@ -143,9 +143,28 @@ class TongzhouFlowTests(unittest.TestCase):
         plan, report = process_flow_intersection(
             "2705189", [30]*8+[0,0], {"1": config(["UD", "LR"])}, 17,
             lambda road, state: "9", lambda road: {})
-        self.assertFalse(report["success"])
-        self.assertEqual(plan, [0]*10)
+        self.assertTrue(report["success"])
+        self.assertEqual(plan, [30,30]+[0]*7+[1])
+        self.assertEqual(report["fallback"], "validated_default_minimums")
         self.assertIn("missing", report["error"])
+
+    def test_phase_aliases_and_pedestrian_phase_are_supported(self):
+        for phases in (["DU", "RL", "P"], ["UD1", "UD2", "LR1", "LR2"]):
+            times, audit = allocate_phase_times({"U":80,"D":60,"L":60,"R":50}, config(phases))
+            self.assertTrue(all(5 <= t <= 200 for t in times))
+            self.assertEqual(audit["unmet_movement_times"], {})
+
+    def test_bounded_cycle_completion_is_not_overwritten_by_legacy_completion(self):
+        from lib.control_functions.global_processors.finalization import complete_minimum_cycle, finalize_plan_values
+        state = config(["UD", "LR"], [5,5], [20,20])
+        times, audit = allocate_phase_times({}, state)
+        self.assertEqual(times, [20,20])
+        self.assertEqual(audit["unmet_minimum_cycle_seconds"], 20)
+        plans = {"1700267": times+[0]*7+[1]}
+        self.assertEqual(complete_minimum_cycle(plans)["1700267"][:2], [20,20])
+        plans["1700267"][0] = 100
+        plans, _ = finalize_plan_values(plans, road_info={"1700267":{"1":state}})
+        self.assertEqual(plans["1700267"][:2], [20,20])
 
     def test_old_19_1700125_retains_existing_rules(self):
         roads = json.loads((ROOT / "lib/road_info.json").read_text())

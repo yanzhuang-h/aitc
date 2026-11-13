@@ -338,6 +338,105 @@ class ExperiencePoolTests(unittest.TestCase):
             self.assertEqual(report["days"]["d1"]["status"], "already_applied")
             self.assertEqual(json.loads(pool_path.read_text())["roads"], pool_before["roads"])
 
+    def test_retry_recovers_committed_pool_when_output_write_crashes(self):
+        from unittest.mock import patch
+        import lib.data_ANS.experience_pool as module
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            candidate, pool, old, output = [root/name for name in ("candidate.json","pool.json","old.json","output.json")]
+            candidate.write_text(json.dumps(_candidate("d1", 10, 100)))
+            old.write_text("{}")
+            original = module._write_json_atomic
+            def fail_output(path, data):
+                if str(path) == str(output):
+                    raise OSError("simulated interruption after pool commit")
+                return original(path, data)
+            args = tuple(str(p) for p in (candidate,pool,old,output))
+            with patch.object(module,"_write_json_atomic",side_effect=fail_output):
+                with self.assertRaises(OSError):
+                    run_daily_pool_update(*args,min_sample_count=1,authoritative_old_table=True)
+            saved = json.loads(pool.read_text())["state"]["rolling_table"]
+            recovered, report = run_daily_pool_update(*args,min_sample_count=1,authoritative_old_table=True)
+            self.assertEqual(recovered,saved)
+            self.assertEqual(json.loads(output.read_text()),saved)
+            self.assertTrue(report["publication_recovery_required"])
+
+    def test_late_same_road_date_fails_without_modifying_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            candidate,pool,old,output = [root/name for name in ("candidate.json","pool.json","old.json","output.json")]
+            old.write_text("{}")
+            args = tuple(str(p) for p in (candidate,pool,old,output))
+            candidate.write_text(json.dumps(_candidate("d2", 20, 200)))
+            run_daily_pool_update(*args,min_sample_count=1)
+            before = (pool.read_bytes(),output.read_bytes())
+            candidate.write_text(json.dumps(_candidate("d1", 10, 100)))
+            with self.assertRaisesRegex(ValueError,"chronological rebuild"):
+                run_daily_pool_update(*args,min_sample_count=1)
+            self.assertEqual((pool.read_bytes(),output.read_bytes()),before)
+
+    def test_concurrent_road_updates_preserve_both_roads(self):
+        from concurrent.futures import ThreadPoolExecutor
+        import threading
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pool,old,output = root/"pool.json", root/"old.json", root/"output.json"
+            old.write_text("{}")
+            first,second = root/"a.json", root/"b.json"
+            first.write_text(json.dumps(_candidate("d1", 10, 100)))
+            data = _candidate("d1", 20, 100)
+            data["roads"]["1300086"] = data["roads"].pop("1300069")
+            second.write_text(json.dumps(data))
+            barrier = threading.Barrier(2)
+            def update(candidate):
+                barrier.wait(timeout=5)
+                return run_daily_pool_update(str(candidate),str(pool),str(old),str(output),min_sample_count=1)
+            with ThreadPoolExecutor(max_workers=2) as workers:
+                futures = [workers.submit(update,p) for p in (first,second)]
+                for future in futures:future.result(timeout=10)
+            self.assertEqual(set(json.loads(pool.read_text())["roads"]),{"1300069","1300086"})
+            self.assertEqual(set(json.loads(output.read_text())),{"1300069","1300086"})
+
+    def test_processes_updating_same_pool_preserve_both_roads(self):
+        import multiprocessing
+        context = multiprocessing.get_context("fork")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pool,old,output = root/"pool.json",root/"old.json",root/"output.json"
+            old.write_text("{}")
+            candidates = []
+            for index,road in enumerate(("1300069","1300086")):
+                data = _candidate("d1", 10+index, 100)
+                data["roads"] = {road:data["roads"]["1300069"]}
+                path=root/f"{index}.json";path.write_text(json.dumps(data));candidates.append(path)
+            gate = context.Event()
+            def update(candidate):
+                gate.wait(5)
+                run_daily_pool_update(str(candidate),str(pool),str(old),str(output),min_sample_count=1)
+            processes = [context.Process(target=update,args=(p,)) for p in candidates]
+            for process in processes:process.start()
+            gate.set()
+            for process in processes:
+                process.join(10)
+                if process.is_alive():process.terminate();process.join()
+                self.assertEqual(process.exitcode,0)
+            self.assertEqual(set(json.loads(output.read_text())),{"1300069","1300086"})
+
+    def test_acknowledged_publication_does_not_undo_deliberate_rollback(self):
+        from lib.data_ANS.experience_pool import acknowledge_pool_publication
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            candidate,pool,old,output=[root/name for name in ("candidate.json","pool.json","old.json","output.json")]
+            old.write_text("{}")
+            candidate.write_text(json.dumps(_candidate("d1",10,100)))
+            args=tuple(str(p) for p in (candidate,pool,old,output))
+            table,_=run_daily_pool_update(*args,min_sample_count=1,authoritative_old_table=True)
+            acknowledge_pool_publication(str(pool),table)
+            # 运行表已成功发布过；主动回滚到空基表后不应自动恢复被撤回的版本。
+            rolled_back,report=run_daily_pool_update(*args,min_sample_count=1,authoritative_old_table=True)
+            self.assertEqual(rolled_back,{})
+            self.assertFalse(report["publication_recovery_required"])
+
     def test_collection_only_road_is_stored_but_cannot_change_table(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -12,7 +12,7 @@
     "state": "empty Internet and green-wave state initially; retained across two rounds; restored after replay",
     "coordinate_arguments": "action, coordinate_map, online_map, overflow_map (four production arguments)",
     "scope": "fixed workday morning; not field-performance validation or every event/time branch",
-    "behavior_update": "通州49组使用有效默认方案并适配相位顺序；已对照 d73d152 验证其他路口保持不变"
+    "behavior_update": "通州49组使用有效默认方案并适配相位顺序；已对照 d73d152 验证其他路口保持不变；49组最小周期补时及浮动后再次限制有效上下界"
   },
   "config_sources": {
     "lib/offline_experience.json": "4402800910190a3575db3ca66fdd4b811371779391724a5628ef6c5c7b673eba",
@@ -108,11 +108,11 @@
       "intersection_count": 235,
       "sha256": {
         "before_coordinate": "304080568c5bb6e6cae5315ace1c932f6a0760bacdd17aee0551f0debd23db61",
-        "after_coordinate": "ce4371b7d79ddb713375d08c2850564eb9682f105d076ecf40ce75d442b80176",
-        "after_phase_check": "cbd35800b172a0991c35c0f4ba1ba336850da80e2843b981a5fb4a5837b261b9",
+        "after_coordinate": "e0aa013c7305c07fd489c2585370afef685fc1b4a70c70d7b448f070935153dd",
+        "after_phase_check": "1fecad4e0b3ea290623645b29efa34c02143231a2091c2041887a4c14a45473d",
         "phase_report": "7a2252c641c2b0c69dee3885a82f2029413eafe231d4910055734a263d44a3a1",
-        "payloads": "62b56ba4515537313a845e559be29fb3e49d6d973b8c4814ed039071c7b85ed1",
-        "tcp_bytes": "eb7b55f939298706f8643d313331775f2ce91322ad2acbb09bce4ae793a7d964",
+        "payloads": "7fbadfa491566d2a621f2770a477c02ebed2596b48302aa4410a9ceb89bb42e1",
+        "tcp_bytes": "be591c9d6eaf7cafbc4a64caae343244c9737057d4bc9b0f64073eff0456f290",
         "green_wave_state": "00dff5975ba031e7e3b3508e134c9229ce8707da212e51e228f96d3b6adb1a7d",
         "internet_state": "84fb15b77549dac5f26b24ed27d8513fb522cca47852ff42fba11141b96130bc"
       },
@@ -619,11 +619,11 @@
       "intersection_count": 235,
       "sha256": {
         "before_coordinate": "304080568c5bb6e6cae5315ace1c932f6a0760bacdd17aee0551f0debd23db61",
-        "after_coordinate": "aef0705e2ad8f46808ad41c5aeaf3e5f9b4481f6d8e160c319f580de03b937e9",
-        "after_phase_check": "2836e0a2de75c1aaed9f921b056a6fc62eddff18d20a148fb98620ed92fedbf2",
+        "after_coordinate": "e7b41d13a865fa6000f74e53eeb84d7a0a0cff725b420d0d90f2c4d02709c1f3",
+        "after_phase_check": "160a5602d793f2c6a3a10ded85e3e19bf773fc53a99aa2d4dba7a8f2348404de",
         "phase_report": "121d84a3442025d27f3c15afd1ce05c20d4211b4751e7fdaad6b04f6dcb4c460",
-        "payloads": "4a9d47499f747608d6468fd6baeccfb3713b44478f2d05aa25a97c512165e4c2",
-        "tcp_bytes": "0637a399cf5f46b31ac426c904dba6a3ece48020b2da086a0219d3457f04197e",
+        "payloads": "dbac70bbf04136025894f11c318268f5fa65caac1a805d350dd49d3d7d9da591",
+        "tcp_bytes": "1e79194ad8ebaf12b762617d67a54cd8cfb612731b2f21bc5165b110ba6a2c6a",
         "green_wave_state": "518ed6b4055a2d8ac33d18c32294be1b9308e3d9599e7d515335b5016cca21bd",
         "internet_state": "84fb15b77549dac5f26b24ed27d8513fb522cca47852ff42fba11141b96130bc"
       },

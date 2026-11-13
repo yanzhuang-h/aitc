@@ -4,6 +4,10 @@ import json
 import math
 import os
 import tempfile
+import hashlib
+import threading
+from contextlib import contextmanager
+from functools import wraps
 from collections import Counter
 
 
@@ -18,6 +22,59 @@ DEFAULT_POOL_MIN_SAMPLE_COUNT = 30
 DEFAULT_POOL_SELECTION_METHOD = "densest_cluster_median"
 DEFAULT_DENSE_CLUSTER_FRACTION = 0.50
 POOL_SELECTION_METHODS = frozenset({"densest_cluster_median", "p80"})
+
+
+_POOL_LOCKS = {}
+_POOL_LOCKS_GUARD = threading.Lock()
+_POOL_HELD_LOCKS = threading.local()
+
+
+@contextmanager
+def pool_update_lock(path):
+    """在 WSL/生产 Linux 上串行化同一经验池的读、改、写与发布；允许同线程嵌套。"""
+    import fcntl
+    lock_path = os.path.abspath(str(path)) + ".lock"
+    os.makedirs(os.path.dirname(lock_path), exist_ok=True)
+    with _POOL_LOCKS_GUARD:
+        lock = _POOL_LOCKS.setdefault(lock_path, threading.RLock())
+    with lock:
+        held = getattr(_POOL_HELD_LOCKS, "paths", set())
+        if lock_path in held:
+            yield
+            return
+        with open(lock_path, "a+") as handle:
+            fcntl.flock(handle, fcntl.LOCK_EX)
+            _POOL_HELD_LOCKS.paths = held | {lock_path}
+            try:
+                yield
+            finally:
+                _POOL_HELD_LOCKS.paths = held
+                fcntl.flock(handle, fcntl.LOCK_UN)
+
+
+def _serialize_pool_update(function):
+    @wraps(function)
+    def run(*args, **kwargs):
+        pool_path = args[1] if len(args) > 1 else kwargs["full_pool_path"]
+        with pool_update_lock(pool_path):
+            return function(*args, **kwargs)
+    return run
+
+
+def _table_digest(table):
+    return hashlib.sha256(json.dumps(table, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def acknowledge_pool_publication(path, table):
+    """运行表激活成功后确认发布，避免以后将主动回滚误判为待恢复发布。"""
+    with pool_update_lock(path):
+        saved = _load_json(path, default={})
+        state = saved.get("state", {})
+        if _table_digest(state.get("rolling_table", {})) != _table_digest(table):
+            raise ValueError("published table does not match committed pool")
+        state["pending_publication"] = False
+        state["authoritative_base_sha256"] = _table_digest(table)
+        _write_json_atomic(path, saved)
 
 
 def _sample_capacity_lane_indexes(sample):
@@ -1079,6 +1136,7 @@ def blend_eligible_lane_updates(
     }
 
 
+@_serialize_pool_update
 def run_daily_pool_update(
     candidate_samples_path,
     full_pool_path,
@@ -1111,9 +1169,19 @@ def run_daily_pool_update(
     )
 
     state_table = full_pool.get_rolling_table()
+    recovered_publication = False
+    initial_active_table = None
     if authoritative_old_table:
-        current_table = _load_json(old_table_path, default={})
+        initial_active_table = _load_json(old_table_path, default={})
+        current_table = initial_active_table
         effective_old_table_path = old_table_path
+        # 经验池先提交、滚动表或运行表尚未发布时，按已保存的基表指纹恢复。
+        # 外部回滚或换表后指纹不同，继续尊重运行表，不强行恢复旧发布。
+        if (state_table is not None and full_pool._state.get("pending_publication", False)
+                and full_pool._state.get("authoritative_base_sha256") == _table_digest(current_table)):
+            current_table = state_table
+            recovered_publication = current_table != initial_active_table
+            effective_old_table_path = f"{full_pool_path}#state.rolling_table"
     elif state_table is not None:
         current_table = state_table
         effective_old_table_path = f"{full_pool_path}#state.rolling_table"
@@ -1146,6 +1214,14 @@ def run_daily_pool_update(
                 }
                 continue
 
+        # 已有路口不能把早日样本混入晚日结果；该情况需要从保留基表按日期重建。
+        late_roads = sorted(road for road in daily_candidates["roads"]
+                            if any(record.get("date") and record["date"] > data_day
+                                   for times in full_pool._roads.get(road, {}).values()
+                                   for lanes in times.values() for records in lanes.values()
+                                   for record in records))
+        if late_roads:
+            raise ValueError(f"late road dates require chronological rebuild: {data_day}: {late_roads}")
         expected_samples = _candidate_sample_count(daily_candidates)
         accumulation_stats = full_pool.add_candidate_samples(daily_candidates)
         total_accumulation.update(accumulation_stats)
@@ -1226,6 +1302,9 @@ def run_daily_pool_update(
         current_table,
         last_update_dates=sorted(candidates_by_date),
     )
+    if authoritative_old_table:
+        full_pool._state["authoritative_base_sha256"] = _table_digest(initial_active_table)
+        full_pool._state["pending_publication"] = current_table != initial_active_table
     _write_json_atomic(full_pool_path, full_pool.build_full_pool())
     _write_json_atomic(output_path, current_table)
 
@@ -1249,6 +1328,7 @@ def run_daily_pool_update(
             None if update_road_ids is None else sorted(update_road_ids)
         ),
         "authoritative_old_table": bool(authoritative_old_table),
+        "publication_recovery_required": bool(recovered_publication),
         "accumulation": dict(total_accumulation),
         "blend": dict(total_blend),
         "days": daily_reports,
