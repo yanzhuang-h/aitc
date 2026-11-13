@@ -239,13 +239,13 @@ class GraphIntegrationTest(unittest.TestCase):
 
         actual = full_replay(selector, controller.coordinate_legacy)
         self.assertEqual(actual, full_replay())
-        self.assertEqual(len(graph_calls), 468)
+        self.assertEqual(len(graph_calls), 470)
         self.assertTrue(any(not fallback for _cross_id, fallback in graph_calls))
         self.assertTrue(any(fallback for _cross_id, fallback in graph_calls))
         for index, result in enumerate(actual):
             with self.subTest(round=index):
                 self.assertEqual(compact_round(result), golden["rounds"][index])
-                self.assertEqual(len(result["tcp_frames"]), 234)
+                self.assertEqual(len(result["tcp_frames"]), 235)
                 self.assertTrue(all(frame.endswith(b"\n") for frame in result["tcp_frames"]))
         for intersection_id in Lambdas.intersection_list:
             self.assertEqual(len(hub.history(intersection_id)), 2)

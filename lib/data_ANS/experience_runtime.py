@@ -134,6 +134,7 @@ DEFAULT_POOL_COLLECTION_ROAD_IDS = frozenset({
     '2706134',
     '2706149',
     '2706150',
+    '2706152',
 })
 # 与 V2.65 保持一致：27 个路口参与每日经验表更新（覆盖全部试点路口）。
 DEFAULT_TABLE_UPDATE_ROAD_IDS = frozenset({
@@ -219,6 +220,7 @@ DEFAULT_TABLE_UPDATE_ROAD_IDS = frozenset({
     '2706134',
     '2706149',
     '2706150',
+    '2706152',
 })
 
 

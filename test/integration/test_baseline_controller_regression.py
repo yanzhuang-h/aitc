@@ -56,8 +56,8 @@ class BaselineControllerRegressionTest(unittest.TestCase):
         for index, (actual, expected) in enumerate(zip(wrapped, self.golden["rounds"])):
             with self.subTest(round=index):
                 self.assertEqual(compact_round(actual), expected)
-                self.assertEqual(len(actual["after_phase_check"]), 234)
-                self.assertEqual(len(actual["tcp_frames"]), 234)
+                self.assertEqual(len(actual["after_phase_check"]), 235)
+                self.assertEqual(len(actual["tcp_frames"]), 235)
                 self.assertTrue(all(frame.endswith(b"\n") for frame in actual["tcp_frames"]))
                 self.assertTrue(all(type(value) is int for plan in actual["after_coordinate"].values()
                                     for value in plan))

@@ -102,6 +102,7 @@ DEFAULT_TARGET_ROAD_IDS = frozenset({
     '2706134',
     '2706149',
     '2706150',
+    '2706152',
 })
 DEFAULT_PILOT_MODE = "new"
 VALID_PILOT_MODES = frozenset({"legacy", "shadow", "new"})

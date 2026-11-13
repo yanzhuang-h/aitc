@@ -1,4 +1,4 @@
-"""在全局协调与 TCP 格式化之间验证真实安全门，守住冻结的 234 路口输出。"""
+"""在全局协调与 TCP 格式化之间验证真实安全门，守住冻结的 235 路口输出。"""
 
 import copy
 import json
@@ -47,7 +47,7 @@ class SafetyGateIntegrationTest(unittest.TestCase):
         for n, result in enumerate(actual):
             self.assertEqual(compact_round(result), golden["rounds"][n])
             reports = all_reports[n]
-            self.assertEqual(sum(report["safety_status"] == "partial" for report in reports.values()), 96)
+            self.assertEqual(sum(report["safety_status"] == "partial" for report in reports.values()), 97)
             self.assertEqual(sum(report["safety_status"] == "valid" for report in reports.values()), 134)
             self.assertEqual(sum(report["safety_status"] == "no_action" for report in reports.values()), 4)
             self.assertTrue(all(report["fallback_source"] is None for report in reports.values()))
