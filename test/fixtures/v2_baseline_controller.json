@@ -16,7 +16,7 @@
   "config_sources": {
     "lib/offline_experience.json": "4402800910190a3575db3ca66fdd4b811371779391724a5628ef6c5c7b673eba",
     "lib/experience_pool/online_experience.json": "ed95c2e2f881b4cacb8de6fac3f9d896d65b57703a9b9f2dc9ba2a979aa07a1a",
-    "lib/cross_info.json": "56b4499229544da3715f4d68d1e96cd9969ac3c215ee8cd9aad0507925ca884b",
+    "lib/cross_info.json": "7a60dae544d74990a24d7d73ca03bc73c700e7e9c1cd1f0f2c3489af53728b77",
     "lib/road_info.json": "c0f1aaa6c6af3f453f9a3107908ab9f33bcc34b0b63fa34dd40e14c526e4bac3",
     "lib/road_state.json": "f4fb03afe0928bca4a50b03b92777195eb1fc49c5f0c9c1693f693002feb692e",
     "lib/floating_value.json": "b90e06492da315a5a9c5f2f50e9be5bc239c12495900ec27566548890e178817",
@@ -24,10 +24,10 @@
     "intersection_result_config.json": "1cd441c8aa91302ade4a14fdb40f817b6eb8c83c7c19c94b3c48eaf338751c38",
     "time_schedule/schedule_json/FIne_turn.json": "4090879b44379ab391ab96a735e3bb04e091b2831ed86464020d4f1a65fb578d",
     "workday_schedules": {
-      "count": 228,
-      "sha256": "bccafd7bc50075d842fb71d3e8cff137ad15c941136146d3cd45bfe307bbfb95"
+      "count": 229,
+      "sha256": "fe268fbdd68b47aaa8d36d50df9078b78970ec0212a84c8ad32dc9d0a0d18649"
     },
-    "intersection_order_and_groups": "840097a1272435a6e50bd472ddc201b55bf261d6e077e7e5a4637c92cdbc7ab2"
+    "intersection_order_and_groups": "3a6b012e2520cca10e9cf38a16be3c5d565d25f23c8acea82c797622876a9d24"
   },
   "selectors": {
     "timetable_rule": {
@@ -104,14 +104,14 @@
   "rounds": [
     {
       "timestamp": 1790728200,
-      "intersection_count": 234,
+      "intersection_count": 235,
       "sha256": {
-        "before_coordinate": "b42cd58400d7f5fe6f56db841bec61c602dffac0f763964137aedf2952a7d908",
-        "after_coordinate": "719d4d9935720c8dcce81e724d7e4c0e5a7370ef3d08802bcc14199e936f1a1a",
-        "after_phase_check": "5edef03c9755ecd190649e11f02cdaed06d8dabb99f1c18ac81e172bb5d75550",
-        "phase_report": "3dedaab8ce7e268db48ed83374da778eede18e18f0733355e21cc05e1d4d994a",
-        "payloads": "82200c375f5059f24f30e7f8a33137d11ea82b1f79bea4193f9ce6aa536e9639",
-        "tcp_bytes": "bf1c44c0bf8b0a53b3cd7128497a5b22cf66a1acd96a97411d9c07690fb27fcc",
+        "before_coordinate": "304080568c5bb6e6cae5315ace1c932f6a0760bacdd17aee0551f0debd23db61",
+        "after_coordinate": "d20cf66ef5bcbcc88f5fe0b20fd15407d3c04ec2793cf75ca26153971407c7c4",
+        "after_phase_check": "bace515c139c1103b515665e494a6638efc40c6dc895abdf37f17cc0297c0b06",
+        "phase_report": "55b793cd7200f4e1985690561366dddc7d031ca78cfcf17c69bae905c2a07adc",
+        "payloads": "1696c1ce666e3a38a802cc1555bab61603ffa36ae4a571a5a13a2d964dc86cd9",
+        "tcp_bytes": "c160d9d289d49c34e82a4c0bf0b47b7e816c2bc7e1e88cb55f8ceb3b45e48628",
         "green_wave_state": "00dff5975ba031e7e3b3508e134c9229ce8707da212e51e228f96d3b6adb1a7d",
         "internet_state": "84fb15b77549dac5f26b24ed27d8513fb522cca47852ff42fba11141b96130bc"
       },
@@ -615,14 +615,14 @@
     },
     {
       "timestamp": 1790728320,
-      "intersection_count": 234,
+      "intersection_count": 235,
       "sha256": {
-        "before_coordinate": "b42cd58400d7f5fe6f56db841bec61c602dffac0f763964137aedf2952a7d908",
-        "after_coordinate": "6a89f404a6e7c14fdbfe543aa4bff06241b2f7107941c2eee7863dc5a0c574f4",
-        "after_phase_check": "0f7bea5dabf79c73db09d3ceb29e2f2b9120f47e7809516699aa142109ac4856",
-        "phase_report": "ce0b064b4b0efd64fb527bba8fb230b4e4373e21663c9d3dbf961f97b5822634",
-        "payloads": "e2bcacf90caa51587602e3953b5d7a7d02810db833f0f2a9fe76b8471244dc69",
-        "tcp_bytes": "ad60dbedd1892a79b69d0d84a334c9120106c8942503faa4538f0786966152de",
+        "before_coordinate": "304080568c5bb6e6cae5315ace1c932f6a0760bacdd17aee0551f0debd23db61",
+        "after_coordinate": "ae68196fda2356eadca6ec8c5e09937cfedb5d5911534f86a67b3901f02961e3",
+        "after_phase_check": "561741bd5411300828caaa7a937e889b61ea1e7d47ed535ef7f704442cbcaf96",
+        "phase_report": "31865a4aa04c9aedfaae0654cccb8c3e3d177a20f30a6b612bec1b381611a6f1",
+        "payloads": "cda74159ce6a71b16977fd33d57f58e072c2bb9afd2867e04a0d08d307ba377c",
+        "tcp_bytes": "d43912d5dfcb929f392bafec955ab1b4c36ed7b0b14fe402c6556472081851ea",
         "green_wave_state": "518ed6b4055a2d8ac33d18c32294be1b9308e3d9599e7d515335b5016cca21bd",
         "internet_state": "84fb15b77549dac5f26b24ed27d8513fb522cca47852ff42fba11141b96130bc"
       },
@@ -664,7 +664,7 @@
               "acc": 95,
               "r": 0,
               "rt": 10,
-              "score": 95,
+              "score": 90,
               "pdf": 50,
               "pdq": 50,
               "pds": 50,
@@ -886,7 +886,7 @@
               "acc": 95,
               "r": 0,
               "rt": 10,
-              "score": 96,
+              "score": 87,
               "pdf": 50,
               "pdq": 50,
               "pds": 50,
@@ -935,7 +935,7 @@
               "acc": 95,
               "r": 0,
               "rt": 10,
-              "score": 99,
+              "score": 92,
               "pdf": 50,
               "pdq": 50,
               "pds": 50,
@@ -974,7 +974,7 @@
               "acc": 95,
               "r": 0,
               "rt": 10,
-              "score": 88,
+              "score": 99,
               "pdf": 50,
               "pdq": 50,
               "pds": 50,
@@ -1013,7 +1013,7 @@
               "acc": 95,
               "r": 0,
               "rt": 10,
-              "score": 99,
+              "score": 86,
               "pdf": 50,
               "pdq": 50,
               "pds": 50,
@@ -1054,7 +1054,7 @@
               "acc": 95,
               "r": 0,
               "rt": 10,
-              "score": 91,
+              "score": 99,
               "pdf": 50,
               "pdq": 50,
               "pds": 50,
@@ -1093,7 +1093,7 @@
               "acc": 95,
               "r": 0,
               "rt": 10,
-              "score": 98,
+              "score": 99,
               "pdf": 50,
               "pdq": 50,
               "pds": 50,

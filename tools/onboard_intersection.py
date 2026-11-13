@@ -375,7 +375,11 @@ def main(argv=None) -> int:
             json.dumps(overrides, ensure_ascii=False, indent=4) + "\n",
             encoding="utf-8",
         )
-        print(f"方案号覆盖: {overrides_path}（新增 {len(cross_entries)} 个路口 -> {args.program_id}）")
+        applied = sorted({overrides[str(item)] for item in cross_entries})
+        print(
+            f"方案号覆盖: {overrides_path}"
+            f"（新增 {len(cross_entries)} 个路口 -> {applied}）"
+        )
 
     if args.apply and changed_files:
         print("已写入；请执行 python -m py_compile 与测试后重新打包。")

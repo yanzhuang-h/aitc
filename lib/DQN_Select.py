@@ -122,6 +122,7 @@ Cross_Video = {
     '2706134': {"Cross_type": "Video"},
     '2706149': {"Cross_type": "Video"},
     '2706150': {"Cross_type": "Video"},
+    '2706152': {"Cross_type": "Video"},
 }
 
 
@@ -152,6 +153,20 @@ def DQN_select(
     model_info_list = {}  # 空字典
     EXP_list = {}  # 空字典
     if cross_id in Cross_Video:
+        if cross_id == '2706152':
+            return DQN_select_2706152(
+                traffic_vector,
+                queue_vector,
+                traffic_vector_duration2,
+                current_time,
+                flow_map_single_intersection,
+                queue_map_single_intersection,
+                stage_map_single_intersection,
+                extend_map_single_intersection,
+                0,
+                cur_flow_pre_map,
+                cur_queue_pre_map,
+            )
         if cross_id == '1700035':
             return DQN_select_1700035(
                 traffic_vector,
@@ -6110,5 +6125,39 @@ def DQN_select_2706150(
         "2706150____________________________________",
         sch,
         "2706150____________________________________",
+    )
+    return sch, coordinate_set, model_map, EXP_map
+
+
+def DQN_select_2706152(
+    traffic_vector,
+    queue_vector,
+    traffic_vector_duration2,
+    current_time,
+    flow_map_single_intersection,
+    queue_map_single_intersection,
+    stage_map_single_intersection,
+    extend_map_single_intersection,
+    coordinate_map_set,
+    cur_flow_pre_map,
+    cur_queue_pre_map,
+):
+    model_map = get_model_map(
+        traffic_vector, queue_map_single_intersection, stage_map_single_intersection
+    )
+    EXP_map = get_exp(traffic_vector, traffic_vector_duration2)
+    coordinate_set = {"Start1": 1, "start2": 0}
+    print("2706152-----------------------------------------------")
+    print(flow_map_single_intersection)
+    print("2706152-----------------------------------------------")
+    # sch = chuli_shuju("2706152", flow_map_single_intersection, extend_map_single_intersection)
+    sch = [0] * 10
+    sch = select_pilot_schedule(
+        "2706152", sch, flow_map_single_intersection, extend_map_single_intersection
+    )
+    print(
+        "2706152____________________________________",
+        sch,
+        "2706152____________________________________",
     )
     return sch, coordinate_set, model_map, EXP_map

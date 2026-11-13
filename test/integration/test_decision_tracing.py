@@ -319,8 +319,8 @@ class DecisionTracingIntegrationTest(unittest.TestCase):
                 trace.capture_plan(plan, final=True)
                 trace.status = "published"
                 trace.emit(logger)
-        self.assertEqual(len(records(logger)), 468)
-        self.assertEqual(len({item["trace_id"] for item in records(logger)}), 468)
+        self.assertEqual(len(records(logger)), 470)
+        self.assertEqual(len({item["trace_id"] for item in records(logger)}), 470)
         self.assertEqual(random.getstate(), before)
 
     def test_production_application_emits_one_record_for_each_of_186_roads(self):
@@ -333,7 +333,7 @@ class DecisionTracingIntegrationTest(unittest.TestCase):
             ):
                 pipeline.run_once()
             seen = records(pipeline.logger)
-            self.assertEqual(len(seen), 234)
+            self.assertEqual(len(seen), 235)
             self.assertEqual({item["intersection_id"] for item in seen}, set(Lambdas.intersection_list))
             self.assertTrue(all(item["status"] == "published" for item in seen))
 
