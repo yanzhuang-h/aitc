@@ -323,6 +323,7 @@ def allocate_green_times(
             min_green_time,
             max_green_time,
         )
+        decision["experience_point_count"] = len(points)
         if not points:
             fallback_time, fallback_source = _fallback_green_time(
                 road_table,

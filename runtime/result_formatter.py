@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from app.core.models import DecisionResult
+from lib.road_groups import TONGZHOU_49
 
 _PLAN_OVERRIDES_PATH = Path(__file__).resolve().parents[1] / "lib" / "plan_id_overrides.json"
 _PLAN_OVERRIDES_CACHE = {"signature": None, "data": {}}
@@ -16,6 +17,10 @@ _PLAN_OVERRIDES_CACHE = {"signature": None, "data": {}}
 
 def _plan_id_for(intersection_id: str, default: Any) -> Any:
     """按路口覆盖对外 programID（平台方案号从 1 开始）。"""
+    # 通州适配器已输出真实平台方案号；上线时的固定覆盖不能将强制方案的相位
+    # 错标成另一个方案。零值候选仍沿用原有兜底方案号。
+    if str(intersection_id) in TONGZHOU_49 and type(default) is int and default > 0:
+        return default
     try:
         stat = _PLAN_OVERRIDES_PATH.stat()
     except OSError:

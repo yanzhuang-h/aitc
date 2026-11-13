@@ -301,6 +301,7 @@ def build_fixture():
         "schema_version": 1,
         "provenance": {
             "baseline_commit": "f59bb50",
+            "behavior_update": "通州49组使用有效默认方案并适配相位顺序；已对照 d73d152 验证其他路口保持不变；49组最小周期补时及浮动后再次限制有效上下界",
             "generated_with": "direct original call_dqn_select and coordinate; no BaselineController calls",
             "local_clock": "2026-09-30 08:30:00 and 08:32:00 Asia/Shanghai",
             "workday": True, "random_seed": SEED,

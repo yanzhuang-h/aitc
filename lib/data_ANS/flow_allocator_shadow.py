@@ -5,6 +5,8 @@ schedule, shadow the new allocator, or select the new result for explicitly
 configured pilot roads. Every error falls back to the legacy schedule.
 """
 
+from lib.road_groups import road_group
+
 from datetime import datetime
 import json
 import logging
@@ -203,6 +205,12 @@ def _decision_summary(result):
             "status": decision.get("status", "unknown"),
             "lane_indexes": list(decision.get("lane_indexes", [])),
         }
+        decisions[direction]["experience_point_count"] = int(
+            decision.get("experience_point_count", 0)
+        )
+        decisions[direction]["threshold_at_selected_time"] = float(
+            decision.get("threshold_at_selected_time", 0)
+        )
         if "fallback_source" in decision:
             decisions[direction]["fallback_source"] = decision[
                 "fallback_source"
@@ -267,6 +275,7 @@ def record_shadow_comparison(
         "schema_version": 1,
         "observed_at": observed_at.isoformat(timespec="seconds"),
         "road_id": road_id,
+        "road_group": road_group(road_id),
         "old_schedule": old_vector,
         "runtime_mode": str(runtime_mode),
     }

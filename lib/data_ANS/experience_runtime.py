@@ -312,7 +312,7 @@ def _existing_terminal_manifest(path):
     return None
 
 
-def run_experience_pool_day(source_date, *, release_settings=None):
+def _run_experience_pool_day_unlocked(source_date, *, release_settings=None):
     """Process one T-2 source date exactly once and conditionally release."""
     if isinstance(source_date, str):
         source_date = dt.date.fromisoformat(source_date)
@@ -464,7 +464,7 @@ def run_experience_pool_day(source_date, *, release_settings=None):
         pool_report.get("blend", {}).get("lane_values_changed", 0)
     )
     release_result = None
-    if changed_lanes > 0:
+    if changed_lanes > 0 or pool_report.get("publication_recovery_required"):
         release_settings = release_settings or ExperienceReleaseSettings()
         release_result = activate_validated_experience_table(
             table=updated_table,
@@ -486,6 +486,10 @@ def run_experience_pool_day(source_date, *, release_settings=None):
                 "pool_report": str(paths["pool_report"]),
             },
         )
+
+    if release_result and release_result.get("activated"):
+        from lib.data_ANS.experience_pool import acknowledge_pool_publication
+        acknowledge_pool_publication(str(paths["full_pool"]), updated_table)
 
     report = {
         **base_report,
@@ -521,6 +525,17 @@ def run_experience_pool_day(source_date, *, release_settings=None):
     }
     _write_json_atomic(str(paths["run_manifest"]), report)
     return report
+
+
+def run_experience_pool_day(source_date, *, release_settings=None):
+    """共享池锁覆盖读取运行表、更新样本和最终发布，防止调度与手工补训覆盖彼此。"""
+    from lib.data_ANS.experience_pool import pool_update_lock
+    if isinstance(source_date, str):
+        source_date = dt.date.fromisoformat(source_date)
+    if not isinstance(source_date, dt.date):
+        raise TypeError("source_date must be a date or ISO date string")
+    with pool_update_lock(_run_paths(source_date)["full_pool"]):
+        return _run_experience_pool_day_unlocked(source_date, release_settings=release_settings)
 
 
 class ExperiencePoolScheduler:
