@@ -108,6 +108,7 @@ class FlowAllocatorShadowTests(unittest.TestCase):
         self.assertEqual(saved["flow_input"]["selected_timestamp_records"], 1)
         self.assertEqual(saved["flow_input"]["base_direction_vehicle_counts"], {"U": 9, "D": 0, "L": 0, "R": 0})
         self.assertEqual(saved["extend_timebase"]["timestamp_basis"], "mapping_key")
+        self.assertEqual(saved["extend_timebase"]["comparison_time_semantics"], "unverified_payload_timestamp")
         self.assertEqual(saved["extend_timebase"]["payload_time_missing_records"], 600)
         self.assertEqual(flow, original_flow)
         self.assertEqual(self.extend, original_extend)

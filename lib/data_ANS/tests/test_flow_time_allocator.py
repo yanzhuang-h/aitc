@@ -75,11 +75,27 @@ class FlowTimeAllocatorTests(unittest.TestCase):
         self.assertEqual(report["observed_seconds"], 2)
         audit = report["timebase"]
         self.assertEqual(audit["timestamp_basis"], "mapping_key")
+        self.assertEqual(audit["comparison_time_field"], "payload.time")
+        self.assertEqual(audit["comparison_time_semantics"], "unverified_payload_timestamp")
         self.assertEqual(audit["payload_time_valid_records"], 3)
         self.assertEqual(audit["payload_time_observed_seconds"], 3)
         self.assertEqual(audit["payload_time_span_seconds"], 3)
         self.assertEqual(audit["key_minus_payload_time_min_seconds"], 99)
         self.assertEqual(audit["key_minus_payload_time_max_seconds"], 100)
+
+    def test_time_audit_includes_invalid_stage_records_for_matching_road(self):
+        start = 1794326400
+        stages, report = normalize_runtime_extend("1300069", {
+            start: [{"CrossId": "1300069", "curStageNo": "bad", "time": (start - 5) * 1000},
+                    {"CrossId": "another", "curStageNo": "1", "time": (start - 100) * 1000},
+                    "invalid payload"],
+        })
+        self.assertEqual(stages, {})
+        self.assertEqual(report["invalid_stage_records"], 1)
+        self.assertEqual(report["timebase"]["payload_time_valid_records"], 1)
+        self.assertEqual(report["timebase"]["key_minus_payload_time_min_seconds"], 5)
+        self.assertEqual(report["timebase"]["key_minus_payload_time_max_seconds"], 5)
+        self.assertEqual(report["timebase"]["payload_scope"], "matching_road_with_valid_mapping_key")
 
     def test_invalid_or_missing_payload_clock_cannot_change_selection(self):
         missing = _extend("1300069", [1] * 600)
