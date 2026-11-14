@@ -8,7 +8,7 @@ from lib.road_state import get_forced_state
 
 
 
-from . import lvbotest
+from . import green_wave_coordination
 from .green_wave_functions import load_enabled_green_wave_corridors
 from lib.control_functions.global_processors.internet_state import update_internet_road_state
 from lib.control_functions.global_processors.internet_single_control import (
@@ -43,12 +43,12 @@ def _apply_forced_state(Cross_id, state, road_info):
 
 def _reset_green_wave_state():
     """清理一轮绿波协调状态，避免非高峰继续沿用旧方案。"""
-    lvbotest.reset_green_wave_state()
+    green_wave_coordination.reset_green_wave_state()
 
 
 def record_green_wave_final_plan(final_action_map):
     """记录 phase_check 后实际下发的绿波方案，供下一轮继续修正。"""
-    lvbotest.record_green_wave_final_plan(final_action_map)
+    green_wave_coordination.record_green_wave_final_plan(final_action_map)
 
 def _get_forced_aibi_roads(road_info, current_time=None):
     forced_roads = set()
@@ -1377,7 +1377,7 @@ def coordinate(result_action_map, coordinate_map_set, online_data_map, OverFlow,
         for item in corridor.get("intersections", [])
     }
 
-    configured_action_map = lvbotest.round_next_plan({
+    configured_action_map = green_wave_coordination.round_next_plan({
         cross_id: result_action_map[cross_id]
         for cross_id in green_wave_cross_ids
         if cross_id in result_action_map
@@ -1434,12 +1434,12 @@ def coordinate(result_action_map, coordinate_map_set, online_data_map, OverFlow,
         corridor_rids.update(corridor_road_junction)
 
         # 只提取绿波走廊相关的 online 数据。
-    online_data = lvbotest.flatten_online_data_map(
+    online_data = green_wave_coordination.flatten_online_data_map(
         online_data_map,
         corridor_rids,
     )
 
-    online_timestamp = lvbotest.get_latest_online_timestamp(online_data_map)
+    online_timestamp = green_wave_coordination.get_latest_online_timestamp(online_data_map)
     runtime_timestamp = int(time.time())
 
     GREEN_WAVE_SIMULATION_MODE = False
@@ -1455,10 +1455,10 @@ def coordinate(result_action_map, coordinate_map_set, online_data_map, OverFlow,
     else:
         print(time_str)
 
-        time_ref, window_start = lvbotest.get_latest_time_and_window(
+        time_ref, window_start = green_wave_coordination.get_latest_time_and_window(
             online_data
         )
-        rid_best = lvbotest.get_rid_best_levels(
+        rid_best = green_wave_coordination.get_rid_best_levels(
             online_data,
             window_start,
             time_ref,
@@ -1476,17 +1476,17 @@ def coordinate(result_action_map, coordinate_map_set, online_data_map, OverFlow,
                 {},
             )
 
-            chain = lvbotest.build_ordered_chain_from_topology(topology)
-            junction_dir_best = lvbotest.aggregate_to_junction_dirs(
+            chain = green_wave_coordination.build_ordered_chain_from_topology(topology)
+            junction_dir_best = green_wave_coordination.aggregate_to_junction_dirs(
                 rid_best,
                 corridor_road_junction,
             )
-            final_result = lvbotest.build_final_result(
+            final_result = green_wave_coordination.build_final_result(
                 junction_dir_best,
                 topology,
                 time_ref,
             )
-            final_result = lvbotest.propagate_chain_congestion(
+            final_result = green_wave_coordination.propagate_chain_congestion(
                 final_result,
                 chain,
                 threshold=3.0,
@@ -1518,12 +1518,12 @@ def coordinate(result_action_map, coordinate_map_set, online_data_map, OverFlow,
             )
             continue
             # 当前走廊本轮的原始配时。
-        cur_action_map = lvbotest.round_next_plan({
+        cur_action_map = green_wave_coordination.round_next_plan({
             cross_id: result_action_map[cross_id]
             for cross_id in order
         })
         print(f"开始执行绿波走廊 {corridor_id}: {order}")
-        result_action_map = lvbotest.apply_green_wave_coordination(
+        result_action_map = green_wave_coordination.apply_green_wave_coordination(
             time_str=time_str,
             cur_action_map=cur_action_map,
             result_action_map=result_action_map,
