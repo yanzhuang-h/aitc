@@ -247,7 +247,7 @@ def run_worker(options, mode):
             stack.enter_context(patch('time.localtime', side_effect=lambda stamp=None: real_localtime(now[0] if stamp is None else stamp)))
             for target in ('lib.AITC_tool.date', 'lib.DQN_Select.date', 'lib.floating_value.date'):
                 stack.enter_context(patch(target, ReplayDate))
-            for target in ('lib.Global_intersection_coordinate.datetime', 'lib.lvbotest.datetime',
+            for target in ('lib.Global_intersection_coordinate.datetime', 'lib.green_wave_coordination.datetime',
                            'lib.green_wave_functions.datetime', 'lib.data_ANS.flow_allocator_shadow.datetime',
                            'Flow_predict.datetime', 'Queue_predict.datetime',
                            'datahub.schemas.datetime', 'datahub.output_store.datetime',

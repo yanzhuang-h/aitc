@@ -1,7 +1,7 @@
 """绿波数据查询服务。
 
 参考配置接口的分层方式（lib 函数 -> 服务封装 -> HTTP 路由），
-只读封装 lib 层的绿波模块（``lib.lvbotest`` / ``lib.green_wave_functions``），
+只读封装 lib 层的绿波模块（``lib.green_wave_coordination`` / ``lib.green_wave_functions``），
 为 HTTP 协议层和 Agent 提供统一绿波数据查询入口，不修改 lib 实现。
 """
 
@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from lib import green_wave_functions, lvbotest
+from lib import green_wave_functions, green_wave_coordination
 
 from .green_wave_api_adapter import (
     adapt_enabled_result,
@@ -33,16 +33,16 @@ class GreenWaveDataService:
         try:
             return {
                 "status": "success",
-                "running": bool(lvbotest.start),
-                "cycle_green": bool(lvbotest.cycle_green),
-                "offset_green": bool(lvbotest.offset_green),
-                "cycle_done": bool(lvbotest.cycle_done),
-                "offset_done": bool(lvbotest.offset_done),
-                "round": int(lvbotest.cnt),
-                "direction": str(lvbotest.direction),
-                "corridor_id": str(getattr(lvbotest, "_ACTIVE_CORRIDOR_ID", "") or ""),
-                "last_send_time": int(lvbotest.last_green_wave_send_time or 0),
-                "has_fix_plan": lvbotest.fix_plan is not None,
+                "running": bool(green_wave_coordination.start),
+                "cycle_green": bool(green_wave_coordination.cycle_green),
+                "offset_green": bool(green_wave_coordination.offset_green),
+                "cycle_done": bool(green_wave_coordination.cycle_done),
+                "offset_done": bool(green_wave_coordination.offset_done),
+                "round": int(green_wave_coordination.cnt),
+                "direction": str(green_wave_coordination.direction),
+                "corridor_id": str(getattr(green_wave_coordination, "_ACTIVE_CORRIDOR_ID", "") or ""),
+                "last_send_time": int(green_wave_coordination.last_green_wave_send_time or 0),
+                "has_fix_plan": green_wave_coordination.fix_plan is not None,
             }
         except Exception as error:
             return self._error(f"读取绿波运行状态失败: {error}")
@@ -62,8 +62,8 @@ class GreenWaveDataService:
         try:
             return {
                 "status": "success",
-                "corridor_id": str(getattr(lvbotest, "_ACTIVE_CORRIDOR_ID", "") or ""),
-                "plan": dict(lvbotest.green_plan_map or {}),
+                "corridor_id": str(getattr(green_wave_coordination, "_ACTIVE_CORRIDOR_ID", "") or ""),
+                "plan": dict(green_wave_coordination.green_plan_map or {}),
             }
         except Exception as error:
             return self._error(f"读取绿波方案失败: {error}")

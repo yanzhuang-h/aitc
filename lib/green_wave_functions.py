@@ -14,7 +14,7 @@ import threading
 from datetime import datetime
 from numbers import Real
 
-from . import lvbotest
+from . import green_wave_coordination
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -465,7 +465,7 @@ def save_green_wave_corridor_config(payload):
             if not dry_run:
                 store["corridors"] = corridors
                 _write_config_store(store)
-                lvbotest.reset_green_wave_state(normalized["corridor_id"])
+                green_wave_coordination.reset_green_wave_state(normalized["corridor_id"])
 
         return {
             "status": "validated" if dry_run else "success",
@@ -499,7 +499,7 @@ def set_green_wave_corridor_enabled(payload):
             _validate_enabled_conflicts(corridors)
             store["corridors"] = corridors
             _write_config_store(store)
-            lvbotest.reset_green_wave_state(corridor_id)
+            green_wave_coordination.reset_green_wave_state(corridor_id)
 
         return {
             "status": "success",
@@ -614,7 +614,7 @@ def reset_green_wave_session(payload):
             raise ValueError("payload 必须是 dict")
         corridor = _get_corridor_or_raise(payload.get("corridor_id"))
         with _GREEN_WAVE_LOCK:
-            lvbotest.reset_green_wave_state(corridor["corridor_id"])
+            green_wave_coordination.reset_green_wave_state(corridor["corridor_id"])
         return {
             "status": "success",
             "saved": False,
@@ -645,8 +645,8 @@ def simulate_green_wave(payload):
         working_result = copy.deepcopy(plans_before)
         with _GREEN_WAVE_LOCK:
             if reset_requested:
-                lvbotest.reset_green_wave_state(corridor["corridor_id"])
-            plans_after = lvbotest.apply_green_wave_coordination(
+                green_wave_coordination.reset_green_wave_state(corridor["corridor_id"])
+            plans_after = green_wave_coordination.apply_green_wave_coordination(
                 time_str=time_str,
                 cur_action_map=copy.deepcopy(plans_before),
                 result_action_map=working_result,
