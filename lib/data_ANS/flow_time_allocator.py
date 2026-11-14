@@ -429,6 +429,12 @@ def normalize_runtime_extend(
     road_id = str(road_id)
     stage_candidates = {}
     stats = Counter()
+    # 仅补充设备时间与映射键的对照证据，阶段归一化仍沿用原映射键。
+    event_seconds = set()
+    timebase = {"timestamp_basis": "mapping_key", "payload_time_valid_records": 0,
+                "payload_time_missing_records": 0, "payload_time_invalid_records": 0,
+                "key_minus_payload_time_min_seconds": None,
+                "key_minus_payload_time_max_seconds": None}
     for raw_timestamp, raw_payload in extend_map_single_intersection.items():
         timestamp = _timestamp_seconds(raw_timestamp)
         if timestamp is None:
@@ -449,10 +455,31 @@ def normalize_runtime_extend(
                 continue
             stage_candidates.setdefault(timestamp, set()).add(stage)
             stats["accepted_payload_records"] += 1
+            event_time = payload.get("time")
+            if event_time is None:
+                timebase["payload_time_missing_records"] += 1
+                continue
+            try:
+                event_second = None if isinstance(event_time, bool) else _timestamp_seconds(event_time)
+            except OverflowError:
+                event_second = None
+            if event_second is None:
+                timebase["payload_time_invalid_records"] += 1
+                continue
+            timebase["payload_time_valid_records"] += 1
+            event_seconds.add(event_second)
+            difference = timestamp - event_second
+            for key, combine in (("key_minus_payload_time_min_seconds", min),
+                                 ("key_minus_payload_time_max_seconds", max)):
+                previous = timebase[key]
+                timebase[key] = difference if previous is None else combine(previous, difference)
 
+    timebase["payload_time_observed_seconds"] = len(event_seconds)
+    timebase["payload_time_span_seconds"] = max(event_seconds) - min(event_seconds) + 1 if event_seconds else 0
     if not stage_candidates:
         return {}, {
             **dict(stats),
+            "timebase": timebase,
             "start": None,
             "end": None,
             "span_seconds": 0,
@@ -510,6 +537,7 @@ def normalize_runtime_extend(
     span_seconds = end - start + 1
     return cleaned, {
         **dict(stats),
+        "timebase": timebase,
         "start": start,
         "end": end,
         "span_seconds": span_seconds,
