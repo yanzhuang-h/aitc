@@ -329,6 +329,15 @@ def record_shadow_comparison(
             "extend_coverage_ratio": float(
                 runtime.get("extend", {}).get("coverage_ratio", 0.0)
             ),
+            # 原始方向计数与受控需求分开记录，零需求不能直接解释为没有来车。
+            "flow_input": {
+                "selected_timestamp_records": int(runtime.get("flow_selection", {}).get("selected_records", 0)),
+                "base_direction_vehicle_counts": {
+                    direction: sum(runtime.get("observed_flow", {}).get(direction, []))
+                    for direction in ("U", "D", "L", "R")
+                },
+            },
+            "extend_timebase": runtime.get("extend", {}).get("timebase", {}),
             "cycle_status": runtime.get("cycle", {}).get("status"),
             "decisions": decisions,
             "positive_flow_zero_directions": [

@@ -90,6 +90,29 @@ class FlowAllocatorShadowTests(unittest.TestCase):
             self.assertEqual(len(rows), 1)
             self.assertEqual(json.loads(rows[0])["status"], "ok")
 
+    def test_log_keeps_raw_counts_distinct_from_controlled_demand(self):
+        # 右转不受控：原始向量有车，受控需求仍应为零，诊断不能改配时。
+        import copy
+        config = copy.deepcopy(self.cross_info)
+        config["1300069"]["LaneNo"]["U"]["3"] = "1C"
+        flow = {"1000": {"pass": {"U": [0, 0, 0, 9, 0, 0, 0]}}}
+        original_flow, original_extend = copy.deepcopy(flow), copy.deepcopy(self.extend)
+        with tempfile.TemporaryDirectory() as directory:
+            record = record_shadow_comparison(
+                "1300069", [40] * 10, flow, self.extend,
+                experience_table=self.experience_table, cross_info=config,
+                log_directory=directory, observed_at=self.observed_at,
+            )
+            saved = json.loads(Path(record["log_path"]).read_text())
+        self.assertEqual(record["decisions"]["U"]["requested_flow"], 0)
+        self.assertEqual(saved["flow_input"]["selected_timestamp_records"], 1)
+        self.assertEqual(saved["flow_input"]["base_direction_vehicle_counts"], {"U": 9, "D": 0, "L": 0, "R": 0})
+        self.assertEqual(saved["extend_timebase"]["timestamp_basis"], "mapping_key")
+        self.assertEqual(saved["extend_timebase"]["comparison_time_semantics"], "unverified_payload_timestamp")
+        self.assertEqual(saved["extend_timebase"]["payload_time_missing_records"], 600)
+        self.assertEqual(flow, original_flow)
+        self.assertEqual(self.extend, original_extend)
+
     def test_allocator_error_is_logged_and_not_raised(self):
         with tempfile.TemporaryDirectory() as directory:
             with self.assertLogs("FlowAllocatorShadow", level="ERROR"):

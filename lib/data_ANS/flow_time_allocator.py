@@ -429,6 +429,16 @@ def normalize_runtime_extend(
     road_id = str(road_id)
     stage_candidates = {}
     stats = Counter()
+    # time尚未被EXTEND契约定义为事件时间；仅记录其数值，不据此改阶段时钟。
+    event_seconds = set()
+    timebase = {"timestamp_basis": "mapping_key",
+                "comparison_time_field": "payload.time",
+                "comparison_time_semantics": "unverified_payload_timestamp",
+                "payload_scope": "matching_road_with_valid_mapping_key",
+                "payload_time_valid_records": 0,
+                "payload_time_missing_records": 0, "payload_time_invalid_records": 0,
+                "key_minus_payload_time_min_seconds": None,
+                "key_minus_payload_time_max_seconds": None}
     for raw_timestamp, raw_payload in extend_map_single_intersection.items():
         timestamp = _timestamp_seconds(raw_timestamp)
         if timestamp is None:
@@ -443,6 +453,25 @@ def normalize_runtime_extend(
             if payload_road_id is not None and str(payload_road_id) != road_id:
                 stats["cross_id_mismatch_records"] += 1
                 continue
+            # 时间诊断覆盖本路口字典记录，不能因阶段字段损坏而隐去时间证据。
+            event_time = payload.get("time")
+            if event_time is None:
+                timebase["payload_time_missing_records"] += 1
+            else:
+                try:
+                    event_second = None if isinstance(event_time, bool) else _timestamp_seconds(event_time)
+                except OverflowError:
+                    event_second = None
+                if event_second is None:
+                    timebase["payload_time_invalid_records"] += 1
+                else:
+                    timebase["payload_time_valid_records"] += 1
+                    event_seconds.add(event_second)
+                    difference = timestamp - event_second
+                    for key, combine in (("key_minus_payload_time_min_seconds", min),
+                                         ("key_minus_payload_time_max_seconds", max)):
+                        previous = timebase[key]
+                        timebase[key] = difference if previous is None else combine(previous, difference)
             stage = _normalized_stage(payload.get("curStageNo"))
             if stage is None:
                 stats["invalid_stage_records"] += 1
@@ -450,9 +479,12 @@ def normalize_runtime_extend(
             stage_candidates.setdefault(timestamp, set()).add(stage)
             stats["accepted_payload_records"] += 1
 
+    timebase["payload_time_observed_seconds"] = len(event_seconds)
+    timebase["payload_time_span_seconds"] = max(event_seconds) - min(event_seconds) + 1 if event_seconds else 0
     if not stage_candidates:
         return {}, {
             **dict(stats),
+            "timebase": timebase,
             "start": None,
             "end": None,
             "span_seconds": 0,
@@ -510,6 +542,7 @@ def normalize_runtime_extend(
     span_seconds = end - start + 1
     return cleaned, {
         **dict(stats),
+        "timebase": timebase,
         "start": start,
         "end": end,
         "span_seconds": span_seconds,

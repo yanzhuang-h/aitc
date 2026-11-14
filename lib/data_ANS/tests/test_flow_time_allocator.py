@@ -5,6 +5,7 @@ from lib.data_ANS.flow_time_allocator import (
     allocate_from_runtime_data,
     allocate_green_times,
     chuli_shuju_new,
+    normalize_runtime_extend,
 )
 
 
@@ -60,6 +61,60 @@ class FlowTimeAllocatorTests(unittest.TestCase):
                 },
             }
         }
+
+    def test_timebase_audit_does_not_change_stage_clock_or_conflicts(self):
+        start = 1794326400
+        received = {
+            start + 100.1: [{"CrossId": "1300069", "curStageNo": "1", "time": start * 1000},
+                           {"CrossId": "1300069", "curStageNo": "2", "time": (start + 1) * 1000}],
+            start + 101.1: [{"CrossId": "1300069", "curStageNo": "2", "time": (start + 2) * 1000}],
+        }
+        stages, report = normalize_runtime_extend("1300069", received)
+        self.assertEqual(stages, {start + 100: "-1", start + 101: "2"})
+        self.assertEqual(report["coverage_ratio"], 0.5)
+        self.assertEqual(report["observed_seconds"], 2)
+        audit = report["timebase"]
+        self.assertEqual(audit["timestamp_basis"], "mapping_key")
+        self.assertEqual(audit["comparison_time_field"], "payload.time")
+        self.assertEqual(audit["comparison_time_semantics"], "unverified_payload_timestamp")
+        self.assertEqual(audit["payload_time_valid_records"], 3)
+        self.assertEqual(audit["payload_time_observed_seconds"], 3)
+        self.assertEqual(audit["payload_time_span_seconds"], 3)
+        self.assertEqual(audit["key_minus_payload_time_min_seconds"], 99)
+        self.assertEqual(audit["key_minus_payload_time_max_seconds"], 100)
+
+    def test_time_audit_includes_invalid_stage_records_for_matching_road(self):
+        start = 1794326400
+        stages, report = normalize_runtime_extend("1300069", {
+            start: [{"CrossId": "1300069", "curStageNo": "bad", "time": (start - 5) * 1000},
+                    {"CrossId": "another", "curStageNo": "1", "time": (start - 100) * 1000},
+                    "invalid payload"],
+        })
+        self.assertEqual(stages, {})
+        self.assertEqual(report["invalid_stage_records"], 1)
+        self.assertEqual(report["timebase"]["payload_time_valid_records"], 1)
+        self.assertEqual(report["timebase"]["key_minus_payload_time_min_seconds"], 5)
+        self.assertEqual(report["timebase"]["key_minus_payload_time_max_seconds"], 5)
+        self.assertEqual(report["timebase"]["payload_scope"], "matching_road_with_valid_mapping_key")
+
+    def test_invalid_or_missing_payload_clock_cannot_change_selection(self):
+        missing = _extend("1300069", [1] * 600)
+        malformed = _extend("1300069", [1] * 600)
+        for index, records in enumerate(malformed.values()):
+            records[0]["time"] = [None, "invalid", 10**400][index % 3]
+        for records in missing.values():
+            records[0].pop("time")
+        kwargs = {"experience_table": self.table,
+                  "cross_info": {"1300069": {"phase": {"1": "U"}, "LaneNo": {"U": {"2": "1B"}}}}}
+        flow = {"1000": {"pass": {"U": _runtime_vector(**{"2": 15})}}}
+        baseline = allocate_from_runtime_data("1300069", flow, missing, **kwargs)
+        result = allocate_from_runtime_data("1300069", flow, malformed, **kwargs)
+        for field in ["time_vector", "decisions", "flow_10min"]:
+            self.assertEqual(result[field], baseline[field])
+        self.assertEqual(result["runtime_input"]["quality_passed"], baseline["runtime_input"]["quality_passed"])
+        audit = result["runtime_input"]["extend"]["timebase"]
+        self.assertEqual(audit["payload_time_missing_records"], 200)
+        self.assertEqual(audit["payload_time_invalid_records"], 400)
 
     def test_aggregates_timestamp_pass_map(self):
         values, stats = aggregate_10min_flow({
