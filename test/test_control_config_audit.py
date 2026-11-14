@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from tools.control_config_audit import audit, bindings, main
 
@@ -32,9 +33,9 @@ flow_map_single_intersection_lambda = {'pass': {'U': [0]*7}}
 Cross_Video = ['190', '490']
 def DQN_select_190():
     old = chuli_shuju()
-    return select_pilot_schedule(old)
+    return select_pilot_schedule("190", old)
 def DQN_select_490():
-    return select_pilot_schedule()
+    return select_pilot_schedule("490")
 def DQN_select(cross_id):
     if cross_id == '190':
         return DQN_select_190()
@@ -83,9 +84,10 @@ def DQN_select(cross_id):
         self.assertTrue(rows['190']['online_candidate_eligible'])
         self.assertFalse(rows['490']['legacy_experience_lookup'])
         self.assertFalse(rows['191']['registered'])
-        self.assertEqual(self.report(group='49')['summary']['roads'], 1)
+        self.assertEqual([x['road_id'] for x in self.report(group='49')['inventory']], ['490'])
 
     def test_eligibility_requires_wiring_target_mode_and_enabled(self):
+        self.assertTrue(self.report(roads={'490'})['inventory'][0]['online_candidate_eligible'])
         for env in [{'AITC_FLOW_ALLOCATOR_PILOT_MODE': 'shadow'},
                     {'AITC_FLOW_ALLOCATOR_PILOT_MODE': 'typo'},
                     {'AITC_FLOW_ALLOCATOR_SHADOW_ENABLED': 'false'},
@@ -146,7 +148,10 @@ def DQN_select(cross_id):
         self.crosses['490']['LaneNo'] = []
         self.crosses['490']['jtll_ddbh'] = None
         self.save_configs()
-        self.assertIn('invalid_cross_field', self.codes(roads={'490'}))
+        findings = [x for x in self.report(roads={'490'})['findings'] if x['code'] == 'invalid_cross_field']
+        self.assertEqual(len(findings), 2)
+        self.assertTrue(any('LaneNo' in x['message'] for x in findings))
+        self.assertTrue(any('jtll_ddbh' in x['message'] for x in findings))
 
     def test_overlapping_groups_and_dynamic_definitions_fail_explicitly(self):
         self.write('lib/road_groups.py', "TONGZHOU_19 = {'490'}\nTONGZHOU_49 = {'490'}")
@@ -155,6 +160,83 @@ def DQN_select(cross_id):
         self.write('dynamic.py', "target = load_from_network()")
         with self.assertRaisesRegex(ValueError, '不能静态解析'):
             bindings(self.root/'dynamic.py', {'target'})
+
+    def test_required_fields_and_cycle_alias(self):
+        for field in ['LaneNo', 'jtll_ddbh', 'phase']:
+            saved = self.crosses['490'].pop(field)
+            self.save_configs()
+            findings = [x for x in self.report(roads={'490'})['findings'] if x['code'] == 'missing_cross_field']
+            self.assertTrue(any(field in x['message'] for x in findings))
+            self.crosses['490'][field] = saved
+        self.crosses['490']['zhouqi'] = [[1, 99]]
+        self.save_configs()
+        self.assertIn('cycle_stage_missing', self.codes(roads={'490'}))
+
+    def test_integer_bounds_and_per_program_coverage(self):
+        state = self.states['490']['1']
+        state['min_pass_time'][0] = 5.1
+        state['max_pass_time'][0] = 5.9
+        self.save_configs()
+        self.assertIn('conflicting_phase_bounds', self.codes(roads={'490'}))
+        self.states['490']['2'] = dict(state, phase=['UD', 0, 0])
+        self.save_configs()
+        findings = [x for x in self.report(roads={'490'})['findings'] if x['code'] == 'program_uncovered_controlled_movements']
+        self.assertEqual([x['state'] for x in findings], ['2'])
+        self.assertNotIn('uncovered_controlled_movements', self.codes(roads={'490'}))
+
+    def test_wrong_or_dynamic_pilot_id_is_not_eligible(self):
+        path = self.root/'lib/DQN_Select.py'
+        original = path.read_text()
+        for argument, code in [('"190"', 'pilot_road_mismatch'), ('dynamic_road', 'unresolved_pilot_road')]:
+            path.write_text(original.replace('select_pilot_schedule("490")', f'select_pilot_schedule({argument})'))
+            report = self.report(roads={'490'})
+            self.assertFalse(report['inventory'][0]['online_candidate_eligible'])
+            self.assertIn(code, {x['code'] for x in report['findings']})
+
+    def test_dotenv_matches_runtime_comments_quotes_and_first_value(self):
+        self.write('.env', "export AITC_FLOW_ALLOCATOR_PILOT_MODE=legacy\nAITC_FLOW_ALLOCATOR_PILOT_MODE='new' # keep\nAITC_FLOW_ALLOCATOR_PILOT_MODE=shadow\nAITC_FLOW_ALLOCATOR_PILOT_ROADS=490 # comment")
+        report = self.report(roads={'490'})
+        self.assertTrue(report['inventory'][0]['online_candidate_eligible'])
+        self.assertEqual(report['pilot_policy']['target_count'], 1)
+
+    def test_fingerprint_uses_the_exact_parsed_snapshot(self):
+        original_read = Path.read_bytes
+        target = self.root/'Lambdas.py'
+        original = original_read(target)
+        counts = {}
+        def changing_read(path):
+            data = original_read(path)
+            counts[path] = counts.get(path, 0) + 1
+            if path == target:
+                path.write_text(data.decode().replace("'100', '190', '490'", "'190', '490'"))
+            return data
+        with patch.object(Path, 'read_bytes', changing_read):
+            report = self.report()
+        self.assertEqual(counts[target], 1)
+        self.assertTrue(next(x for x in report['inventory'] if x['road_id'] == '100')['registered'])
+        self.assertEqual(report['sources'][0]['sha256'], hashlib.sha256(original).hexdigest())
+
+    def test_forced_state_normalization_and_disabled_rule(self):
+        self.write('lib/road_state.json', json.dumps({'490': [{'state': [1]}, {'state': 1.0}, {'state': '01'}, {'state': 99, 'enabled': 'false'}]}))
+        self.assertNotIn('forced_program_missing', self.codes(roads={'490'}))
+
+    def test_failed_report_write_removes_only_the_new_destination(self):
+        output = self.root/'partial.json'
+        original_open = Path.open
+        class FailingFile:
+            def __init__(self, handle): self.handle = handle
+            def __enter__(self): return self
+            def __exit__(self, *args): self.handle.close()
+            def write(self, text):
+                self.handle.write(text[:10])
+                raise OSError('模拟磁盘写入失败')
+        def failing_open(path, *args, **kwargs):
+            handle = original_open(path, *args, **kwargs)
+            return FailingFile(handle) if path == output and args == ('x',) else handle
+        with patch.object(Path, 'open', failing_open), contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as stopped:
+            main(['--root', str(self.root), '--output', str(output)])
+        self.assertEqual(stopped.exception.code, 2)
+        self.assertFalse(output.exists())
 
     def test_output_refuses_overwrite_and_cli_exit_status(self):
         config = self.root/'lib/road_info.json'
