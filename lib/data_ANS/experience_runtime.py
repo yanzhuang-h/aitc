@@ -363,7 +363,10 @@ def _run_experience_pool_day_unlocked(source_date, *, release_settings=None):
         cross_info,
         allow_legacy_records=True,
     )
-    if not active_validation["valid"]:
+    # 首次启动允许空字典进入原始数据积累；非空损坏表仍拒绝处理。
+    # 激活候选表时仍执行完整校验，不向配时链路发布空表。
+    bootstrap_empty_table = isinstance(active_table, dict) and not active_table
+    if not bootstrap_empty_table and not active_validation["valid"]:
         report = {
             **base_report,
             "status": "skipped_invalid_active_table",

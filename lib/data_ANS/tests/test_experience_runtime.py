@@ -89,7 +89,7 @@ class ExperienceRuntimeTests(unittest.TestCase):
             self.assertFalse(first["pool_committed"])
             self.assertFalse(first["table_updated"])
 
-    def test_daily_job_runs_raw_data_to_versioned_table_update(self):
+    def _run_raw_feedback_day(self, initial_table, minimum_samples=1):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             logs = root / "logs_data"
@@ -115,16 +115,11 @@ class ExperienceRuntimeTests(unittest.TestCase):
                     "Cycle": [[1, 2]],
                 }
             }
-            initial_table = {
-                "1": {
-                    "U": {"10": [0, 10] + [0] * 8},
-                    "D": {"10": [0, 10] + [0] * 8},
-                }
-            }
-            runtime_path.write_text(
-                json.dumps(initial_table),
-                encoding="utf-8",
-            )
+            if initial_table is not None:
+                runtime_path.write_text(
+                    json.dumps(initial_table),
+                    encoding="utf-8",
+                )
             cross_info_path.write_text(
                 json.dumps(cross_info),
                 encoding="utf-8",
@@ -159,6 +154,7 @@ class ExperienceRuntimeTests(unittest.TestCase):
             )
             environment = {
                 "AITC_EXPERIENCE_POOL_STATE_DIR": str(state_dir),
+                "AITC_EXPERIENCE_POOL_ARTIFACT_DIR": str(root / "artifacts"),
                 "AITC_EXPERIENCE_RUNTIME_TABLE": str(runtime_path),
                 "AITC_EXPERIENCE_CROSS_INFO": str(cross_info_path),
                 "AITC_EXPERIENCE_VERSIONS_DIR": str(versions_dir),
@@ -167,7 +163,7 @@ class ExperienceRuntimeTests(unittest.TestCase):
                 ),
                 "AITC_EXPERIENCE_POOL_ROADS": "1",
                 "AITC_EXPERIENCE_TABLE_UPDATE_ROADS": "1",
-                "AITC_EXPERIENCE_POOL_MIN_SAMPLES": "1",
+                "AITC_EXPERIENCE_POOL_MIN_SAMPLES": str(minimum_samples),
             }
             with mock.patch.object(RUNTIME, "LOGS_DIR", logs), mock.patch.dict(
                 os.environ,
@@ -175,18 +171,64 @@ class ExperienceRuntimeTests(unittest.TestCase):
             ):
                 report = run_experience_pool_day(source_date)
 
-            self.assertEqual(report["status"], "completed_table_updated")
-            self.assertTrue(report["pool_committed"])
-            self.assertTrue(report["table_updated"])
-            self.assertGreater(report["candidate_count"], 0)
-            self.assertEqual(
-                report["selection_method"],
-                "densest_cluster_median",
+            updated = (
+                json.loads(runtime_path.read_text(encoding="utf-8"))
+                if runtime_path.exists() else None
             )
-            self.assertEqual(report["cluster_fraction"], 0.5)
-            updated = json.loads(runtime_path.read_text(encoding="utf-8"))
-            self.assertNotEqual(updated, initial_table)
-            self.assertTrue((versions_dir / "active_manifest.json").exists())
+            return report, updated, (versions_dir / "active_manifest.json").exists()
+
+    def test_daily_job_runs_raw_data_to_versioned_table_update(self):
+        initial = {
+            "1": {
+                "U": {"10": [0, 10] + [0] * 8},
+                "D": {"10": [0, 10] + [0] * 8},
+            }
+        }
+        report, updated, activated = self._run_raw_feedback_day(initial)
+        self.assertEqual(report["status"], "completed_table_updated")
+        self.assertTrue(report["pool_committed"])
+        self.assertTrue(report["table_updated"])
+        self.assertGreater(report["candidate_count"], 0)
+        self.assertEqual(report["selection_method"], "densest_cluster_median")
+        self.assertEqual(report["cluster_fraction"], 0.5)
+        self.assertNotEqual(updated, initial)
+        self.assertTrue(activated)
+
+    def test_first_start_can_learn_from_empty_or_missing_table(self):
+        for initial in ({}, None):
+            with self.subTest(initial=initial):
+                report, updated, activated = self._run_raw_feedback_day(initial)
+                self.assertEqual(report["status"], "completed_table_updated")
+                self.assertTrue(report["pool_committed"])
+                self.assertTrue(report["table_updated"])
+                self.assertGreater(report["candidate_count"], 0)
+                self.assertTrue(updated["1"]["U"])
+                # 未达到候选条件的方向不补造经验值，继续沿用原有回退。
+                self.assertNotIn("D", updated["1"])
+                self.assertTrue(activated)
+
+    def test_bootstrap_preserves_sample_threshold_and_does_not_publish_empty_table(self):
+        report, updated, activated = self._run_raw_feedback_day({}, minimum_samples=30)
+        self.assertEqual(report["status"], "completed_pool_updated_no_table_change")
+        self.assertGreater(report["candidate_count"], 0)
+        self.assertTrue(report["pool_committed"])
+        self.assertFalse(report["table_updated"])
+        self.assertEqual(updated, {})
+        self.assertFalse(activated)
+
+    def test_invalid_nonempty_or_wrong_type_table_still_blocks_learning(self):
+        for initial in ({"1": {}}, [], {"1": {"U": {"10": [-1] * 10}}}):
+            with self.subTest(initial=initial), mock.patch.object(
+                RUNTIME, "normalize_raw_feedback"
+            ) as normalize:
+                report, updated, activated = self._run_raw_feedback_day(initial)
+            self.assertEqual(report["status"], "skipped_invalid_active_table")
+            self.assertFalse(report["pool_committed"])
+            self.assertFalse(report["table_updated"])
+            self.assertEqual(updated, initial)
+            self.assertFalse(activated)
+            normalize.assert_not_called()
+
 
 
 if __name__ == "__main__":
