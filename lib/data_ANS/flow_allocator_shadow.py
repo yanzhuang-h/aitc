@@ -6,6 +6,7 @@ configured pilot roads. Every error falls back to the legacy schedule.
 """
 
 from lib.road_groups import road_group
+from lib.intersection_strategy import PLATFORM_PHASE_ROAD_IDS, uses_platform_phase_timing
 
 from datetime import datetime
 import json
@@ -135,7 +136,7 @@ def _target_road_ids():
             "",
         ).strip()
     if not configured:
-        return DEFAULT_TARGET_ROAD_IDS
+        return DEFAULT_TARGET_ROAD_IDS | PLATFORM_PHASE_ROAD_IDS
     return frozenset(
         item.strip()
         for item in configured.split(",")
@@ -307,7 +308,7 @@ def record_shadow_comparison(
             extend_map_single_intersection,
             experience_table=experience_table,
             cross_info=cross_info,
-            zero_demand_fallback=road_group(road_id) == "49",
+            zero_demand_fallback=uses_platform_phase_timing(road_id),
         )
         new_vector = _schedule_vector(result["time_vector"])
         decisions = _decision_summary(result)

@@ -14,6 +14,21 @@
 | `gen_online_config.py` | 由 `lib/Global_intersection_coordinate` 的 `road_map`/`online_map_info` 计算互联网数据映射 | 当前目录下 `intersection_to_rid_lambda.py`、`new_online_data_map_lambda.py`；核对后手工合并进 `Lambdas.py`，不要提交（已在 `.gitignore` 中） |
 | `gen_api_docs.py` | 生成《AITC 对外 HTTP 接口说明》Word 文档，依赖 `python-docx` | 仓库 `docs/对外HTTP接口说明.docx`，路径按脚本位置定位，与当前目录无关 |
 
+## 新路口本地登记
+
+平台同步 cross_info / road_info 后，我方先预览，再确认写入本地登记：
+
+~~~bash
+.venv/bin/python tools/onboard_intersection.py --cross 999999
+.venv/bin/python tools/onboard_intersection.py --cross 999999 --apply
+~~~
+
+- 保留本地登记步骤。脚本只更新数据源、设备映射、控制类别、平台相位策略和默认方案号，不再克隆路口配时函数。
+- 新路口自动进入默认在线候选和经验积累范围；如部署显式限定了 AITC_FLOW_ALLOCATOR_PILOT_ROADS、AITC_EXPERIENCE_POOL_ROADS、AITC_EXPERIENCE_TABLE_UPDATE_ROADS，仍按现场白名单执行，需同步追加。
+- 不要求预先制作离线经验。上线起运行并积累经验；两周左右是业务预期，不是定时启用条件，经验发布仍遵守现有质量与样本门槛。
+- --program-id 可指定 road_info 中的默认方案号；不填时沿用脚本原有选择规则。--template 仅保留旧命令默认值兼容，不再生成模板副本。
+- 脚本写入后完成回归、走 PR；打包与部署另行决定。
+
 ## 调用链与配置只读审计
 
 ```bash

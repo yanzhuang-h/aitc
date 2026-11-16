@@ -2,7 +2,8 @@
 import json
 import logging
 from lib.floating_value import apply_floating_value
-from lib.road_groups import TONGZHOU_49, road_group
+from lib.road_groups import road_group
+from lib.intersection_strategy import uses_platform_phase_timing
 from .phase_adapter import phase_bounds, complete_phase_cycle
 
 LOGGER = logging.getLogger("FlowControl")
@@ -17,9 +18,10 @@ def finalize_plan_values(result_action_map, *, road_info=None):
     if road_info is not None:
         for cross_id, plan in result_action_map.items():
             group = road_group(cross_id)
-            if group is None:
+            platform_strategy = uses_platform_phase_timing(cross_id)
+            if group is None and not platform_strategy:
                 continue
-            if group == "49":
+            if platform_strategy:
                 config = road_info[str(cross_id)][str(plan[9])]
                 phases, lows, highs = phase_bounds(config)
                 times, audit = complete_phase_cycle(plan[:len(phases)], lows, highs)
@@ -40,7 +42,7 @@ def finalize_plan_values(result_action_map, *, road_info=None):
 def complete_minimum_cycle(result_action_map):
     """Preserve legacy 60-second minimum-cycle completion."""
     for cross_id, plan in result_action_map.items():
-        if str(cross_id) in TONGZHOU_49:
+        if uses_platform_phase_timing(cross_id):
             continue
         total = sum(plan[:5])
         if total < 60:

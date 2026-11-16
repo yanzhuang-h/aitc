@@ -4,6 +4,7 @@ import json
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,6 +40,7 @@ def _literal_of(path, name):
 SOURCE_FILES = (
     "Lambdas.py",
     "lib/DQN_Select.py",
+    "lib/intersection_strategy.py",
     "lib/Global_intersection_coordinate.py",
     "lib/data_ANS/flow_allocator_shadow.py",
     "lib/data_ANS/experience_runtime.py",
@@ -57,6 +59,7 @@ class OnboardIntersectionTest(unittest.TestCase):
         (self.root / "lib" / "data_ANS").mkdir(parents=True)
         shutil.copy(ROOT / "Lambdas.py", self.root / "Lambdas.py")
         shutil.copy(ROOT / "lib" / "DQN_Select.py", self.root / "lib" / "DQN_Select.py")
+        shutil.copy(ROOT / "lib" / "intersection_strategy.py", self.root / "lib" / "intersection_strategy.py")
         shutil.copy(
             ROOT / "lib" / "Global_intersection_coordinate.py",
             self.root / "lib" / "Global_intersection_coordinate.py",
@@ -109,28 +112,20 @@ class OnboardIntersectionTest(unittest.TestCase):
         )
         self.assertIn(999999, video_flow)
 
-        pilot_roads = _literal_of(
-            self.root / "lib" / "data_ANS" / "flow_allocator_shadow.py",
-            "DEFAULT_TARGET_ROAD_IDS",
-        )
-        self.assertIn("999999", {str(item) for item in pilot_roads})
-
-        collection = _literal_of(
-            self.root / "lib" / "data_ANS" / "experience_runtime.py",
-            "DEFAULT_POOL_COLLECTION_ROAD_IDS",
-        )
-        update = _literal_of(
-            self.root / "lib" / "data_ANS" / "experience_runtime.py",
-            "DEFAULT_TABLE_UPDATE_ROAD_IDS",
-        )
-        self.assertIn("999999", {str(item) for item in collection})
-        self.assertIn("999999", {str(item) for item in update})
-
+        strategy = _literal_of(self.root / "lib/intersection_strategy.py", "PLATFORM_PHASE_ROAD_IDS")
+        self.assertIn("999999", strategy)
+        from lib.data_ANS import flow_allocator_shadow as shadow
+        from lib.data_ANS import experience_runtime as runtime
+        with mock.patch.dict("os.environ", {}, clear=True), \
+                mock.patch.object(shadow, "PLATFORM_PHASE_ROAD_IDS", strategy), \
+                mock.patch.object(runtime, "PLATFORM_PHASE_ROAD_IDS", strategy):
+            self.assertIn("999999", shadow._target_road_ids())
+            self.assertIn("999999", runtime._configured_collection_roads())
+            self.assertIn("999999", runtime._configured_update_roads())
         dqn_text = (self.root / "lib" / "DQN_Select.py").read_text(encoding="utf-8-sig")
-        self.assertIn("def DQN_select_999999(", dqn_text)
-        self.assertIn("cross_id == '999999'", dqn_text)
-        function_body = dqn_text.split("def DQN_select_999999(", 1)[1].split("\ndef ", 1)[0]
-        self.assertIn("select_pilot_schedule", function_body)
+        self.assertNotIn("def DQN_select_999999(", dqn_text)
+        self.assertNotIn("cross_id == '999999'", dqn_text)
+        self.assertIn("DQN_select_platform(", dqn_text)
 
         overrides = json.loads(
             (self.root / "lib" / "plan_id_overrides.json").read_text(encoding="utf-8")

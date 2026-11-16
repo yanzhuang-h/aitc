@@ -3,19 +3,21 @@
 import json
 import logging
 
-from lib.road_groups import TONGZHOU_49, road_group
+from lib.road_groups import road_group
+from lib.intersection_strategy import uses_platform_phase_timing, program_id_override
 from lib.control_functions.global_processors.phase_adapter import allocate_phase_times, phase_bounds, complete_phase_cycle
 
 LOGGER = logging.getLogger("FlowControl")
 
 
 def select_flow_control_state(cross_id, demand, road_config, hour):
-    if str(cross_id) in TONGZHOU_49:
+    if uses_platform_phase_timing(cross_id):
         # 平台方案号不对应旧的 0/1/2 方向状态语义。
         # 使用配置中的默认方案，仍允许 road_state 显式指定其他方案。
-        if "1" in road_config:
-            return "1"
-        raise ValueError("Tongzhou 49 default platform program 1 is missing")
+        state = str(program_id_override(cross_id, 1))
+        if state in road_config:
+            return state
+        raise ValueError(f"Configured default platform program {state} is missing")
     differences = [demand["R"] - demand["L"], demand["L"] - demand["R"], demand["D"] - demand["U"], demand["U"] - demand["D"]]
     state, maximum = "0", 0
     for index, value in enumerate(differences):
@@ -114,7 +116,7 @@ def _process_legacy_flow_intersection(cross_id, current_plan, road_config, hour,
         return current_plan, report
 
 
-def _process_tongzhou_intersection(cross_id, current_plan, road_config, hour,
+def _process_platform_intersection(cross_id, current_plan, road_config, hour,
                                   forced_state_selector, schedule_loader):
     report = {"success": False, "cross_id": str(cross_id), "state": None,
               "fallback": None, "error": None}
@@ -160,7 +162,7 @@ def _process_tongzhou_intersection(cross_id, current_plan, road_config, hour,
         report["error"] = f"{type(exc).__name__}: {exc}"
         # 转换失败时只允许回退至经过边界校验的默认方案；不把方向向量当相位下发。
         try:
-            default = "1"
+            default = str(program_id_override(cross_id, 1))
             phases, lows, highs = phase_bounds(road_config[default])
             try:
                 vector = list(schedule_loader(int(cross_id))[str(hour)])
@@ -173,7 +175,7 @@ def _process_tongzhou_intersection(cross_id, current_plan, road_config, hour,
                 fallback = "validated_default_minimums"
             times, cycle_audit = complete_phase_cycle(times, lows, highs)
             plan = times + [0] * (10-len(times))
-            plan[9] = 1
+            plan[9] = int(default)
             report.update({"success": True, "state": default, "fallback": fallback,
                            "phase_names": phases, "minimums": lows, "maximums": highs,
                            **cycle_audit})
@@ -186,7 +188,7 @@ def _process_tongzhou_intersection(cross_id, current_plan, road_config, hour,
 def process_flow_intersection(cross_id, current_plan, road_config, hour,
                               forced_state_selector, schedule_loader):
     original = list(current_plan)
-    processor = (_process_tongzhou_intersection if str(cross_id) in TONGZHOU_49
+    processor = (_process_platform_intersection if uses_platform_phase_timing(cross_id)
                  else _process_legacy_flow_intersection)
     plan, report = processor(cross_id, current_plan, road_config, hour,
                              forced_state_selector, schedule_loader)
@@ -194,6 +196,6 @@ def process_flow_intersection(cross_id, current_plan, road_config, hour,
     report["input_direction_vector"] = original
     report["adapted_phase_vector"] = list(plan)
     report["is_final"] = False
-    if report["road_group"] is not None:
+    if report["road_group"] is not None or uses_platform_phase_timing(cross_id):
         LOGGER.info("flow_control %s", json.dumps(report, separators=(",", ":")))
     return plan, report
