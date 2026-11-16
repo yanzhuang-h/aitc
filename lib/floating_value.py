@@ -1,6 +1,7 @@
 import argparse
 import copy
 import json
+import logging
 import os
 import sys
 import tempfile
@@ -10,6 +11,13 @@ from datetime import date
 
 from chinese_calendar import is_workday
 
+try:
+    from lib.road_groups import road_group
+except ModuleNotFoundError:  # 兼容 python lib/floating_value.py 的既有用法。
+    from road_groups import road_group
+
+
+LOGGER = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FLOATING_VALUE_PATH = os.path.join(BASE_DIR, "floating_value.json")
@@ -48,6 +56,7 @@ def _load_floating_value(path=FLOATING_VALUE_PATH):
 
     _cache_mtime = mtime
     _cache_data = data
+    LOGGER.info("floating_value_config path=%s record_count=%s", os.path.abspath(path), len(data))
     return _cache_data
 
 
@@ -610,21 +619,31 @@ def apply_floating_value(action_map, current_time=None, path=FLOATING_VALUE_PATH
             continue
 
         offsets = None
+        matches = {"road": 0, "day": 0, "program": 0, "time": 0}
         for record in floating_data:
             try:
                 normalized = _normalize_floating_update_payload(record)
             except (TypeError, ValueError):
                 continue
-            if normalized["day_key"] != workday_key:
-                continue
             if normalized["cross_id"] != _normalize_key(intersection_id):
                 continue
+            matches["road"] += 1
+            if normalized["day_key"] != workday_key:
+                continue
+            matches["day"] += 1
             if normalized["change_id"] != plan_id:
                 continue
+            matches["program"] += 1
             if time_slot_key not in normalized["slots"]:
                 continue
+            matches["time"] += 1
             offsets = normalized["offsets"]
 
+        if road_group(intersection_id) is not None:
+            LOGGER.info(
+                "floating_value_match cross_id=%s plan_id=%s day=%s slot=%s matches=%s offsets=%s",
+                intersection_id, plan_id, workday_key, time_slot_key, matches, offsets,
+            )
         if offsets is None:
             continue
 

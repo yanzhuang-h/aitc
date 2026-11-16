@@ -16,6 +16,8 @@ from phase_check import (
 from time_schedule.nacos_schedule_config import (
     MANIFEST_PATH,
     SCHEDULE_DIR,
+    WORKDAY_PREFIX,
+    WEEKEND_PREFIX,
     apply_time_schedule_config,
     save_time_schedule_manifest,
     validate_time_schedule_config,
@@ -72,6 +74,11 @@ class NacosConfigSync:
             daemon=True,
         )
         self._thread.start()
+        LOGGER.info(
+            "Nacos %s sync started: data_id=%s group=%s namespace=%s path=%s manifest_path=%s poll_seconds=%s",
+            self.config_name, self.data_id, self.group, self.namespace,
+            self.path, getattr(self, "manifest_path", None), self.poll_interval,
+        )
         return True
 
     def stop(self):
@@ -349,6 +356,13 @@ class NacosTimeScheduleSync(NacosConfigSync):
                 apply_time_schedule_config(schedule, schedule_dir=self.path)
                 self._versions[cross_id] = item["version"]
                 changed_count += 1
+                LOGGER.info(
+                    "Nacos time schedule applied: cross_id=%s data_id=%s workday_path=%s weekend_path=%s",
+                    cross_id, item["data_id"],
+                    os.path.join(self.path, f"{WORKDAY_PREFIX}{cross_id}.json"),
+                    os.path.join(self.path, f"{WEEKEND_PREFIX}{cross_id}.json")
+                    if schedule["weekend"] is not None else None,
+                )
             except Exception as exc:
                 failures.append(f"{cross_id}: {exc}")
 

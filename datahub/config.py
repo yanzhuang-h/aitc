@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import copy
+import logging
 from enum import StrEnum
 from typing import Any
 
@@ -32,6 +33,9 @@ from time_schedule.nacos_schedule_config import (
     load_time_schedule_manifest,
     save_time_schedule_manifest,
 )
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class ConfigResource(StrEnum):
@@ -64,7 +68,18 @@ class ConfigService:
 
         路径不属于配置接口时返回 ``None``，由上层 HTTP 服务继续处理。
         """
-        return handle_config_request(method, path, body)
+        result = handle_config_request(method, path, body)
+        if result is not None and str(method).upper() == "POST":
+            code, payload = result
+            request = body if isinstance(body, dict) else {}
+            LOGGER.info(
+                "config_write path=%s cross_id=%s plan_id=%s http_status=%s status=%s saved=%s reason=%s",
+                path.split("?")[0][:128], str(request.get("Cross_id", ""))[:32],
+                str(request.get("Change_id", ""))[:32], code,
+                payload.get("status"), payload.get("saved"),
+                str(payload.get("reason", ""))[:300],
+            )
+        return result
 
     def query(self, resource: ConfigResource | str, cross_id: str) -> dict[str, Any]:
         """按资源和路口编号查询配置，供 HTTP 之外的调用方复用。"""
