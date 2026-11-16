@@ -163,7 +163,7 @@ def audit(root=ROOT, *, roads=None, group="all", environ=None):
                "lib/data_ANS/lane_policy.py", "lib/data_ANS/cycle_quality.py",
                "lib/control_functions/global_processors/phase_adapter.py", "lib/road_info.json",
                "lib/cross_info.json", "lib/road_state.json", "lib/plan_id_overrides.json"]
-    phase_definitions = "lib/data_ANS/phase_definitions.py"
+    phase_definitions = "offline_tools/offline_trainer/phase_definitions.py"
     if (root / phase_definitions).is_file():
         sources.append(phase_definitions)
     snapshot = {path: (root/path).read_bytes() for path in sources}

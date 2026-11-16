@@ -1,21 +1,9 @@
-"""训练、实时需求和阶段适配共用的相位语义；元组顺序不表示阶段顺序。"""
+"""运行与训练共同使用的相位语义；定义置于可独立分发的离线算法包。"""
 
-PHASE_DIRECTION_MAP = {
-    "UD": ("U", "D"),
-    "DU": ("U", "D"),
-    "UD1": ("U", "D"),
-    "UD2": ("U", "D"),
-    "LR": ("L", "R"),
-    "RL": ("L", "R"),
-    "LR1": ("L", "R"),
-    "LR2": ("L", "R"),
-    "UDL": ("UTL", "DTL"),
-    "DUL": ("UTL", "DTL"),
-    "LRL": ("LTL", "RTL"),
-    "U": ("U", "UTL"),
-    "D": ("D", "DTL"),
-    "L": ("L", "LTL"),
-    "R": ("R", "RTL"),
-    "LTD": ("LTL", "D"),
-    "P": (),
-}
+# 兼容从 lib/data_ANS 目录直接运行训练脚本。
+if not __package__:
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from offline_tools.offline_trainer.phase_definitions import PHASE_DIRECTION_MAP

@@ -13,6 +13,7 @@ import time
 from collections import Counter
 from datetime import datetime, timedelta
 
+from .phase_definitions import PHASE_DIRECTION_MAP
 from .candidate_audit import ExperienceCandidateAudit
 from .cleaner import DEFAULT_MAX_STAGE_GAP_SECONDS, clean_training_inputs
 from .cycle_quality import (
@@ -35,17 +36,6 @@ from .lane_policy import (
 )
 
 BASE_FLOW_DIRECTIONS = ("U", "D", "L", "R")
-PHASE_DIRECTION_MAP = {
-    "UD": ("U", "D"),
-    "LR": ("L", "R"),
-    "UDL": ("UTL", "DTL"),
-    "LRL": ("LTL", "RTL"),
-    "U": ("U", "UTL"),
-    "D": ("D", "DTL"),
-    "L": ("L", "LTL"),
-    "R": ("R", "RTL"),
-    "LTD": ("LTL", "D"),
-}
 
 
 def _time_seconds(value):
