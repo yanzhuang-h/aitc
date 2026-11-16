@@ -163,6 +163,9 @@ def audit(root=ROOT, *, roads=None, group="all", environ=None):
                "lib/data_ANS/lane_policy.py", "lib/data_ANS/cycle_quality.py",
                "lib/control_functions/global_processors/phase_adapter.py", "lib/road_info.json",
                "lib/cross_info.json", "lib/road_state.json", "lib/plan_id_overrides.json"]
+    phase_definitions = "offline_tools/offline_trainer/phase_definitions.py"
+    if (root / phase_definitions).is_file():
+        sources.append(phase_definitions)
     snapshot = {path: (root/path).read_bytes() for path in sources}
     def static(path, names, known=None):
         return bindings(root/path, names, known, source=snapshot[path])
@@ -179,9 +182,13 @@ def audit(root=ROOT, *, roads=None, group="all", environ=None):
     pilot = static("lib/data_ANS/flow_allocator_shadow.py",
                      {"DEFAULT_TARGET_ROAD_IDS", "DEFAULT_PILOT_MODE"})
     lane = static("lib/data_ANS/lane_policy.py", {"LANE_TYPE_RULES", "DEDICATED_LEFT_TURN_LANE_TYPE"})
-    training = static("lib/data_ANS/cycle_quality.py", {"PHASE_DIRECTION_MAP"})["PHASE_DIRECTION_MAP"]
-    movements = static("lib/control_functions/global_processors/phase_adapter.py",
-                         {"PHASE_DIRECTION_MAP"}, {"TRAINING_PHASE_DIRECTION_MAP": training})["PHASE_DIRECTION_MAP"]
+    if phase_definitions in snapshot:
+        training = static(phase_definitions, {"PHASE_DIRECTION_MAP"})["PHASE_DIRECTION_MAP"]
+        movements = training
+    else:
+        training = static("lib/data_ANS/cycle_quality.py", {"PHASE_DIRECTION_MAP"})["PHASE_DIRECTION_MAP"]
+        movements = static("lib/control_functions/global_processors/phase_adapter.py",
+                           {"PHASE_DIRECTION_MAP"}, {"TRAINING_PHASE_DIRECTION_MAP": training})["PHASE_DIRECTION_MAP"]
     road_info = _read_json(root/"lib/road_info.json", snapshot["lib/road_info.json"])
     cross_info = _read_json(root/"lib/cross_info.json", snapshot["lib/cross_info.json"])
     forced = _read_json(root/"lib/road_state.json", snapshot["lib/road_state.json"])

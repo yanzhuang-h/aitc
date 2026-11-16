@@ -7,8 +7,10 @@ from collections import Counter, defaultdict
 from statistics import median
 
 try:
+    from lib.data_ANS.phase_definitions import PHASE_DIRECTION_MAP
     from lib.data_ANS.raw_data_cleaning import clean_stage_inputs
 except ModuleNotFoundError:
+    from phase_definitions import PHASE_DIRECTION_MAP
     from raw_data_cleaning import clean_stage_inputs
 
 
@@ -19,17 +21,6 @@ MIN_CONSECUTIVE_CYCLES = 3
 MIN_SECONDS_TOLERANCE = 5
 MAX_ADJACENT_STAGE_CHANGE_SECONDS = 8
 DIRECTIONS = ("U", "D", "L", "R", "UTL", "DTL", "LTL", "RTL")
-PHASE_DIRECTION_MAP = {
-    "UD": ("U", "D"),
-    "LR": ("L", "R"),
-    "UDL": ("UTL", "DTL"),
-    "LRL": ("LTL", "RTL"),
-    "U": ("U", "UTL"),
-    "D": ("D", "DTL"),
-    "L": ("L", "LTL"),
-    "R": ("R", "RTL"),
-    "LTD": ("LTL", "D"),
-}
 
 
 def centered_observation_bounds(

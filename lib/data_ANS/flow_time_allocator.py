@@ -11,6 +11,7 @@ import math
 from pathlib import Path
 
 try:
+    from lib.data_ANS.phase_definitions import PHASE_DIRECTION_MAP
     from lib.data_ANS.cycle_quality import (
         MAX_ADJACENT_STAGE_CHANGE_SECONDS,
         compress_stage_layers,
@@ -24,6 +25,7 @@ try:
         policy_metadata,
     )
 except ModuleNotFoundError:  # Supports direct execution from this directory.
+    from phase_definitions import PHASE_DIRECTION_MAP
     from cycle_quality import (
         MAX_ADJACENT_STAGE_CHANGE_SECONDS,
         compress_stage_layers,
@@ -49,21 +51,6 @@ LIB_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_EXPERIENCE_PATH = LIB_DIR / "experience_pool" / "online_experience.json"
 DEFAULT_CROSS_INFO_PATH = LIB_DIR / "cross_info.json"
 
-PHASE_DIRECTION_MAP = {
-    "UD": ("U", "D"),
-    "DU": ("U", "D"),
-    "LR": ("L", "R"),
-    "RL": ("R", "L"),
-    "UDL": ("UTL", "DTL"),
-    "DUL": ("UTL", "DTL"),
-    "LRL": ("LTL", "RTL"),
-    "U": ("UTL", "U"),
-    "D": ("DTL", "D"),
-    "L": ("LTL", "L"),
-    "R": ("RTL", "R"),
-    "LTD": ("LTL", "D"),
-    "P": (),
-}
 
 
 def _normalize_vector(vector):

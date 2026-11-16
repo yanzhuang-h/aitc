@@ -6,14 +6,7 @@
 
 import math
 
-from lib.data_ANS.cycle_quality import PHASE_DIRECTION_MAP as TRAINING_PHASE_DIRECTION_MAP
-
-# 同义相位沿用训练侧方向语义；分段对放由重复相位共同分担累计需求。
-PHASE_DIRECTION_MAP = {**TRAINING_PHASE_DIRECTION_MAP,
-    "DU": ("U", "D"), "RL": ("L", "R"),
-    "UD1": ("U", "D"), "UD2": ("U", "D"),
-    "LR1": ("L", "R"), "LR2": ("L", "R"), "P": (),
-}
+from lib.data_ANS.phase_definitions import PHASE_DIRECTION_MAP
 
 
 def phase_bounds(state_config):
