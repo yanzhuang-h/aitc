@@ -436,8 +436,11 @@ def _timestamp_seconds(value):
 
 def _normalized_stage(value):
     try:
-        return str(int(float(value)))
-    except (TypeError, ValueError):
+        number = float(value)
+        if isinstance(value, bool) or not math.isfinite(number) or not number.is_integer():
+            return None
+        return str(int(number))
+    except (TypeError, ValueError, OverflowError):
         return None
 
 
@@ -453,6 +456,7 @@ def normalize_runtime_extend(
 
     road_id = str(road_id)
     stage_candidates = {}
+    invalid_stage_seconds = set()
     stats = Counter()
     # time尚未被EXTEND契约定义为事件时间；仅记录其数值，不据此改阶段时钟。
     event_seconds = set()
@@ -500,6 +504,7 @@ def normalize_runtime_extend(
             stage = _normalized_stage(payload.get("curStageNo"))
             if stage is None:
                 stats["invalid_stage_records"] += 1
+                invalid_stage_seconds.add(timestamp)
                 continue
             stage_candidates.setdefault(timestamp, set()).add(stage)
             stats["accepted_payload_records"] += 1
@@ -533,13 +538,16 @@ def normalize_runtime_extend(
     last_observed_timestamp = None
     last_valid_stage = None
     for timestamp in range(start, end + 1):
+        if timestamp in conflict_seconds or timestamp in invalid_stage_seconds:
+            cleaned[timestamp] = "-1"
+            last_observed_timestamp = timestamp
+            last_valid_stage = None
+            stats["conflicting_seconds" if timestamp in conflict_seconds else "invalid_stage_seconds"] += 1
+            continue
         if timestamp in observed:
             stage = observed[timestamp]
             last_observed_timestamp = timestamp
-            if timestamp in conflict_seconds:
-                cleaned[timestamp] = "-1"
-                stats["conflicting_seconds"] += 1
-            elif stage == "-1":
+            if stage == "-1":
                 if last_valid_stage is None:
                     cleaned[timestamp] = "-1"
                     stats["unresolved_minus_one_seconds"] += 1
@@ -561,6 +569,7 @@ def normalize_runtime_extend(
             stats["short_gap_filled_seconds"] += 1
         else:
             cleaned[timestamp] = "-1"
+            last_valid_stage = None
             stats["long_gap_seconds"] += 1
 
     valid_seconds = sum(stage != "-1" for stage in cleaned.values())

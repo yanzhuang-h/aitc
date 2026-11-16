@@ -245,6 +245,7 @@ def _clean_extend(
 ):
     observed = defaultdict(dict)
     conflicts = defaultdict(set)
+    invalid_stages = defaultdict(set)
     totals = Counter()
 
     with open(extend_path, "r", encoding="utf-8") as file:
@@ -277,6 +278,7 @@ def _clean_extend(
             elif stage not in valid_stages:
                 report["invalid_stage"] += 1
                 totals["invalid_stage"] += 1
+                invalid_stages[cross_id].add(timestamp)
                 stage = "-1"
 
             previous = observed[cross_id].get(timestamp)
@@ -317,6 +319,11 @@ def _clean_extend(
             stage = raw.get(timestamp)
             if stage is not None:
                 last_observed_timestamp = timestamp
+                if timestamp in conflicts[cross_id] or timestamp in invalid_stages[cross_id]:
+                    # 冲突和配置外阶段不能被解释为显式 -1，也不能跨越它们继承。
+                    cleaned[timestamp] = "-1"
+                    last_valid_stage = None
+                    continue
                 if stage != "-1":
                     last_valid_stage = stage
                     cleaned[timestamp] = stage
@@ -340,6 +347,7 @@ def _clean_extend(
                 short_gap_filled_seconds += 1
             else:
                 cleaned[timestamp] = "-1"
+                last_valid_stage = None
                 long_gap_seconds += 1
 
         total_seconds = end - start + 1
@@ -357,6 +365,7 @@ def _clean_extend(
             "inherited_minus_one_seconds": inherited_minus_one_seconds,
             "unresolved_minus_one_seconds": unresolved_minus_one_seconds,
             "conflicting_seconds": len(conflicts.get(cross_id, set())),
+            "invalid_stage_seconds": len(invalid_stages.get(cross_id, set())),
         }
         clean_extend[cross_id] = cleaned
 
