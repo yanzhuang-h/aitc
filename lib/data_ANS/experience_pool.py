@@ -1057,10 +1057,11 @@ def blend_eligible_lane_updates(
     eligible_lane_masks,
     old_weight=DEFAULT_OLD_WEIGHT,
     new_weight=DEFAULT_NEW_WEIGHT,
+    new_point_road_ids=None,
 ):
     """Blend only explicitly eligible lane cells into an existing table.
 
-    已存在的路口不会隐式新增方向/时间点；新路口首次进入时允许用候选点建表。
+    新路口可用达标候选点建表；已有路口仅在明确允许时扩展方向和时间点。
     """
     old_weight = float(old_weight)
     new_weight = float(new_weight)
@@ -1069,7 +1070,9 @@ def blend_eligible_lane_updates(
     if not math.isclose(old_weight + new_weight, 1.0, abs_tol=1e-9):
         raise ValueError("blend weights must sum to 1.0")
 
-    result = copy.deepcopy(old_table or {})
+    old_table = old_table or {}
+    result = copy.deepcopy(old_table)
+    new_point_road_ids = {str(road) for road in (new_point_road_ids or [])}
     stats = Counter()
     changed_points = set()
     for road_id, road_data in eligible_lane_masks.items():
@@ -1085,12 +1088,19 @@ def blend_eligible_lane_updates(
                     .get(direction, {})
                     .get(str(green_time))
                 )
-                if old_flow is None and road_id not in old_table and new_flow is not None:
-                    # 新路口首次进入经验池：用候选点直接建表，后续再按权重融合。
+                lane_indexes = sorted({int(value) for value in lane_indexes})
+                if any(lane < 0 or lane >= LANE_COUNT for lane in lane_indexes):
+                    raise ValueError("eligible lane mask contains an invalid lane")
+                if (old_flow is None and new_flow is not None
+                        and (road_id not in old_table or road_id in new_point_road_ids)):
+                    # 缺失点没有旧值可融合，只写入已通过样本门槛的车道。
+                    vector = _normalize_flow_vector(new_flow)
                     result.setdefault(road_id, {}).setdefault(direction, {})[
                         str(green_time)
-                    ] = _normalize_flow_vector(new_flow)
-                    stats["new_road_points_seeded"] += 1
+                    ] = [value if index in lane_indexes else 0
+                         for index, value in enumerate(vector)]
+                    stats["new_road_points_seeded" if road_id not in old_table
+                          else "new_experience_points_seeded"] += 1
                     stats["lane_values_changed"] += len(lane_indexes)
                     changed_points.add((road_id, direction, str(green_time)))
                     continue
@@ -1102,9 +1112,7 @@ def blend_eligible_lane_updates(
                 old_vector = _normalize_flow_vector(old_flow)
                 p80_vector = _normalize_flow_vector(new_flow)
                 blended_vector = list(old_vector)
-                for lane_index in sorted({int(value) for value in lane_indexes}):
-                    if not 0 <= lane_index < LANE_COUNT:
-                        raise ValueError("eligible lane mask contains an invalid lane")
+                for lane_index in lane_indexes:
                     blended = int(
                         math.floor(
                             old_vector[lane_index] * old_weight
@@ -1151,6 +1159,7 @@ def run_daily_pool_update(
     authoritative_old_table=False,
     selection_method=DEFAULT_POOL_SELECTION_METHOD,
     cluster_fraction=DEFAULT_DENSE_CLUSTER_FRACTION,
+    new_point_road_ids=None,
 ):
     candidate_samples = _load_json(candidate_samples_path)
     if not candidate_samples:
@@ -1168,6 +1177,7 @@ def run_daily_pool_update(
         else {str(road_id) for road_id in update_road_ids}
     )
 
+    new_point_road_ids = {str(road) for road in (new_point_road_ids or [])}
     state_table = full_pool.get_rolling_table()
     recovered_publication = False
     initial_active_table = None
@@ -1260,6 +1270,7 @@ def run_daily_pool_update(
             eligible_lane_masks,
             old_weight=old_weight,
             new_weight=new_weight,
+            new_point_road_ids=new_point_road_ids,
         )
         total_blend.update(
             {

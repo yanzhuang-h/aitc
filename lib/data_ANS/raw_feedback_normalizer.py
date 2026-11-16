@@ -28,6 +28,7 @@ try:
         split_cycle_group_on_stage_change,
     )
     from lib.data_ANS.experience_candidate_audit import ExperienceCandidateAudit
+    from lib.data_ANS.experience_release import MIN_GREEN_TIME, MAX_GREEN_TIME
     from lib.data_ANS.lane_policy import (
         classify_lane_type,
         configured_movement_lane_policy,
@@ -50,6 +51,7 @@ except ModuleNotFoundError:  # Supports direct execution from this directory.
         split_cycle_group_on_stage_change,
     )
     from experience_candidate_audit import ExperienceCandidateAudit
+    from experience_release import MIN_GREEN_TIME, MAX_GREEN_TIME
     from lane_policy import (
         classify_lane_type,
         configured_movement_lane_policy,
@@ -771,6 +773,10 @@ def build_near_capacity_candidate_samples(observations):
         if not lanes:
             stats["excluded_no_near_capacity_lanes"] += 1
             continue
+        if not MIN_GREEN_TIME <= int(green_time) <= MAX_GREEN_TIME:
+            # 与运行表发布范围一致，避免一个不支持的点阻断整批有效样本。
+            stats["excluded_green_time_out_of_range"] += 1
+            continue
         if len(flow) != LANE_COUNT or any(value < 0 for value in flow):
             stats["excluded_invalid_flow_vector"] += 1
             continue
@@ -823,6 +829,7 @@ def build_near_capacity_candidate_samples(observations):
         "excluded_quality_gate",
         "excluded_invalid_observation",
         "excluded_no_near_capacity_lanes",
+        "excluded_green_time_out_of_range",
         "excluded_invalid_flow_vector",
         "excluded_unmasked_lane_flow",
     ):
