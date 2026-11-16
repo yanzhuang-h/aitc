@@ -277,14 +277,26 @@ def _check_floating_update_rules(normalized):
     change_id = normalized["change_id"]
     offsets = normalized["offsets"]
 
-    intersection_rules = phase_rules.get(cross_id)
-    if not intersection_rules:
-        issues.append(f"Cross_id {cross_id} does not exist in phase rule config")
-        return {"passed": False, "issues": issues, "plan_rules": None}
-
+    intersection_rules = phase_rules.get(cross_id) or {}
     plan_rules = intersection_rules.get(change_id)
     if not plan_rules:
-        issues.append(f"Change_id {change_id} is not defined for Cross_id {cross_id}")
+        # 与正常配时保持一致：显式相位规则优先，缺失时读取当前方案的 road_info。
+        from phase_check import _road_info_plan_rules
+
+        try:
+            plan_rules = _road_info_plan_rules(cross_id, change_id)
+        except (TypeError, ValueError) as error:
+            issues.append(
+                f"Invalid road_info rules for Cross_id {cross_id}, "
+                f"Change_id {change_id}: {error}"
+            )
+            return {"passed": False, "issues": issues, "plan_rules": None}
+
+    if not plan_rules:
+        issues.append(
+            f"No phase rules for Cross_id {cross_id}, Change_id {change_id} "
+            "in phase rule config or road_info"
+        )
         return {"passed": False, "issues": issues, "plan_rules": None}
 
     for phase_index, offset in enumerate(offsets):
