@@ -37,8 +37,8 @@ def _literal(node, known):
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
         return -_literal(node.operand, known)
     if isinstance(node, ast.Call) and not node.keywords:
-        if isinstance(node.func, ast.Name) and node.func.id in ("frozenset", "set", "tuple", "list"):
-            return {"frozenset": frozenset, "set": set, "tuple": tuple, "list": list}[node.func.id](
+        if isinstance(node.func, ast.Name) and node.func.id in ("frozenset", "set", "tuple", "list", "str"):
+            return {"frozenset": frozenset, "set": set, "tuple": tuple, "list": list, "str": str}[node.func.id](
                 _literal(node.args[0], known) if node.args else ())
         if isinstance(node.func, ast.Attribute) and node.func.attr == "copy" and not node.args:
             return _literal(node.func.value, known).copy()
@@ -92,7 +92,7 @@ def _calls(function):
                    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)})
 
 
-def _selectors(path, source):
+def _selectors(path, source, platform_roads=()):
     tree = ast.parse(source.decode("utf-8-sig"))
     functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
     dispatcher = functions["DQN_select"]
@@ -100,7 +100,10 @@ def _selectors(path, source):
     for node in ast.walk(dispatcher):
         if not isinstance(node, ast.If):
             continue
-        ids = []
+        shared = (isinstance(node.test, ast.Call)
+                  and isinstance(node.test.func, ast.Name)
+                  and node.test.func.id == "uses_platform_phase_timing")
+        ids = list(platform_roads) if shared else []
         for test in ast.walk(node.test):
             if isinstance(test, ast.Compare) and len(test.ops) == 1 and isinstance(test.ops[0], ast.Eq):
                 operands = [test.left, *test.comparators]
@@ -111,14 +114,25 @@ def _selectors(path, source):
         calls = _calls(ast.Module(body=node.body, type_ignores=[]))
         targets = [name for name in calls if name.startswith("DQN_select_")]
         for rid in ids:
-            routes[rid] = {"dispatcher_line": node.lineno,
-                           "functions": targets, "direct_calls": calls if not targets else []}
+            if rid in routes and routes[rid].get("platform_route"):
+                continue
+            route = {"dispatcher_line": node.lineno,
+                     "functions": targets, "direct_calls": calls if not targets else []}
+            if shared:
+                route["platform_route"] = True
+                call = next((item for item in ast.walk(ast.Module(body=node.body, type_ignores=[]))
+                             if isinstance(item, ast.Call) and isinstance(item.func, ast.Name)
+                             and item.func.id == "DQN_select_platform"), None)
+                argument = call.args[0] if call and call.args else None
+                route["bound_cross_id"] = (rid if isinstance(argument, ast.Name) and argument.id == "cross_id"
+                                           else str(argument.value) if isinstance(argument, ast.Constant) else None)
+            routes[rid] = route
     return functions, routes
 
 
-def _pilot_call_roads(function):
+def _pilot_call_roads(function, bound_cross_id=None):
     # 当前选择器显式传入路口ID；动态参数无法确认时不冒充已正确接线。
-    known, roads = {}, set()
+    known, roads = ({"cross_id": bound_cross_id} if bound_cross_id is not None else {}), set()
     for node in function.body:
         if isinstance(node, ast.Assign):
             try:
@@ -166,6 +180,9 @@ def audit(root=ROOT, *, roads=None, group="all", environ=None):
     phase_definitions = "offline_tools/offline_trainer/phase_definitions.py"
     if (root / phase_definitions).is_file():
         sources.append(phase_definitions)
+    strategy_source = "lib/intersection_strategy.py"
+    if (root / strategy_source).is_file():
+        sources.append(strategy_source)
     snapshot = {path: (root/path).read_bytes() for path in sources}
     def static(path, names, known=None):
         return bindings(root/path, names, known, source=snapshot[path])
@@ -175,6 +192,8 @@ def audit(root=ROOT, *, roads=None, group="all", environ=None):
     old, new = set(groups["TONGZHOU_19"]), set(groups["TONGZHOU_49"])
     if old & new:
         raise ValueError("19组与49组清单存在重叠")
+    platform_roads = (set(static(strategy_source, {"PLATFORM_PHASE_ROAD_IDS"})["PLATFORM_PHASE_ROAD_IDS"])
+                      if strategy_source in snapshot else new)
     registry = list(map(str, runtime["intersection_list"]))
     registered = set(registry)
     coordination = static("lib/Global_intersection_coordinate.py",
@@ -193,7 +212,7 @@ def audit(root=ROOT, *, roads=None, group="all", environ=None):
     cross_info = _read_json(root/"lib/cross_info.json", snapshot["lib/cross_info.json"])
     forced = _read_json(root/"lib/road_state.json", snapshot["lib/road_state.json"])
     overrides = _read_json(root/"lib/plan_id_overrides.json", snapshot["lib/plan_id_overrides.json"])
-    functions, routes = _selectors(root/"lib/DQN_Select.py", snapshot["lib/DQN_Select.py"])
+    functions, routes = _selectors(root/"lib/DQN_Select.py", snapshot["lib/DQN_Select.py"], platform_roads)
     video_registry = static("lib/DQN_Select.py", {"Cross_Video"})["Cross_Video"]
     env = _environment(root, os.environ if environ is None else environ)
     mode = env.get("AITC_FLOW_ALLOCATOR_PILOT_MODE", pilot["DEFAULT_PILOT_MODE"]).strip().lower()
@@ -201,11 +220,11 @@ def audit(root=ROOT, *, roads=None, group="all", environ=None):
     if invalid_mode:
         mode = "legacy"
     selected = env.get("AITC_FLOW_ALLOCATOR_PILOT_ROADS", "").strip() or env.get("AITC_FLOW_ALLOCATOR_SHADOW_ROADS", "").strip()
-    pilot_roads = {x.strip() for x in selected.split(",") if x.strip()} if selected else set(pilot["DEFAULT_TARGET_ROAD_IDS"])
+    pilot_roads = {x.strip() for x in selected.split(",") if x.strip()} if selected else set(pilot["DEFAULT_TARGET_ROAD_IDS"]) | platform_roads
     enabled = env.get("AITC_FLOW_ALLOCATOR_SHADOW_ENABLED", "1").strip().lower() not in {"0", "false", "no", "off"}
     def batch(rid):
-        return "19" if rid in old else "49" if rid in new else "historical"
-    universe = set(roads) if roads is not None else registered | old | new
+        return "19" if rid in old else "49" if rid in new else "unclassified" if rid in platform_roads else "historical"
+    universe = set(roads) if roads is not None else registered | old | new | platform_roads
     selected_roads = sorted(r for r in universe if group == "all" or batch(r) == group)
     findings, inventory = [], []
     def issue(rid, code, message, *, severity="warning", state=None):
@@ -213,7 +232,7 @@ def audit(root=ROOT, *, roads=None, group="all", environ=None):
                          "code": code, "state": state, "message": message})
     detector_owners = defaultdict(set)
     for rid, cross in cross_info.items():
-        if rid in registered | old | new and isinstance(cross, dict):
+        if rid in registered | old | new | platform_roads and isinstance(cross, dict):
             detectors = cross.get("jtll_ddbh", {})
             if isinstance(detectors, dict):
                 for detector in detectors:
@@ -222,7 +241,9 @@ def audit(root=ROOT, *, roads=None, group="all", environ=None):
         route = routes.get(rid, {})
         targets = route.get("functions", [])
         calls = sorted({call for name in targets if name in functions for call in _calls(functions[name])})
-        pilot_call_roads = set().union(*(_pilot_call_roads(functions[name]) for name in targets if name in functions))
+        pilot_call_roads = set().union(*(
+            _pilot_call_roads(functions[name], route.get("bound_cross_id") if route.get("platform_route") else None)
+            for name in targets if name in functions))
         wired = rid in pilot_call_roads
         online_eligible = wired and rid in registered and rid in video_registry and rid in pilot_roads and enabled and mode == "new"
         if None in pilot_call_roads:
@@ -237,12 +258,13 @@ def audit(root=ROOT, *, roads=None, group="all", environ=None):
                           "pilot_wired": wired, "pilot_call_road_ids": sorted(pilot_call_roads, key=str), "pilot_target": rid in pilot_roads,
                           "configured_pilot_mode": mode, "online_candidate_eligible": online_eligible,
                           "selector_entry": ("not_registered" if rid not in registered else
+                                             "shared_platform_function" if route.get("platform_route") else
                                              "dedicated_function" if targets else
                                              "generic_timetable_candidate" if rid in video_registry else
                                              "generic_zero_candidate"),
                           "legacy_computation_precedes_pilot": wired and bool({"chuli_shuju", "chuli_shuju3"} & set(calls)),
                           "coordination_categories": categories,
-                          "phase_adapter": "bounded_movement_adapter" if rid in new and "video_flow_road" in categories else "existing_category_rules",
+                          "phase_adapter": "bounded_movement_adapter" if rid in platform_roads and "video_flow_road" in categories else "existing_category_rules",
                           "program_ids": list(road_info.get(rid, {})) if isinstance(road_info.get(rid), dict) else []})
         if rid not in registered:
             issue(rid, "not_registered", "上线清单中存在，但未注册到 intersection_list；需确认是否计划启用")
@@ -301,10 +323,11 @@ def audit(root=ROOT, *, roads=None, group="all", environ=None):
                 issue(rid, "detector_mapping_mismatch", f"检测器 {detector} 在 cross_info 中为 {rid}/{direction}，实时映射为 {actual}")
         states = road_info.get(rid)
         if not isinstance(states, dict) or not states:
-            issue(rid, "missing_road_info", "缺少可用的 road_info 方案", severity="error" if rid in new else "warning")
+            issue(rid, "missing_road_info", "缺少可用的 road_info 方案", severity="error" if rid in platform_roads else "warning")
             continue
-        if rid in new and "1" not in states:
-            issue(rid, "missing_default_program", "49组的有效默认平台方案1不存在", severity="error")
+        default_program = str(overrides.get(rid, 1))
+        if rid in platform_roads and default_program not in states:
+            issue(rid, "missing_default_program", f"平台配时默认方案{default_program}不存在", severity="error")
         if rid in overrides and str(overrides[rid]) not in states:
             issue(rid, "invalid_program_override", f"对外方案号覆盖 {overrides[rid]} 不在已配置方案中", severity="error")
         coverage, patterns = set(), []
@@ -323,7 +346,7 @@ def audit(root=ROOT, *, roads=None, group="all", environ=None):
             for i in active:
                 name = phases[i]
                 if not isinstance(name, str) or name not in movements:
-                    issue(rid, "unknown_phase", f"相位 {name} 未出现在审计参考的方向映射中；旧策略可能有专用解释", severity="error" if rid in new else "info", state=state)
+                    issue(rid, "unknown_phase", f"相位 {name} 未出现在审计参考的方向映射中；旧策略可能有专用解释", severity="error" if rid in platform_roads else "info", state=state)
                 else:
                     coverage.update(movements[name])
                     program_coverage.update(movements[name])

@@ -1,3 +1,4 @@
+from lib.intersection_strategy import uses_platform_phase_timing
 import json
 import time
 import random
@@ -1348,7 +1349,7 @@ def coordinate(result_action_map, coordinate_map_set, online_data_map, OverFlow,
         )
         if flow_report["success"]:
             result_action_map[Cross_id] = flow_plan
-        elif flow_report.get("road_group") == "49":
+        elif uses_platform_phase_timing(Cross_id):
             raise ValueError(f"路口 {Cross_id} 没有经过验证的相位方案: {flow_report}")
         else:
             print("error_cross", Cross_id)

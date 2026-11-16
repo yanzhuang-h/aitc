@@ -3,38 +3,17 @@
 from __future__ import annotations
 
 import copy
-import json
 import random
-from pathlib import Path
 from typing import Any
 
 from app.core.models import DecisionResult
-from lib.road_groups import TONGZHOU_49
-
-_PLAN_OVERRIDES_PATH = Path(__file__).resolve().parents[1] / "lib" / "plan_id_overrides.json"
-_PLAN_OVERRIDES_CACHE = {"signature": None, "data": {}}
-
+from lib.intersection_strategy import uses_platform_phase_timing, program_id_override
 
 def _plan_id_for(intersection_id: str, default: Any) -> Any:
-    """按路口覆盖对外 programID（平台方案号从 1 开始）。"""
-    # 通州适配器已输出真实平台方案号；上线时的固定覆盖不能将强制方案的相位
-    # 错标成另一个方案。零值候选仍沿用原有兜底方案号。
-    if str(intersection_id) in TONGZHOU_49 and type(default) is int and default > 0:
+    """真实平台方案号优先；零候选仍沿用本地对外方案号配置。"""
+    if uses_platform_phase_timing(intersection_id) and type(default) is int and default > 0:
         return default
-    try:
-        stat = _PLAN_OVERRIDES_PATH.stat()
-    except OSError:
-        return default
-    signature = (stat.st_mtime_ns, stat.st_size)
-    if signature != _PLAN_OVERRIDES_CACHE["signature"]:
-        try:
-            data = json.loads(_PLAN_OVERRIDES_PATH.read_text(encoding="utf-8-sig"))
-        except (OSError, ValueError):
-            data = {}
-        _PLAN_OVERRIDES_CACHE["data"] = data if isinstance(data, dict) else {}
-        _PLAN_OVERRIDES_CACHE["signature"] = signature
-    overrides = _PLAN_OVERRIDES_CACHE["data"]
-    return overrides.get(str(intersection_id), default)
+    return program_id_override(intersection_id, default)
 
 
 def _empty_plan_timetable_fallback(intersection_id: str, result_to_send: list[Any]) -> list[Any]:

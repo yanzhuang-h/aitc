@@ -70,6 +70,32 @@ def DQN_select(cross_id):
     def codes(self, **kwargs):
         return {x['code'] for x in self.report(**kwargs)['findings']}
 
+    def test_shared_entry_binds_each_road_and_keeps_batch_as_label(self):
+        self.write("lib/intersection_strategy.py",
+                   "PLATFORM_PHASE_ROAD_IDS = frozenset({'100', '490'})")
+        self.write("lib/DQN_Select.py", """
+Cross_Video = ['100', '190', '490']
+def DQN_select_platform(cross_id):
+    return select_pilot_schedule(str(cross_id))
+def DQN_select(cross_id):
+    if cross_id in Cross_Video:
+        if uses_platform_phase_timing(cross_id):
+            return DQN_select_platform(cross_id)
+""")
+        rows = {x['road_id']: x for x in self.report()['inventory']}
+        for road in ['100', '490']:
+            self.assertTrue(rows[road]['online_candidate_eligible'])
+            self.assertEqual(rows[road]['pilot_call_road_ids'], [road])
+            self.assertEqual(rows[road]['phase_adapter'], 'bounded_movement_adapter' if road == '490' else 'existing_category_rules')
+            self.assertEqual(rows[road]['selector_entry'], 'shared_platform_function')
+        self.assertEqual(rows['100']['group'], 'unclassified')
+        self.assertEqual(rows['490']['group'], '49')
+        path = self.root/'lib/DQN_Select.py'
+        path.write_text(path.read_text().replace('return DQN_select_platform(cross_id)',
+                                                'return DQN_select_platform("190")'))
+        self.assertIn('pilot_road_mismatch', self.codes(roads={'490'}))
+        self.assertFalse(self.report(roads={'490'})['inventory'][0]['online_candidate_eligible'])
+
     def test_static_execution_and_file_preservation(self):
         before = {p: p.read_bytes() for p in self.root.rglob('*') if p.is_file()}
         report = self.report()
