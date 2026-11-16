@@ -307,6 +307,7 @@ def record_shadow_comparison(
             extend_map_single_intersection,
             experience_table=experience_table,
             cross_info=cross_info,
+            zero_demand_fallback=road_group(road_id) == "49",
         )
         new_vector = _schedule_vector(result["time_vector"])
         decisions = _decision_summary(result)

@@ -238,6 +238,7 @@ def allocate_green_times(
     saturation_ratio=DEFAULT_SATURATION_RATIO,
     left_turn_extra_seconds=0,
     safe_fallback_green_time=DEFAULT_SAFE_FALLBACK_GREEN_TIME,
+    zero_demand_fallback=False,
     min_green_time=1,
     max_green_time=DEFAULT_MAX_GREEN_TIME,
 ):
@@ -250,6 +251,9 @@ def allocate_green_times(
     flow always activates its movement, even when ``active_directions`` is
     incomplete.  Missing table points use a bounded, audited fallback instead
     of silently returning zero.
+
+    零需求保底仅由49组运行入口启用：没有更短经验点时保留既有安全时间，
+    不因零计数借用其他方向的长经验，也不据此取消平台阶段。
     """
     saturation_ratio = float(saturation_ratio)
     if not 0 < saturation_ratio <= 1:
@@ -324,6 +328,27 @@ def allocate_green_times(
             max_green_time,
         )
         decision["experience_point_count"] = len(points)
+        safe_time = max(
+            min_green_time,
+            min(max_green_time, int(safe_fallback_green_time)),
+        )
+        if zero_demand_fallback and requested_flow == 0 and (
+            not points or points[0][0] > safe_time
+        ):
+            # 零计数不证明现场无车：保留既有保底，但不借其他方向的长经验。
+            extra = max(0, int(left_turn_extra_seconds)) if direction.endswith("TL") else 0
+            selected_time = min(max_green_time, safe_time + extra)
+            times[direction] = selected_time
+            decision.update({
+                "selected_green_time": selected_time,
+                "table_green_time": safe_time,
+                "left_turn_extra_seconds": extra,
+                "fallback_source": "safe_fallback_time",
+                "status": "fallback_zero_controlled_demand",
+            })
+            decisions[direction] = decision
+            continue
+
         if not points:
             fallback_time, fallback_source = _fallback_green_time(
                 road_table,
@@ -664,6 +689,7 @@ def allocate_from_runtime_data(
     saturation_ratio=DEFAULT_SATURATION_RATIO,
     left_turn_extra_seconds=0,
     safe_fallback_green_time=DEFAULT_SAFE_FALLBACK_GREEN_TIME,
+    zero_demand_fallback=False,
     target_flow_seconds=DEFAULT_TARGET_FLOW_SECONDS,
     full_window_min_seconds=DEFAULT_FULL_WINDOW_MIN_SECONDS,
     max_stage_gap_seconds=DEFAULT_MAX_STAGE_GAP_SECONDS,
@@ -764,6 +790,7 @@ def allocate_from_runtime_data(
         saturation_ratio=saturation_ratio,
         left_turn_extra_seconds=left_turn_extra_seconds,
         safe_fallback_green_time=safe_fallback_green_time,
+        zero_demand_fallback=zero_demand_fallback,
         min_green_time=min_green_time,
         max_green_time=max_green_time,
     )
