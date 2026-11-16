@@ -89,7 +89,13 @@ class FloatingValueRulesTest(unittest.TestCase):
         self.phase_rules["1700240"] = {"0": {"0": [40, 50]}}
         self.assertEqual(self.validate()["status"], "valid")
 
+    def seed_existing_record(self):
+        existing = dict(self.payload, phase_offsets=[0, 0, 0])
+        self.path.write_text(json.dumps([existing]), encoding="utf-8")
+        return self.path.read_bytes()
+
     def test_unknown_road_or_plan_is_rejected_without_creating_file_changes(self):
+        before = self.seed_existing_record()
         for key, value in [("Cross_id", "unknown"), ("Change_id", "0")]:
             with self.subTest(key=key):
                 payload = dict(self.payload, **{key: value})
@@ -98,7 +104,7 @@ class FloatingValueRulesTest(unittest.TestCase):
                 )
                 self.assertFalse(result["saved"])
                 self.assertEqual(result["status"], "error")
-                self.assertEqual(self.path.read_text(), "[]")
+                self.assertEqual(self.path.read_bytes(), before)
 
     def test_nonexistent_phase_and_excessive_offset_remain_invalid(self):
         for offsets, reason in [
@@ -112,7 +118,7 @@ class FloatingValueRulesTest(unittest.TestCase):
                 self.assertIn(reason, result["reason"])
 
     def test_invalid_record_keeps_previous_file_unchanged(self):
-        before = self.path.read_bytes()
+        before = self.seed_existing_record()
         invalid = copy.deepcopy(self.payload)
         invalid["Change_id"] = "0"
         with self.assertRaisesRegex(ValueError, "record at index 1"):
@@ -120,6 +126,28 @@ class FloatingValueRulesTest(unittest.TestCase):
                 [self.payload, invalid], path=str(self.path),
             )
         self.assertEqual(self.path.read_bytes(), before)
+
+    def test_malformed_road_info_is_rejected_without_replacing_existing_records(self):
+        before = self.seed_existing_record()
+        for field, value in [
+            ("phase", 1),
+            ("min_pass_time", ["invalid", 20, 35]),
+            ("max_pass_time", [None, 200, 200]),
+        ]:
+            with self.subTest(field=field):
+                original = self.road_info["1700240"]["1"][field]
+                self.road_info["1700240"]["1"][field] = value
+                try:
+                    result = self.validate()
+                    self.assertEqual(result["status"], "invalid")
+                    self.assertIn("Invalid road_info rules", result["reason"])
+                    with self.assertRaisesRegex(ValueError, "Invalid road_info rules"):
+                        floating_value.replace_floating_value_records(
+                            [self.payload], path=str(self.path),
+                        )
+                    self.assertEqual(self.path.read_bytes(), before)
+                finally:
+                    self.road_info["1700240"]["1"][field] = original
 
     def test_final_phase_bounds_still_limit_adjusted_green(self):
         action = [190, 50, 50] + [0] * 6 + [1]
