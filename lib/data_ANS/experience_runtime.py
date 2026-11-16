@@ -489,6 +489,7 @@ def _run_experience_pool_day_unlocked(source_date, *, release_settings=None):
                 road for road in update_roads if road in updated_table
             ],
             allow_legacy_records=True,
+            require_manifest=True,
             source_metadata={
                 "source_date": source_date_text,
                 "candidate_count": candidate_count,
@@ -499,7 +500,7 @@ def _run_experience_pool_day_unlocked(source_date, *, release_settings=None):
             },
         )
 
-    if release_result and release_result.get("activated"):
+    if release_result and (release_result.get("activated") or release_result.get("unchanged")):
         from lib.data_ANS.experience_pool import acknowledge_pool_publication
         acknowledge_pool_publication(str(paths["full_pool"]), updated_table)
 
@@ -546,7 +547,10 @@ def run_experience_pool_day(source_date, *, release_settings=None):
         source_date = dt.date.fromisoformat(source_date)
     if not isinstance(source_date, dt.date):
         raise TypeError("source_date must be a date or ISO date string")
-    with pool_update_lock(_run_paths(source_date)["full_pool"]):
+    runtime_path = _configured_path(
+        "AITC_EXPERIENCE_RUNTIME_TABLE", DEFAULT_STATE_DIR / "online_experience.json",
+    )
+    with pool_update_lock(_run_paths(source_date)["full_pool"]), pool_update_lock(runtime_path):
         return _run_experience_pool_day_unlocked(source_date, release_settings=release_settings)
 
 

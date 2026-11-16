@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import tempfile
+from functools import wraps
 
 try:
     from lib.data_ANS.lane_policy import (
@@ -25,6 +26,50 @@ MAX_GREEN_TIME = 150
 
 class ExperienceReleaseError(ValueError):
     pass
+
+
+def _serialize_table_write(runtime_argument):
+    """发布与回滚共用运行表锁；与日常学习使用同一锁文件。"""
+    def decorate(function):
+        @wraps(function)
+        def run(*args, **kwargs):
+            try:
+                from lib.data_ANS.experience_pool import pool_update_lock
+            except ModuleNotFoundError:
+                from experience_pool import pool_update_lock
+            runtime_path = kwargs.get("runtime_path")
+            if runtime_path is None:
+                runtime_path = args[runtime_argument]
+            runtime_path = os.path.realpath(str(runtime_path))
+            if "runtime_path" in kwargs:
+                kwargs["runtime_path"] = runtime_path
+            else:
+                args = (*args[:runtime_argument], runtime_path, *args[runtime_argument + 1:])
+            with pool_update_lock(runtime_path):
+                return function(*args, **kwargs)
+        return run
+    return decorate
+
+
+def _recover_pending_manifest(runtime_path, manifest_path):
+    pending_path = str(manifest_path) + ".pending"
+    pending = _load_json(pending_path, default={})
+    if not pending:
+        return
+    active = _load_json(runtime_path, default={})
+    if pending.get("active_sha256") != _canonical_hash(active):
+        return
+    _write_json_atomic(manifest_path, pending)
+    os.remove(pending_path)
+
+
+def _commit_table_and_manifest(table, runtime_path, manifest_path, manifest):
+    # 先保存版本记录，表写入后中断时可恢复正确的回滚快照指针。
+    pending_path = str(manifest_path) + ".pending"
+    _write_json_atomic(pending_path, manifest)
+    _write_json_atomic(runtime_path, table)
+    _write_json_atomic(manifest_path, manifest)
+    os.remove(pending_path)
 
 
 def _load_json(path, default=None):
@@ -383,6 +428,7 @@ def _release_id(table):
     return f"experience_{timestamp}_{_canonical_hash(table)[:12]}"
 
 
+@_serialize_table_write(1)
 def activate_validated_experience_table(
     table,
     runtime_path,
@@ -393,6 +439,7 @@ def activate_validated_experience_table(
     source_metadata=None,
     required_road_ids=None,
     allow_legacy_records=False,
+    require_manifest=False,
 ):
     """Validate, version, and atomically activate a complete runtime table.
 
@@ -414,10 +461,13 @@ def activate_validated_experience_table(
     versions_dir = os.path.abspath(versions_dir)
     if manifest_path is None:
         manifest_path = os.path.join(versions_dir, "active_manifest.json")
+    _recover_pending_manifest(runtime_path, manifest_path)
     previous_manifest = _load_json(manifest_path, default={})
     table_hash = _canonical_hash(table)
     active_hash = _canonical_hash(active_table) if active_table else None
     if active_hash == table_hash:
+        if require_manifest and previous_manifest.get("active_sha256") != table_hash:
+            raise ExperienceReleaseError("runtime table matches candidate but version manifest is missing or stale")
         return {
             "activated": False,
             "unchanged": True,
@@ -453,8 +503,7 @@ def activate_validated_experience_table(
     if active_table:
         _write_json_atomic(rollback_path, active_table)
     _write_json_atomic(version_path, table)
-    _write_json_atomic(runtime_path, table)
-    _write_json_atomic(manifest_path, manifest)
+    _commit_table_and_manifest(table, runtime_path, manifest_path, manifest)
     return {
         "activated": True,
         "unchanged": False,
@@ -463,6 +512,7 @@ def activate_validated_experience_table(
     }
 
 
+@_serialize_table_write(3)
 def release_experience_table(
     candidate_path,
     selection_report_path,
@@ -502,6 +552,8 @@ def release_experience_table(
         manifest_path = os.path.join(versions_dir, "active_manifest.json")
     version_path = os.path.join(versions_dir, f"{release_id}.json")
     rollback_path = os.path.join(versions_dir, f"{release_id}_previous.json")
+    if activate:
+        _recover_pending_manifest(runtime_path, manifest_path)
     previous_manifest = _load_json(manifest_path, default={})
     manifest = {
         "schema_version": 1,
@@ -530,8 +582,7 @@ def release_experience_table(
         if active_table:
             _write_json_atomic(rollback_path, active_table)
         _write_json_atomic(version_path, merged_table)
-        _write_json_atomic(runtime_path, merged_table)
-        _write_json_atomic(manifest_path, manifest)
+        _commit_table_and_manifest(merged_table, runtime_path, manifest_path, manifest)
 
     return {
         "activated": bool(activate),
@@ -540,8 +591,10 @@ def release_experience_table(
     }
 
 
+@_serialize_table_write(0)
 def rollback_experience_table(runtime_path, manifest_path, cross_info_path):
     """Restore the pre-release snapshot recorded by the active release manifest."""
+    _recover_pending_manifest(runtime_path, manifest_path)
     manifest = _load_json(manifest_path)
     rollback_path = manifest.get("rollback_version_path") if isinstance(manifest, dict) else None
     if not rollback_path or not os.path.exists(rollback_path):
@@ -560,11 +613,10 @@ def rollback_experience_table(runtime_path, manifest_path, cross_info_path):
     if not validation["valid"]:
         raise ExperienceReleaseError("rollback table invalid: " + "; ".join(validation["errors"]))
 
-    _write_json_atomic(runtime_path, table)
     manifest["rolled_back_at_utc"] = dt.datetime.now(dt.timezone.utc).isoformat()
     manifest["active_sha256"] = _canonical_hash(table)
     manifest["rollback_applied"] = True
-    _write_json_atomic(manifest_path, manifest)
+    _commit_table_and_manifest(table, runtime_path, manifest_path, manifest)
     return {"runtime_path": os.path.abspath(runtime_path), "validation": validation}
 
 

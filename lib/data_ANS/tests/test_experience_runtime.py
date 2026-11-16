@@ -90,7 +90,7 @@ class ExperienceRuntimeTests(unittest.TestCase):
             self.assertFalse(first["table_updated"])
 
     def _run_raw_feedback_day(self, initial_table, minimum_samples=1, road_id="1",
-                              resume_after_skip=None, repeat_completed=False):
+                              resume_after_skip=None, repeat_completed=False, interrupt_publication=False):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             logs = root / "logs_data"
@@ -191,7 +191,29 @@ class ExperienceRuntimeTests(unittest.TestCase):
                     }[resume_after_skip]
                     self.assertEqual(skipped["status"], expected_status)
                     broken_path.write_bytes(original)
+                if interrupt_publication:
+                    from lib.data_ANS import experience_release as release
+                    original_write = release._write_json_atomic
+                    def fail_manifest(path, data):
+                        if str(path) == str(versions_dir / "active_manifest.json"):
+                            raise OSError("interrupted after runtime table")
+                        return original_write(path, data)
+                    with mock.patch.object(release, "_write_json_atomic", side_effect=fail_manifest):
+                        with self.assertRaisesRegex(OSError, "interrupted"):
+                            run_experience_pool_day(source_date)
+                    pool_path = state_dir / "online_experience_samples.json"
+                    interrupted = json.loads(pool_path.read_text())
+                    self.assertTrue(interrupted["state"]["pending_publication"])
+                    table_before_resume = runtime_path.read_bytes()
                 report = run_experience_pool_day(source_date)
+                if interrupt_publication:
+                    resumed = json.loads(pool_path.read_text())
+                    self.assertFalse(resumed["state"]["pending_publication"])
+                    self.assertEqual(resumed["roads"], interrupted["roads"])
+                    self.assertEqual(runtime_path.read_bytes(), table_before_resume)
+                    manifest = json.loads((versions_dir / "active_manifest.json").read_text())
+                    self.assertEqual(manifest["active_sha256"], release._canonical_hash(
+                        json.loads(runtime_path.read_text())))
                 if repeat_completed:
                     table_bytes = runtime_path.read_bytes()
                     pool_path = state_dir / "online_experience_samples.json"
@@ -296,6 +318,14 @@ class ExperienceRuntimeTests(unittest.TestCase):
                                wraps=RUNTIME.normalize_raw_feedback) as normalize:
             self._run_raw_feedback_day({}, repeat_completed=True)
         self.assertEqual(normalize.call_count, 1)
+
+    def test_interrupted_publication_recovers_manifest_without_reblending(self):
+        report, updated, activated = self._run_raw_feedback_day(
+            {}, interrupt_publication=True,
+        )
+        self.assertTrue(activated)
+        self.assertTrue(updated["1"]["U"])
+        self.assertTrue(report["pool_summary"]["publication_recovery_required"])
 
     def test_invalid_nonempty_or_wrong_type_table_still_blocks_learning(self):
         for initial in ({"1": {}}, [], {"1": {"U": {"10": [-1] * 10}}}):
