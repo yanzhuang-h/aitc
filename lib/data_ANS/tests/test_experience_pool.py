@@ -537,6 +537,98 @@ class ExperiencePoolTests(unittest.TestCase):
         self.assertEqual(blended["1"]["U"]["60"][2], 70)
         self.assertEqual(blend_report["lane_values_blended"], 1)
 
+    def test_existing_road_expansion_seeds_only_qualified_lanes(self):
+        old = {"1700240": {"D": {"60": [0, 20] + [0] * 8}}}
+        table = {"1700240": {"U": {"61": [0, 50, 999] + [0] * 7}}}
+        masks = {"1700240": {"U": {"61": [1]}}}
+        updated, report = blend_eligible_lane_updates(
+            old, table, masks, new_point_road_ids={"1700240"},
+        )
+        self.assertEqual(updated["1700240"]["U"]["61"], [0, 50] + [0] * 8)
+        self.assertEqual(updated["1700240"]["D"], old["1700240"]["D"])
+        self.assertEqual(report["new_experience_points_seeded"], 1)
+        self.assertNotIn("U", old["1700240"])
+
+    def test_existing_road_expansion_rejects_invalid_lane_mask(self):
+        with self.assertRaisesRegex(ValueError, "invalid lane"):
+            blend_eligible_lane_updates(
+                {"1700240": {"D": {"60": [0] * 10}}},
+                {"1700240": {"U": {"61": [0] * 10}}},
+                {"1700240": {"U": {"61": [10]}}},
+                new_point_road_ids={"1700240"},
+            )
+
+    def test_existing_road_expands_only_after_thirty_cumulative_samples(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            candidate, pool, old, output = [root / name for name in
+                                            ["candidate.json", "pool.json", "old.json", "output.json"]]
+            initial = {"1700240": {"D": {"60": [0, 20] + [0] * 8}}}
+            old.write_text(json.dumps(initial))
+            def samples(day, count):
+                return {"roads": {"1700240": {"directions": {"U": {"61": [
+                    {"date": day, "window_start": i * 600,
+                     "flow": [0, 50] + [0] * 8, "metadata": {"capacity_lane_indexes": [1]}}
+                    for i in range(count)
+                ]}}}}}
+            candidate.write_text(json.dumps(samples("2026-11-12", 29)))
+            args = [str(candidate), str(pool), str(old), str(output)]
+            before, _ = run_daily_pool_update(
+                *args, min_sample_count=30, new_point_road_ids={"1700240"},
+            )
+            self.assertEqual(before, initial)
+            candidate.write_text(json.dumps(samples("2026-11-13", 1)))
+            after, report = run_daily_pool_update(
+                *args, min_sample_count=30, new_point_road_ids={"1700240"},
+            )
+            self.assertEqual(after["1700240"]["U"]["61"], [0, 50] + [0] * 8)
+            self.assertEqual(after["1700240"]["D"], initial["1700240"]["D"])
+            self.assertEqual(report["blend"]["new_experience_points_seeded"], 1)
+            repeated, replay_report = run_daily_pool_update(
+                *args, min_sample_count=30, new_point_road_ids={"1700240"},
+            )
+            self.assertEqual(repeated, after)
+            self.assertEqual(replay_report["days"]["2026-11-13"]["status"], "already_applied")
+
+    def test_newly_qualified_lane_uses_provenance_instead_of_placeholder_zero(self):
+        old = {"1700240": {"U": {"61": [0, 50, 0] + [0] * 7}}}
+        table = {"1700240": {"U": {"61": [0, 0, 80] + [0] * 7}}}
+        masks = {"1700240": {"U": {"61": [2]}}}
+        for known, expected in [({"1700240/U/61": [1]}, 80),
+                                ({"1700240/U/61": [1, 2]}, 16), (None, 16)]:
+            with self.subTest(known=known):
+                updated, _ = blend_eligible_lane_updates(
+                    old, table, masks, new_point_road_ids={"1700240"},
+                    seeded_point_lane_masks=known,
+                )
+                self.assertEqual(updated["1700240"]["U"]["61"][1], 50)
+                self.assertEqual(updated["1700240"]["U"]["61"][2], expected)
+
+    def test_separate_days_initialize_lanes_without_diluting_placeholder_zero(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            candidate, pool, old, output = [root / name for name in
+                                            ["candidate.json", "pool.json", "old.json", "output.json"]]
+            old.write_text(json.dumps({"1700240": {"D": {"60": [0, 20] + [0] * 8}}}))
+            args = [str(candidate), str(pool), str(old), str(output)]
+            for day, lane, value, expected in [
+                ("2026-11-12", 1, 50, [0, 50, 0]),
+                ("2026-11-13", 2, 80, [0, 50, 80]),
+                ("2026-11-14", 2, 100, [0, 50, 84]),
+            ]:
+                flow = [0] * 10
+                flow[lane] = value
+                samples = [{"date": day, "window_start": i * 600, "flow": flow,
+                            "metadata": {"capacity_lane_indexes": [lane]}} for i in range(30)]
+                candidate.write_text(json.dumps({"roads": {"1700240": {
+                    "directions": {"U": {"61": samples}}}}}))
+                table, _ = run_daily_pool_update(
+                    *args, min_sample_count=30, new_point_road_ids={"1700240"},
+                )
+                self.assertEqual(table["1700240"]["U"]["61"][:3], expected)
+            state = json.loads(pool.read_text())["state"]
+            self.assertEqual(state["seeded_point_lane_masks"]["1700240/U/61"], [1, 2])
+
     def test_eligible_blend_does_not_create_missing_time_point(self):
         old = {"1": {"U": {"60": [0, 20] + [0] * 8}}}
         table2 = {"1": {"U": {"61": [0, 40] + [0] * 8}}}

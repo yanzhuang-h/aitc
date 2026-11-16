@@ -33,7 +33,7 @@ _POOL_HELD_LOCKS = threading.local()
 def pool_update_lock(path):
     """在 WSL/生产 Linux 上串行化同一经验池的读、改、写与发布；允许同线程嵌套。"""
     import fcntl
-    lock_path = os.path.abspath(str(path)) + ".lock"
+    lock_path = os.path.realpath(str(path)) + ".lock"
     os.makedirs(os.path.dirname(lock_path), exist_ok=True)
     with _POOL_LOCKS_GUARD:
         lock = _POOL_LOCKS.setdefault(lock_path, threading.RLock())
@@ -1057,10 +1057,12 @@ def blend_eligible_lane_updates(
     eligible_lane_masks,
     old_weight=DEFAULT_OLD_WEIGHT,
     new_weight=DEFAULT_NEW_WEIGHT,
+    new_point_road_ids=None,
+    seeded_point_lane_masks=None,
 ):
     """Blend only explicitly eligible lane cells into an existing table.
 
-    已存在的路口不会隐式新增方向/时间点；新路口首次进入时允许用候选点建表。
+    新路口可用达标候选点建表；已有路口仅在明确允许时扩展方向和时间点。
     """
     old_weight = float(old_weight)
     new_weight = float(new_weight)
@@ -1069,7 +1071,11 @@ def blend_eligible_lane_updates(
     if not math.isclose(old_weight + new_weight, 1.0, abs_tol=1e-9):
         raise ValueError("blend weights must sum to 1.0")
 
-    result = copy.deepcopy(old_table or {})
+    old_table = old_table or {}
+    result = copy.deepcopy(old_table)
+    new_point_road_ids = {str(road) for road in (new_point_road_ids or [])}
+    seeded_point_lane_masks = seeded_point_lane_masks or {}
+    mask_updates = {}
     stats = Counter()
     changed_points = set()
     for road_id, road_data in eligible_lane_masks.items():
@@ -1085,13 +1091,22 @@ def blend_eligible_lane_updates(
                     .get(direction, {})
                     .get(str(green_time))
                 )
-                if old_flow is None and road_id not in old_table and new_flow is not None:
-                    # 新路口首次进入经验池：用候选点直接建表，后续再按权重融合。
+                point_key = f"{road_id}/{direction}/{green_time}"
+                lane_indexes = sorted({int(value) for value in lane_indexes})
+                if any(lane < 0 or lane >= LANE_COUNT for lane in lane_indexes):
+                    raise ValueError("eligible lane mask contains an invalid lane")
+                if (old_flow is None and new_flow is not None
+                        and (road_id not in old_table or road_id in new_point_road_ids)):
+                    # 缺失点没有旧值可融合，只写入已通过样本门槛的车道。
+                    vector = _normalize_flow_vector(new_flow)
                     result.setdefault(road_id, {}).setdefault(direction, {})[
                         str(green_time)
-                    ] = _normalize_flow_vector(new_flow)
-                    stats["new_road_points_seeded"] += 1
+                    ] = [value if index in lane_indexes else 0
+                         for index, value in enumerate(vector)]
+                    stats["new_road_points_seeded" if road_id not in old_table
+                          else "new_experience_points_seeded"] += 1
                     stats["lane_values_changed"] += len(lane_indexes)
+                    mask_updates[point_key] = lane_indexes
                     changed_points.add((road_id, direction, str(green_time)))
                     continue
                 if old_flow is None or new_flow is None:
@@ -1102,9 +1117,15 @@ def blend_eligible_lane_updates(
                 old_vector = _normalize_flow_vector(old_flow)
                 p80_vector = _normalize_flow_vector(new_flow)
                 blended_vector = list(old_vector)
-                for lane_index in sorted({int(value) for value in lane_indexes}):
-                    if not 0 <= lane_index < LANE_COUNT:
-                        raise ValueError("eligible lane mask contains an invalid lane")
+                known_lanes = seeded_point_lane_masks.get(point_key)
+                for lane_index in lane_indexes:
+                    if (road_id in new_point_road_ids and known_lanes is not None
+                            and lane_index not in known_lanes and old_vector[lane_index] == 0):
+                        blended_vector[lane_index] = p80_vector[lane_index]
+                        stats["new_lane_values_seeded"] += 1
+                        stats["lane_values_changed"] += 1
+                        changed_points.add((road_id, direction, str(green_time)))
+                        continue
                     blended = int(
                         math.floor(
                             old_vector[lane_index] * old_weight
@@ -1119,12 +1140,15 @@ def blend_eligible_lane_updates(
                         changed_points.add((road_id, direction, str(green_time)))
                     else:
                         stats["lane_values_unchanged_after_rounding"] += 1
+                if known_lanes is not None:
+                    mask_updates[point_key] = sorted(set(known_lanes) | set(lane_indexes))
                 result[road_id][direction][str(green_time)] = blended_vector
 
     stats["points_changed"] = len(changed_points)
     return result, {
         "old_weight": old_weight,
         "new_weight": new_weight,
+        "seeded_point_lane_masks": mask_updates,
         "changed_points": [
             "/".join(item)
             for item in sorted(
@@ -1151,6 +1175,7 @@ def run_daily_pool_update(
     authoritative_old_table=False,
     selection_method=DEFAULT_POOL_SELECTION_METHOD,
     cluster_fraction=DEFAULT_DENSE_CLUSTER_FRACTION,
+    new_point_road_ids=None,
 ):
     candidate_samples = _load_json(candidate_samples_path)
     if not candidate_samples:
@@ -1168,6 +1193,7 @@ def run_daily_pool_update(
         else {str(road_id) for road_id in update_road_ids}
     )
 
+    new_point_road_ids = {str(road) for road in (new_point_road_ids or [])}
     state_table = full_pool.get_rolling_table()
     recovered_publication = False
     initial_active_table = None
@@ -1177,11 +1203,17 @@ def run_daily_pool_update(
         effective_old_table_path = old_table_path
         # 经验池先提交、滚动表或运行表尚未发布时，按已保存的基表指纹恢复。
         # 外部回滚或换表后指纹不同，继续尊重运行表，不强行恢复旧发布。
-        if (state_table is not None and full_pool._state.get("pending_publication", False)
-                and full_pool._state.get("authoritative_base_sha256") == _table_digest(current_table)):
-            current_table = state_table
-            recovered_publication = current_table != initial_active_table
-            effective_old_table_path = f"{full_pool_path}#state.rolling_table"
+        if state_table is not None and full_pool._state.get("pending_publication", False):
+            if full_pool._state.get("authoritative_base_sha256") == _table_digest(current_table):
+                current_table = state_table
+                recovered_publication = current_table != initial_active_table
+                effective_old_table_path = f"{full_pool_path}#state.rolling_table"
+            elif _table_digest(state_table) == _table_digest(current_table):
+                # 表已写入但版本记录或确认尚未完成，保留发布意图继续收尾。
+                recovered_publication = True
+        if state_table is not None and current_table != state_table:
+            # 外部换表/回滚后不沿用旧的占位车道来源判断。
+            full_pool._state.pop("seeded_point_lane_masks", None)
     elif state_table is not None:
         current_table = state_table
         effective_old_table_path = f"{full_pool_path}#state.rolling_table"
@@ -1260,12 +1292,17 @@ def run_daily_pool_update(
             eligible_lane_masks,
             old_weight=old_weight,
             new_weight=new_weight,
+            new_point_road_ids=new_point_road_ids,
+            seeded_point_lane_masks=full_pool._state.get("seeded_point_lane_masks"),
+        )
+        full_pool._state.setdefault("seeded_point_lane_masks", {}).update(
+            blend_report["seeded_point_lane_masks"]
         )
         total_blend.update(
             {
                 key: value
                 for key, value in blend_report.items()
-                if key not in {"old_weight", "new_weight"}
+                if key not in {"old_weight", "new_weight", "seeded_point_lane_masks"}
             }
         )
         eligible_count = int(
@@ -1304,7 +1341,7 @@ def run_daily_pool_update(
     )
     if authoritative_old_table:
         full_pool._state["authoritative_base_sha256"] = _table_digest(initial_active_table)
-        full_pool._state["pending_publication"] = current_table != initial_active_table
+        full_pool._state["pending_publication"] = recovered_publication or current_table != initial_active_table
     _write_json_atomic(full_pool_path, full_pool.build_full_pool())
     _write_json_atomic(output_path, current_table)
 

@@ -14,6 +14,7 @@ from pathlib import Path
 import threading
 
 from app.config import ExperienceReleaseSettings
+from lib.road_groups import TONGZHOU_49
 
 from lib.data_ANS.experience_pool import (
     DEFAULT_DENSE_CLUSTER_FRACTION,
@@ -302,13 +303,18 @@ def _run_paths(source_date):
     }
 
 
-def _existing_terminal_manifest(path):
+def _existing_terminal_manifest(path, source_paths=()):
     manifest = _load_json(str(path), default={})
     if not isinstance(manifest, dict):
         return None
     status = str(manifest.get("status", ""))
-    if status.startswith("completed") or status.startswith("skipped"):
+    if status.startswith("completed"):
         return manifest
+    if status == "skipped_missing_source_data":
+        missing_now = [str(source) for source in source_paths if not source.is_file()]
+        if missing_now and missing_now == manifest.get("missing_files"):
+            return manifest
+    # 跳过不等于完成；文件或配置补齐后，下次调用重新检查，不增加后台重试。
     return None
 
 
@@ -320,7 +326,9 @@ def _run_experience_pool_day_unlocked(source_date, *, release_settings=None):
         raise TypeError("source_date must be a date or ISO date string")
 
     paths = _run_paths(source_date)
-    terminal = _existing_terminal_manifest(paths["run_manifest"])
+    terminal = _existing_terminal_manifest(
+        paths["run_manifest"], (paths["flow"], paths["extend"]),
+    )
     if terminal is not None:
         return terminal
 
@@ -462,6 +470,7 @@ def _run_experience_pool_day_unlocked(source_date, *, release_settings=None):
         authoritative_old_table=True,
         selection_method=selection_method,
         cluster_fraction=cluster_fraction,
+        new_point_road_ids=update_roads & TONGZHOU_49,
     )
     changed_lanes = int(
         pool_report.get("blend", {}).get("lane_values_changed", 0)
@@ -480,6 +489,7 @@ def _run_experience_pool_day_unlocked(source_date, *, release_settings=None):
                 road for road in update_roads if road in updated_table
             ],
             allow_legacy_records=True,
+            require_manifest=True,
             source_metadata={
                 "source_date": source_date_text,
                 "candidate_count": candidate_count,
@@ -490,7 +500,7 @@ def _run_experience_pool_day_unlocked(source_date, *, release_settings=None):
             },
         )
 
-    if release_result and release_result.get("activated"):
+    if release_result and (release_result.get("activated") or release_result.get("unchanged")):
         from lib.data_ANS.experience_pool import acknowledge_pool_publication
         acknowledge_pool_publication(str(paths["full_pool"]), updated_table)
 
@@ -537,7 +547,10 @@ def run_experience_pool_day(source_date, *, release_settings=None):
         source_date = dt.date.fromisoformat(source_date)
     if not isinstance(source_date, dt.date):
         raise TypeError("source_date must be a date or ISO date string")
-    with pool_update_lock(_run_paths(source_date)["full_pool"]):
+    runtime_path = _configured_path(
+        "AITC_EXPERIENCE_RUNTIME_TABLE", DEFAULT_STATE_DIR / "online_experience.json",
+    )
+    with pool_update_lock(_run_paths(source_date)["full_pool"]), pool_update_lock(runtime_path):
         return _run_experience_pool_day_unlocked(source_date, release_settings=release_settings)
 
 
