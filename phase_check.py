@@ -10,7 +10,9 @@ from pathlib import Path
 # -*- coding: utf-8 -*-
 
 from app.paths import INTERSECTION_RESULT_CONFIG_PATH as INTERSECTION_CONFIG_PATH
+from lib.road_groups import road_group
 _config_lock = threading.RLock()
+LOGGER = logging.getLogger(__name__)
 
 
 def validate_intersection_result_config(data):
@@ -203,10 +205,20 @@ def phase_check(current_result, *, config_snapshot=None):
         plan_rules = None
         if inter_id in config_snapshot:
             plan_rules = config_snapshot[inter_id].get(plan_id)
+        bounds_source = "intersection_result_config"
         if not plan_rules:
             plan_rules = _road_info_plan_rules(inter_id, plan_id)
+            bounds_source = "road_info" if plan_rules else "missing"
             if plan_rules:
                 res["msg"] = "OK (road_info fallback)"
+
+        if road_group(inter_id) is not None:
+            LOGGER.info(
+                "phase_bounds cross_id=%s plan_id=%s source=%s bounds=%s",
+                inter_id, plan_id, bounds_source,
+                {str(index): copy.deepcopy(plan_rules[str(index)])
+                 for index in range(9) if plan_rules and str(index) in plan_rules},
+            )
 
         # 3. 两边都没有才报缺失
         if not plan_rules:

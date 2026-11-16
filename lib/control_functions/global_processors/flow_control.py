@@ -195,6 +195,5 @@ def process_flow_intersection(cross_id, current_plan, road_config, hour,
     report["adapted_phase_vector"] = list(plan)
     report["is_final"] = False
     if report["road_group"] is not None:
-        report["phase_config"] = road_config.get(str(report["state"]))
         LOGGER.info("flow_control %s", json.dumps(report, separators=(",", ":")))
     return plan, report
