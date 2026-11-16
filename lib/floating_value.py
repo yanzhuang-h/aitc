@@ -1,6 +1,7 @@
 import argparse
 import copy
 import json
+import logging
 import os
 import sys
 import tempfile
@@ -10,6 +11,8 @@ from datetime import date
 
 from chinese_calendar import is_workday
 
+
+LOGGER = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FLOATING_VALUE_PATH = os.path.join(BASE_DIR, "floating_value.json")
@@ -48,6 +51,7 @@ def _load_floating_value(path=FLOATING_VALUE_PATH):
 
     _cache_mtime = mtime
     _cache_data = data
+    LOGGER.info("floating_value_config path=%s records=%s", os.path.abspath(path), data)
     return _cache_data
 
 

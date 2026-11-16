@@ -27,6 +27,7 @@ class ControlSafetyEngine:
         self.phase_check = phase_check
         self.fallback_loader = fallback_loader
         self.logger = logger or logging.getLogger("aitc.control.safety")
+        self._logged_config = None
 
     def check(self, intersection_id: str, raw_plan: Any, *, config: dict | None = None) -> PlanSafetyResult:
         """只读检查；不取整、不修正、不调用模型，缺规则返回 partial。"""
@@ -99,6 +100,10 @@ class ControlSafetyEngine:
     def finalize(self, plans: dict[str, Any], *, fallback_plans: dict[str, Any] | None = None) -> tuple[dict, dict]:
         """同一批次固定配置快照，逐路口检查；所有 fallback 重新过同一道安全门。"""
         config = copy.deepcopy(self.config_supplier())
+        if config != self._logged_config:
+            # 首次及规则变化时记录实际使用的快照，短时运行即可核对Nacos生效值。
+            self.logger.info("phase_check_rules %s", config)
+            self._logged_config = config
         now = time.time()
         final, reports = {}, {}
         incomplete: dict[str, list[str]] = {}

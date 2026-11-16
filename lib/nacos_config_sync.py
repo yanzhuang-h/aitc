@@ -72,6 +72,11 @@ class NacosConfigSync:
             daemon=True,
         )
         self._thread.start()
+        LOGGER.info(
+            "Nacos %s sync started: data_id=%s group=%s namespace=%s path=%s poll_seconds=%s",
+            self.config_name, self.data_id, self.group, self.namespace,
+            self.path, self.poll_interval,
+        )
         return True
 
     def stop(self):
