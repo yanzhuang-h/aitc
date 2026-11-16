@@ -1,5 +1,10 @@
 """Allocate movement green times using the legacy offline experience table."""
 
+try:
+    from lib.data_ANS.phase_definitions import PHASE_DIRECTION_MAP
+except ModuleNotFoundError:
+    from data_ANS.phase_definitions import PHASE_DIRECTION_MAP
+
 import json
 import os
 from pathlib import Path
@@ -70,21 +75,7 @@ def   chuli_shuju(road_id, flow_map_single_intersection, extend_map_single_inter
             for i in range(len(flow_map_single_intersection[x]['pass'][d])):
                 liu[d][i]+= flow_map_single_intersection[x]['pass'][d][i]
 
-    yingshe_1 = {
-        "UD": ["U", "D"],
-        "LR": ["L", "R"],
-        "RL": ["R", "L"],
-        "DU": ["U", "D"],
-
-        "UDL": ["UTL", "DTL"],
-        "LRL": ["LTL", "RTL"],
-        "DUL": ["UTL", "DTL"],
-        "L":["LTL","L"],
-        "D": ["DTL", "D"],
-        "U": ["UTL", "U"],
-        "R": ["RTL", "R"],
-
-    }
+    yingshe_1 = PHASE_DIRECTION_MAP
     print(liu)
 
     str={

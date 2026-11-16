@@ -1,6 +1,11 @@
 """Infer movement green times from three observed cycles and experience data."""
 
 
+try:
+    from lib.data_ANS.phase_definitions import PHASE_DIRECTION_MAP
+except ModuleNotFoundError:
+    from data_ANS.phase_definitions import PHASE_DIRECTION_MAP
+
 import json
 import bisect
 import os
@@ -158,16 +163,7 @@ def reverse_time_from_three_cycle(cross_id, flow_map, stage_map):
         ###############################################################
         # 8. phase → 8 方向映射
         ###############################################################
-        PHASE_TO_DIR = {
-            "UD": ["U", "D"],
-            "LR": ["L", "R"],
-            "UDL": ["UTL", "DTL"],
-            "LRL": ["LTL", "RTL"],
-            "U": ["U", "UTL"],
-            "D": ["D", "DTL"],
-            "L": ["L", "LTL"],
-            "R": ["R", "RTL"],
-        }
+        PHASE_TO_DIR = PHASE_DIRECTION_MAP
 
         BASE = {
             "U": "U", "UTL": "U",
