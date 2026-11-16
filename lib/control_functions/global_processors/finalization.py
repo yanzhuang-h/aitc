@@ -27,7 +27,7 @@ def finalize_plan_values(result_action_map, *, road_info=None):
             else:
                 # 19组只补齐协调后的记录，沿用原配时，不套用49组边界规则。
                 config = road_info.get(str(cross_id), {}).get(str(plan[9]), {})
-                phases = [name for name in config.get("phase", [])[:8] if name]
+                phases = list(config.get("phase", [])[:8])
                 audit = {}
             LOGGER.info("flow_control_final %s", json.dumps({
                 "cross_id": str(cross_id), "road_group": group,

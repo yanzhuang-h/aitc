@@ -201,7 +201,7 @@ class TongzhouFlowTests(unittest.TestCase):
         record = json.loads(captured.records[0].getMessage().split(" ", 1)[1])
         self.assertEqual(record["road_group"], "19")
         self.assertEqual(record["state"], "0")
-        self.assertEqual(record["phase_names"], ["LR", "LRL", "UD"])
+        self.assertEqual(record["phase_names"], ["LR", "LRL", "UD", 0, 0, 0, 0, 0])
         self.assertEqual(record["output_phase_vector"], result["1700125"])
         self.assertTrue(record["is_final"])
 
@@ -223,6 +223,24 @@ class TongzhouFlowTests(unittest.TestCase):
         self.assertEqual(record["cross_id"], "1700125")
         self.assertEqual(record["phase_names"], [])
         self.assertEqual(record["output_phase_vector"], [60, 32, 40] + [0] * 7)
+
+
+    def test_19_final_log_keeps_sparse_phase_slots_aligned(self):
+        from unittest.mock import patch
+        from lib.control_functions.global_processors.finalization import finalize_plan_values
+
+        plans = {"1700125": [60, 0, 40] + [0] * 7}
+        with patch(
+            "lib.control_functions.global_processors.finalization.apply_floating_value",
+            return_value=(plans, {}),
+        ), self.assertLogs("FlowControl", level="INFO") as captured:
+            result, _ = finalize_plan_values(
+                plans, road_info={"1700125": {"0": {"phase": ["LR", 0, "UD"]}}},
+            )
+
+        record = json.loads(captured.records[0].getMessage().split(" ", 1)[1])
+        self.assertEqual(record["phase_names"], ["LR", 0, "UD"])
+        self.assertEqual(record["output_phase_vector"], [60, 0, 40] + [0] * 7)
 
 
 if __name__ == "__main__":
