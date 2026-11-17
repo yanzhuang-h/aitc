@@ -63,8 +63,9 @@ class V2AcceptanceTest(unittest.TestCase):
         self.assertEqual([item["source"] for item in record["expert_calls"]], ["video"])
         self.assertFalse(record["llm_participated"])
         self.assertEqual(record["traffic_snapshot"]["traffic_vector"], [1, 0, 0, 0])
-        self.assertIsNone(record["traffic_snapshot"]["predicted_flow"])
-        self.assertIsNone(record["traffic_snapshot"]["predicted_queue"])
+        self.assertEqual(record["input_context_batch_id"], record["batch_id"])
+        self.assertNotIn("predicted_flow", record["traffic_snapshot"])
+        self.assertNotIn("predicted_queue", record["traffic_snapshot"])
         payload = next(item for item in result if item["additional"]["tlLogic"]["id"] == VIDEO_INTERSECTION)
         self.assertEqual(record["final_signal_plan"]["program_id"], payload["additional"]["tlLogic"]["programID"])
 
@@ -82,7 +83,7 @@ class V2AcceptanceTest(unittest.TestCase):
         self.assertEqual([item["source"] for item in video["expert_calls"]], ["video", "radar"])
         self.assertIn("queue_map", video["expert_calls"][0]["missing_fields"])
         self.assertEqual(radar["expert_calls"][1]["confidence"], 1)
-        self.assertTrue(radar["traffic_snapshot"]["radar_map"])
+        self.assertGreater(radar["traffic_snapshot"]["radar_map"]["buckets"], 0)
 
     def test_real_qwen_compatible_http_review_preserves_disabled_control(self):
         expected, _traces = self.run_wire_case()

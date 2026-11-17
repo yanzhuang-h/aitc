@@ -11,7 +11,7 @@ from pydantic import ValidationError
 
 from datahub.traffic_adapters import snapshot_from_legacy
 from lib.control_functions.types import IntersectionControlRequest
-from runtime.tracing import DecisionTrace, trace_stage, trace_value
+from runtime.tracing import DecisionTrace, emit_batch_input, trace_stage, trace_value
 
 
 class DecisionTracingTest(unittest.TestCase):
@@ -46,6 +46,40 @@ class DecisionTracingTest(unittest.TestCase):
         self.assertEqual(trace.traffic_snapshot["predicted_flow"]["200"], {"flow": 9})
         self.assertEqual(trace.input_timestamp, 123)
         self.assertEqual(trace.snapshot_status, "captured")
+
+    def test_batch_context_and_local_input_restore_full_request_without_mutation(self):
+        request = IntersectionControlRequest(
+            cross_id="1700125", current_time=123, flow_map={122: {"count": 3}},
+            predicted_flow=None, predicted_queue={"1700125": {"queue": 9}},
+            previous_coordinate={"1700125": {"start": 7}},
+        )
+        logger = Mock()
+        emit_batch_input(logger, "batch",
+                         predicted_flow=request.predicted_flow,
+                         predicted_queue=request.predicted_queue,
+                         previous_coordinate=request.previous_coordinate)
+        trace = DecisionTrace(batch_id="batch", intersection_id="1700125",
+                              control_policy="BaselineController", input_context_batch_id="batch")
+        trace.capture_input(request, None, has_datahub=False)
+        shared = json.loads(logger.info.call_args.args[1])["shared_input"]
+        self.assertEqual(trace.input_request | shared, trace_value(request))
+        request.flow_map[122]["count"] = 0
+        request.previous_coordinate["1700125"]["start"] = 0
+        self.assertEqual(trace.input_request["flow_map"]["122"]["count"], 3)
+        self.assertEqual(shared["previous_coordinate"]["1700125"]["start"], 7)
+        self.assertIsNone(shared["predicted_flow"])
+
+    def test_summary_retains_vectors_and_marks_raw_windows_as_counts(self):
+        request = IntersectionControlRequest(
+            cross_id="100", current_time=123, traffic_vector=[1, 2, 3, 4],
+            extend_map={120: [{"curStageRemainLen": 5}], 121: [{"curStageRemainLen": 4}]},
+        )
+        trace = self.trace()
+        trace.capture_input(request, None, has_datahub=False, full=False)
+        self.assertEqual(trace.input_detail, "summary")
+        self.assertEqual(trace.input_request["traffic_vector"], [1, 2, 3, 4])
+        self.assertEqual(trace.input_request["extend_map"], {"trace_summary": "bucket_count", "buckets": 2})
+        self.assertEqual(request.extend_map[120], [{"curStageRemainLen": 5}])
 
     def test_missing_snapshot_never_substitutes_previous_hub_state(self):
         trace = self.trace()

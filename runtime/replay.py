@@ -164,6 +164,7 @@ class _TraceSink(logging.Handler):
             item = json.loads(message)
             if item.get('event') == 'aitc.decision':
                 self.records.append(item)
+            if item.get('event') in ('aitc.decision', 'aitc.decision_batch'):
                 self.file.write(message + '\n')
                 self.file.flush()
 

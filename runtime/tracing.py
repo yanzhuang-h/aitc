@@ -16,6 +16,9 @@ from control.schemas import SignalPlan
 from app.core.models.contract_types import CONTRACT_CONFIG, FiniteNumber, NonEmptyString
 
 
+SHARED_INPUT_FIELDS = ("previous_coordinate", "predicted_flow", "predicted_queue")
+
+
 def trace_value(value: Any, *, path: str = "$", seen: set[int] | None = None, depth: int = 0) -> Any:
     """完整保留普通 JSON 数据；异常对象显式标记，避免调用其 repr 或修改原对象。"""
     if isinstance(value, int) and not isinstance(value, bool) and value.bit_length() > 13000:
@@ -58,6 +61,23 @@ def trace_value(value: Any, *, path: str = "$", seen: set[int] | None = None, de
         seen.remove(identity)
 
 
+def emit_trace_record(logger, record, *, identity: str) -> None:
+    """诊断写入失败只报告日志故障，不改变已计算的控制结果。"""
+    try:
+        content = json.dumps(trace_value(record), ensure_ascii=True, allow_nan=False, separators=(",", ":"))
+        logger.info("%s", content)
+    except Exception as error:
+        sys.stderr.write(f"Decision trace logging failed trace_id={identity} type={type(error).__name__}\n")
+
+
+def emit_batch_input(logger, batch_id: str, **shared_input) -> None:
+    """在 worker 启动前记录一次全局上下文，路口记录通过 batch_id 关联。"""
+    emit_trace_record(logger, {
+        "event": "aitc.decision_batch", "schema_version": 1,
+        "batch_id": batch_id, "shared_input": shared_input,
+    }, identity=batch_id)
+
+
 class TraceError(BaseModel):
     model_config = CONTRACT_CONFIG
     stage: NonEmptyString
@@ -69,7 +89,7 @@ class DecisionTrace(BaseModel):
     model_config = CONTRACT_CONFIG
 
     event: Literal["aitc.decision"] = "aitc.decision"
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     trace_id: NonEmptyString = Field(default_factory=lambda: uuid4().hex)
     batch_id: NonEmptyString
     intersection_id: NonEmptyString
@@ -77,6 +97,8 @@ class DecisionTrace(BaseModel):
     snapshot_status: Literal["not_captured", "captured", "unavailable"] = "not_captured"
     traffic_snapshot: dict[str, Any] | None = None
     input_request: dict[str, Any] | None = None
+    input_context_batch_id: NonEmptyString | None = None
+    input_detail: Literal["full", "summary"] = "full"
     control_policy: NonEmptyString
     route: list[str] = Field(default_factory=list)
     expert_calls: list[dict[str, Any]] = Field(default_factory=list)
@@ -104,13 +126,26 @@ class DecisionTrace(BaseModel):
     _started_ns: int = PrivateAttr(default_factory=perf_counter_ns)
     _failed_stage: str | None = PrivateAttr(default=None)
 
-    def capture_input(self, request, snapshot, *, has_datahub: bool) -> None:
+    def capture_input(self, request, snapshot, *, has_datahub: bool, full: bool = True) -> None:
         stamp = request.current_time
         valid_stamp = type(stamp) is int or type(stamp) is float and math.isfinite(stamp)
         self.input_timestamp = stamp if valid_stamp else None
-        self.input_request = trace_value(request) if snapshot is None else None
+        self.input_detail = "full" if full else "summary"
+        source = snapshot if snapshot is not None else request
+        values = {field.name: getattr(source, field.name) for field in fields(source)}
+        if self.input_context_batch_id is not None:
+            values = {key: value for key, value in values.items() if key not in SHARED_INPUT_FIELDS}
+        if not full:
+            # 历史路口保留向量和窗口数量；19/49 的原始窗口仍逐轮完整记录。
+            values = {
+                key: {"trace_summary": "bucket_count", "buckets": len(value)}
+                if key.endswith("_map") and isinstance(value, dict) else value
+                for key, value in values.items()
+            }
+        captured = trace_value(values)
+        self.input_request = captured if snapshot is None else None
         self.snapshot_status = "captured" if snapshot is not None else "unavailable" if has_datahub else "not_captured"
-        self.traffic_snapshot = trace_value(snapshot) if snapshot is not None else None
+        self.traffic_snapshot = captured if snapshot is not None else None
 
     def capture_graph(self, decision, *, provider: str | None) -> None:
         self.route = list(decision.route)
@@ -162,13 +197,8 @@ class DecisionTrace(BaseModel):
 
     def emit(self, logger, *, finished_ns: int | None = None) -> None:
         self.latency_ms = ((perf_counter_ns() if finished_ns is None else finished_ns) - self._started_ns) / 1_000_000
-        try:
-            # ASCII 转义避免供应商字符串的孤立 surrogate 破坏文件日志；拒绝非标准 NaN JSON。
-            content = json.dumps(trace_value(self), ensure_ascii=True, allow_nan=False, separators=(",", ":"))
-            logger.info("%s", content)
-        except Exception as error:
-            # 日志存储故障不得把已发布方案变成控制失败；向 stderr 明确报告，不静默吞掉。
-            sys.stderr.write(f"Decision trace logging failed trace_id={self.trace_id} type={type(error).__name__}\n")
+        # ASCII 转义及异常 JSON 值处理共用于批次记录和路口记录。
+        emit_trace_record(logger, self, identity=self.trace_id)
 
 
 @contextmanager

@@ -373,18 +373,18 @@ class TrafficDataHub(LoggingMixin):
             self._info("Historical data")
 
     def _handle_overflow_warning(self, data: dict[str, Any]) -> None:
-        self._info("Overflow warning data")
+        self._debug("Overflow warning data")
         try:
             ddbh = int(data.get("jtll_ddbh"))
         except (TypeError, ValueError):
             self._warning(f"Invalid overflow warning ddbh: {data.get('jtll_ddbh')}")
             return
-        self._info(f"Overflow warning for ddbh: {ddbh}")
+        self._debug("Overflow warning for ddbh: %s", ddbh)
         location_map = self._get_lambdas_attr("location_to_intersection_lambda", {})
         if ddbh not in location_map or self.overflow_warning_map is None:
             return
         intersection_id, direction = location_map[ddbh]
-        self._info(f"Intersection ID: {intersection_id}, Direction: {direction}")
+        self._debug("Intersection ID: %s, Direction: %s", intersection_id, direction)
         self.overflow_warning_map[intersection_id][direction] = data
 
     def _handle_radar_event(self, data: dict[str, Any]) -> None:

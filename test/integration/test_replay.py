@@ -53,6 +53,11 @@ class ReplayIntegrationTest(unittest.TestCase):
             self.assertEqual(report['v2']['model_metrics']['valid_action_rate'], 1)
             self.assertIsNone(report['v2']['model_metrics']['estimated_cost'])
             traces = [json.loads(line) for line in (root/'report/v2/decisions.jsonl').read_text().splitlines()]
+            batches = [trace for trace in traces if trace['event'] == 'aitc.decision_batch']
+            traces = [trace for trace in traces if trace['event'] == 'aitc.decision']
+            self.assertEqual(len(batches), 2)
+            self.assertEqual({trace['input_context_batch_id'] for trace in traces},
+                             {batch['batch_id'] for batch in batches})
             participating = {trace['intersection_id'] for trace in traces if trace['llm_participated']}
             self.assertEqual(participating, {VIDEO_INTERSECTION})
             self.assertEqual(len(traces), 470)

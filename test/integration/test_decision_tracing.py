@@ -21,6 +21,7 @@ from models import ModelGateway, MockProvider
 from models.errors import ModelTimeoutError
 from datahub import TrafficDataHub
 from runtime.tracing import DecisionTrace
+from lib.road_groups import road_group
 from test import test_datahub_integration as hub_tests
 from test import test_decision_pipeline as pipeline_tests
 from test.fixtures.v2_baseline_controller import FIXTURE, compact_round, full_replay
@@ -242,7 +243,11 @@ class DecisionTracingIntegrationTest(unittest.TestCase):
         result = pipeline.run_once()
         record, = records(logger)
         self.assertEqual(result[0]["action"], PLAN)
-        observed = record["traffic_snapshot"]["predicted_flow"]["100"]
+        batch = next(json.loads(call.args[1]) for call in logger.info.call_args_list
+                     if call.args[0] == "%s"
+                     and json.loads(call.args[1]).get("event") == "aitc.decision_batch")
+        self.assertEqual(record["input_context_batch_id"], batch["batch_id"])
+        observed = batch["shared_input"]["predicted_flow"]["100"]
         self.assertEqual(observed["value"]["trace_omitted"], "unsupported_type")
         self.assertEqual(observed["flow"]["trace_omitted"], "non_finite_number")
 
@@ -336,6 +341,17 @@ class DecisionTracingIntegrationTest(unittest.TestCase):
             self.assertEqual(len(seen), 235)
             self.assertEqual({item["intersection_id"] for item in seen}, set(Lambdas.intersection_list))
             self.assertTrue(all(item["status"] == "published" for item in seen))
+            batches = [json.loads(call.args[1]) for call in pipeline.logger.info.call_args_list
+                       if call.args[0] == "%s" and json.loads(call.args[1]).get("event") == "aitc.decision_batch"]
+            self.assertEqual(len(batches), 1)
+            self.assertEqual(set(batches[0]["shared_input"]),
+                             {"previous_coordinate", "predicted_flow", "predicted_queue"})
+            for item in seen:
+                self.assertEqual(item["schema_version"], 2)
+                self.assertEqual(item["input_context_batch_id"], batches[0]["batch_id"])
+                self.assertEqual(item["input_detail"],
+                                 "full" if road_group(item["intersection_id"]) in {"19", "49"} else "summary")
+                self.assertNotIn("previous_coordinate", item["traffic_snapshot"])
 
 
 if __name__ == "__main__":

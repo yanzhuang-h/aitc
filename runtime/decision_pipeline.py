@@ -22,7 +22,8 @@ from datahub.classifier import DataKind
 from datahub.service import TrafficDataHub
 from infra.logging import LoggingMixin, decision_batch_id, plan_fingerprint
 from lib.control_functions.types import IntersectionControlRequest
-from .tracing import DecisionTrace, trace_stage, trace_value
+from lib.road_groups import road_group
+from .tracing import DecisionTrace, emit_batch_input, trace_stage, trace_value
 
 
 class PeriodicDecisionPipeline(LoggingMixin):
@@ -215,6 +216,15 @@ class PeriodicDecisionPipeline(LoggingMixin):
 
         current_flow_prediction = self.flow_predictor.get_current_flow_prediction()
         current_queue_prediction = self.queue_predictor.get_current_queue_prediction()
+        if traces:
+            logger = self.logger if self.logger is not None else logging.getLogger("aitc.decision.trace")
+            batch_id = next(iter(traces.values())).batch_id
+            emit_batch_input(logger, batch_id,
+                             previous_coordinate=self.last_coordinate_set,
+                             predicted_flow=current_flow_prediction,
+                             predicted_queue=current_queue_prediction)
+            for trace in traces.values():
+                trace.input_context_batch_id = batch_id
         online_map = self.data_processor.online()
         overflow_map = self.data_processor.radar_event(
             self.radar_event_map,
@@ -349,7 +359,10 @@ class PeriodicDecisionPipeline(LoggingMixin):
             )
             snapshot = self.datahub.capture(request) if self.datahub is not None else None
             if trace is not None:
-                trace.capture_input(request, snapshot, has_datahub=self.datahub is not None)
+                trace.capture_input(
+                    request, snapshot, has_datahub=self.datahub is not None,
+                    full=road_group(intersection_id) in {"19", "49"},
+                )
             stage = "control"
             if self.decision_graph is not None:
                 # 保留完整聚合请求及动态替换的 selector；专家观测不改写旧控制输入。
@@ -374,7 +387,7 @@ class PeriodicDecisionPipeline(LoggingMixin):
             result["result_action"] = result_action
             result["traffic_vector"] = traffic_vector
             result["model_info_list"] = model_info_list
-            self._info("Intersection %s process result: %s", intersection_id, result)
+            self._debug("Intersection %s process result: %s", intersection_id, result)
         except Exception as error:
             if trace is not None:
                 trace.record_error(stage, error)
