@@ -39,7 +39,7 @@ class GraphIntegrationTest(unittest.TestCase):
             "runtime.application.ControlProcessAgent",
         ) as controller, composed_application(llm_required=True) as app:
             self.assertIsInstance(app.decision_graph, ControlGraph)
-            self.assertIs(app.decision_pipeline.decision_graph, app.decision_graph)
+            self.assertIsNone(app.decision_pipeline.decision_graph)
             self.assertIsNone(app.llm_client)
             self.assertFalse(app.llm_required)
             harness = app.http_server.agent_harness
