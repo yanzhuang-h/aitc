@@ -135,7 +135,7 @@ def process_queue_data(cache, lambdas_module):
     return max_queue_lengths,queue_map
 
 def process_stage_data(cache, lambdas_module):
-    """逐条聚合阶段状态，坏记录不能截断同批其他路口的数据。"""
+    """仅统计已进入 STAGE 缓存的记录，坏记录不能截断同批后续数据。"""
     stage_map = copy.deepcopy(lambdas_module.map_lambda)
     counters = collections.Counter()
     malformed_by_road = collections.Counter()
@@ -145,6 +145,9 @@ def process_stage_data(cache, lambdas_module):
             counters["malformed_record"] += 1
             continue
         intersection_id = stage_data.get("CrossId")
+        if not isinstance(intersection_id, str) or not intersection_id.strip():
+            counters["malformed_record"] += 1
+            continue
         try:
             intersection_id = lambdas_module.aibi_to_xinkongji.get(intersection_id, intersection_id)
             if intersection_id not in stage_map:

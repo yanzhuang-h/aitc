@@ -80,6 +80,19 @@ class CacheProcessorTest(unittest.TestCase):
                 self.assertEqual(stage_map["B"][1_700_000_001]["curStageNo"], 3)
                 self.assertEqual(sum(map(len, stage_map.values())), 2)
 
+    def test_missing_stage_identity_is_malformed_instead_of_unregistered(self):
+        with self.assertLogs("ProcessCacheData", level="WARNING") as logs:
+            stages = cache_processor.process_stage_data([
+                {"time": 1_700_000_000_000, "curStageNo": 3, "curStageLen": 19},
+                {"CrossId": "unknown", "time": 1_700_000_000_000,
+                 "curStageNo": 3, "curStageLen": 19},
+            ], Lambdas)
+        summary = json.loads(logs.records[0].getMessage().split("stage_aggregation ", 1)[1])
+        self.assertEqual(summary["counts"], {
+            "input_records": 2, "malformed_record": 1, "unregistered_intersection": 1,
+        })
+        self.assertEqual(stages, Lambdas.map_lambda)
+
     def test_stage_rejections_are_summarized_once_without_overwriting_valid_bucket(self):
         good = {"CrossId": "1300068", "time": 1_700_000_000_000,
                 "curStageNo": "3", "curStageLen": "19"}
