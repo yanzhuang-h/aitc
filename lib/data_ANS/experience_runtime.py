@@ -303,13 +303,17 @@ def _run_paths(source_date):
     }
 
 
-def _existing_terminal_manifest(path, source_paths=()):
+def _existing_terminal_manifest(path, source_paths=(), *, target_road_ids=()):
     manifest = _load_json(str(path), default={})
     if not isinstance(manifest, dict):
         return None
     status = str(manifest.get("status", ""))
     if status.startswith("completed"):
-        return manifest
+        completed_roads = manifest.get("pool_collection_road_ids", manifest.get("target_road_ids", []))
+        if completed_roads and set(target_road_ids).issubset(completed_roads):
+            return manifest
+        # 同日其他路口仍可补入；池内继续按日期、路口和样本去重。
+        return None
     if status == "skipped_missing_source_data":
         missing_now = [str(source) for source in source_paths if not source.is_file()]
         if missing_now and missing_now == manifest.get("missing_files"):
@@ -318,7 +322,7 @@ def _existing_terminal_manifest(path, source_paths=()):
     return None
 
 
-def _run_experience_pool_day_unlocked(source_date, *, release_settings=None):
+def _run_experience_pool_day_unlocked(source_date, *, release_settings=None, recheck=False):
     """Process one T-2 source date exactly once and conditionally release."""
     if isinstance(source_date, str):
         source_date = dt.date.fromisoformat(source_date)
@@ -326,8 +330,10 @@ def _run_experience_pool_day_unlocked(source_date, *, release_settings=None):
         raise TypeError("source_date must be a date or ISO date string")
 
     paths = _run_paths(source_date)
-    terminal = _existing_terminal_manifest(
+    target_roads = _configured_roads()
+    terminal = None if recheck else _existing_terminal_manifest(
         paths["run_manifest"], (paths["flow"], paths["extend"]),
+        target_road_ids=target_roads,
     )
     if terminal is not None:
         return terminal
@@ -386,7 +392,6 @@ def _run_experience_pool_day_unlocked(source_date, *, release_settings=None):
         _write_json_atomic(str(paths["run_manifest"]), report)
         return report
 
-    target_roads = _configured_roads(active_table)
     missing_crosses = sorted(set(target_roads) - set(cross_info))
     if missing_crosses:
         report = {
@@ -540,7 +545,7 @@ def _run_experience_pool_day_unlocked(source_date, *, release_settings=None):
     return report
 
 
-def run_experience_pool_day(source_date, *, release_settings=None):
+def run_experience_pool_day(source_date, *, release_settings=None, recheck=False):
     """共享池锁覆盖读取运行表、更新样本和最终发布，防止调度与手工补训覆盖彼此。"""
     from lib.data_ANS.experience_pool import pool_update_lock
     if isinstance(source_date, str):
@@ -551,7 +556,9 @@ def run_experience_pool_day(source_date, *, release_settings=None):
         "AITC_EXPERIENCE_RUNTIME_TABLE", DEFAULT_STATE_DIR / "online_experience.json",
     )
     with pool_update_lock(_run_paths(source_date)["full_pool"]), pool_update_lock(runtime_path):
-        return _run_experience_pool_day_unlocked(source_date, release_settings=release_settings)
+        return _run_experience_pool_day_unlocked(
+            source_date, release_settings=release_settings, recheck=recheck,
+        )
 
 
 class ExperiencePoolScheduler:
