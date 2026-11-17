@@ -14,7 +14,8 @@ from pathlib import Path
 import threading
 
 from app.config import ExperienceReleaseSettings
-from lib.intersection_strategy import PLATFORM_PHASE_ROAD_IDS
+from lib.intersection_strategy import PLATFORM_PHASE_ROAD_IDS, supports_online_experience_growth
+from lib.road_groups import TONGZHOU_19
 
 from lib.data_ANS.experience_pool import (
     DEFAULT_DENSE_CLUSTER_FRACTION,
@@ -260,7 +261,7 @@ def _configured_collection_roads():
 def _configured_update_roads():
     return _configured_road_ids(
         "AITC_EXPERIENCE_TABLE_UPDATE_ROADS",
-        DEFAULT_TABLE_UPDATE_ROAD_IDS | PLATFORM_PHASE_ROAD_IDS,
+        DEFAULT_TABLE_UPDATE_ROAD_IDS | TONGZHOU_19 | PLATFORM_PHASE_ROAD_IDS,
     )
 
 
@@ -475,7 +476,7 @@ def _run_experience_pool_day_unlocked(source_date, *, release_settings=None, rec
         authoritative_old_table=True,
         selection_method=selection_method,
         cluster_fraction=cluster_fraction,
-        new_point_road_ids=update_roads & PLATFORM_PHASE_ROAD_IDS,
+        new_point_road_ids={road for road in update_roads if supports_online_experience_growth(road)},
     )
     changed_lanes = int(
         pool_report.get("blend", {}).get("lane_values_changed", 0)

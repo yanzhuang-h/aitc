@@ -3,6 +3,8 @@
 import json
 from pathlib import Path
 
+from lib.road_groups import TONGZHOU_19
+
 PLATFORM_PHASE_ROAD_IDS = frozenset({
     "1700035",
     "1700062",
@@ -61,6 +63,11 @@ _PLAN_OVERRIDES_CACHE = {"signature": None, "data": {}}
 
 def uses_platform_phase_timing(road_id):
     return str(road_id) in PLATFORM_PHASE_ROAD_IDS
+
+
+def supports_online_experience_growth(road_id):
+    """19组及本地登记的平台路口允许新增达标经验点，不改变相位策略。"""
+    return str(road_id) in TONGZHOU_19 or uses_platform_phase_timing(road_id)
 
 
 def program_id_override(road_id, default=None):
