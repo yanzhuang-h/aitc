@@ -5,6 +5,7 @@ from lib.data_ANS.cycle_quality import (
     audit_cleaned_stage_day,
     build_cycle_profile,
     compress_stage_layers,
+    cycle_observation_expansion_decision,
     find_complete_cycles,
     group_consecutive_same_pattern_cycles,
 )
@@ -197,7 +198,7 @@ class CycleQualityTests(unittest.TestCase):
         self.assertEqual(samples[0]["cycle_observation_seconds"], 900)
         self.assertEqual(samples[0]["cycle_duration"], 230)
 
-    def test_two_hundred_second_cycles_keep_ten_minute_observation(self):
+    def test_two_hundred_second_cycles_expand_when_three_do_not_fit(self):
         stage_map = self._padded_stage_map(
             [(1, 90), (2, 110)] * 3
         )
@@ -208,12 +209,21 @@ class CycleQualityTests(unittest.TestCase):
             "2026-06-27",
         )
 
-        self.assertEqual(samples, [])
-        self.assertEqual(stats.get("expanded_observation_attempts", 0), 0)
-        self.assertEqual(
-            stats["cycle_observation_decision_cycle_not_over_threshold"],
-            1,
-        )
+        self.assertEqual(len(samples), 3)
+        self.assertEqual(stats["expanded_observation_attempts"], 1)
+        self.assertTrue(samples[0]["cycle_observation_expanded"])
+        self.assertEqual(samples[0]["flow_window_seconds"], 600)
+        self.assertEqual(samples[0]["cycle_observation_seconds"], 900)
+        self.assertEqual(samples[0]["cycle_duration"], 200)
+
+    def test_observation_expansion_keeps_short_cycles_and_enough_cycles_unchanged(self):
+        def cycles(duration, count):
+            return [{"items": [{"duration": duration}]} for _ in range(count)]
+        self.assertFalse(cycle_observation_expansion_decision(cycles(199, 2))["should_expand"])
+        self.assertTrue(cycle_observation_expansion_decision(cycles(200, 2))["should_expand"])
+        self.assertTrue(cycle_observation_expansion_decision(cycles(201, 2))["should_expand"])
+        self.assertFalse(cycle_observation_expansion_decision(cycles(200, 3))["should_expand"])
+        self.assertFalse(cycle_observation_expansion_decision([])["should_expand"])
 
 
 if __name__ == "__main__":

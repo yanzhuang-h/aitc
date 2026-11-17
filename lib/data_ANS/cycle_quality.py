@@ -57,8 +57,9 @@ def cycle_observation_expansion_decision(
     elif representative_duration is None:
         reason = "no_complete_cycle_for_duration_judgment"
         should_expand = False
-    elif representative_duration > int(long_cycle_threshold_seconds):
-        reason = "long_cycle_over_threshold"
+    elif representative_duration >= int(long_cycle_threshold_seconds):
+        # 200秒周期也可能因窗口起点偏移而只能容纳两个完整周期。
+        reason = "long_cycle_at_or_over_threshold"
         should_expand = True
     else:
         reason = "cycle_not_over_threshold"

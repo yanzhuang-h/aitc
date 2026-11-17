@@ -7,12 +7,31 @@ from lib.data_ANS.raw_feedback_normalizer import (
     _complete_flow_window_green_runs,
     _flow_discharge_evidence,
     _movement_lane_configuration,
+    _select_stable_cycles,
     build_near_capacity_candidate_samples,
     normalize_raw_feedback,
 )
 
 
 class RawFeedbackNormalizerTests(unittest.TestCase):
+    def test_offset_two_hundred_second_cycles_get_three_stable_cycles(self):
+        from lib.data_ANS.cycle_quality import compress_stage_layers
+        stage_map = {0: "9"}
+        second = 1
+        for _ in range(5):
+            for stage, duration in (("1", 100), ("2", 100)):
+                for _ in range(duration):
+                    stage_map[second] = stage
+                    second += 1
+        stage_map[second] = "9"
+        cycles, audit = _select_stable_cycles(
+            compress_stage_layers(stage_map), [["1", "2"]], 50, 649,
+        )
+        self.assertEqual(audit["cycle_observation_decision"]["initial_cycle_count"], 2)
+        self.assertTrue(audit["cycle_observation_expanded"])
+        self.assertEqual(len(cycles), 3)
+        self.assertEqual(audit["status"], "accepted")
+
     def test_uncontrolled_right_turn_lane_is_not_a_capacity_lane(self):
         cross_config = {
             "LaneNo": {
