@@ -22,6 +22,8 @@ class ExperienceRuntimeTests(unittest.TestCase):
         self.assertTrue({"2272", "2620"}.issubset(collection_roads))
         self.assertTrue({"2272", "2620"}.issubset(update_roads))
         self.assertTrue(update_roads.issubset(set(collection_roads)))
+        from lib.road_groups import TONGZHOU_19
+        self.assertTrue(TONGZHOU_19.issubset(update_roads))
 
     def test_scheduler_uses_t_minus_two_without_startup_catchup(self):
         self.assertEqual(
@@ -267,25 +269,26 @@ class ExperienceRuntimeTests(unittest.TestCase):
         self.assertEqual(updated, {})
         self.assertFalse(activated)
 
-    def test_49_existing_road_can_add_qualified_direction_and_time_point(self):
-        for initial in [
-            {"1700240": {"D": {"10": [0, 10] + [0] * 8}}},
-            {"1700240": {"U": {"9": [0, 10] + [0] * 8}}},
-        ]:
-            with self.subTest(initial=initial):
-                report, updated, activated = self._run_raw_feedback_day(
-                    initial, road_id="1700240",
-                )
-                self.assertEqual(report["status"], "completed_table_updated")
-                self.assertTrue(activated)
-                self.assertGreater(updated["1700240"]["U"]["10"][1], 0)
-                for direction, points in initial["1700240"].items():
-                    for green, value in points.items():
-                        self.assertEqual(updated["1700240"][direction][green], value)
-                self.assertEqual(report["pool_summary"]["blend"]["new_experience_points_seeded"], 1)
+    def test_19_and_49_existing_roads_can_add_qualified_direction_and_time_point(self):
+        for road in ("1700240", "1700125", "1700448"):
+            for initial in [
+                {road: {"D": {"10": [0, 10] + [0] * 8}}},
+                {road: {"U": {"9": [0, 10] + [0] * 8}}},
+            ]:
+                with self.subTest(road=road, initial=initial):
+                    report, updated, activated = self._run_raw_feedback_day(
+                        initial, road_id=road,
+                    )
+                    self.assertEqual(report["status"], "completed_table_updated")
+                    self.assertTrue(activated)
+                    self.assertGreater(updated[road]["U"]["10"][1], 0)
+                    for direction, points in initial[road].items():
+                        for green, value in points.items():
+                            self.assertEqual(updated[road][direction][green], value)
+                    self.assertEqual(report["pool_summary"]["blend"]["new_experience_points_seeded"], 1)
 
     def test_existing_historical_road_keeps_point_expansion_disabled(self):
-        for road_id in ["1", "1700125"]:
+        for road_id in ["1", "1300069"]:
             with self.subTest(road_id=road_id):
                 initial = {road_id: {"D": {"10": [0, 10] + [0] * 8}}}
                 report, updated, activated = self._run_raw_feedback_day(initial, road_id=road_id)
@@ -294,14 +297,16 @@ class ExperienceRuntimeTests(unittest.TestCase):
                 self.assertFalse(activated)
                 self.assertGreater(report["candidate_count"], 0)
 
-    def test_49_new_point_still_requires_sample_threshold(self):
-        initial = {"1700240": {"D": {"10": [0, 10] + [0] * 8}}}
-        report, updated, activated = self._run_raw_feedback_day(
-            initial, minimum_samples=30, road_id="1700240",
-        )
-        self.assertGreater(report["candidate_count"], 0)
-        self.assertEqual(updated, initial)
-        self.assertFalse(activated)
+    def test_19_and_49_new_points_still_require_sample_threshold(self):
+        for road in ("1700240", "1700125", "1700448"):
+            with self.subTest(road=road):
+                initial = {road: {"D": {"10": [0, 10] + [0] * 8}}}
+                report, updated, activated = self._run_raw_feedback_day(
+                    initial, minimum_samples=30, road_id=road,
+                )
+                self.assertGreater(report["candidate_count"], 0)
+                self.assertEqual(updated, initial)
+                self.assertFalse(activated)
 
     def test_skipped_missing_data_or_configuration_can_resume_after_repair(self):
         for reason in ["missing_source", "invalid_table", "missing_cross"]:
