@@ -91,11 +91,73 @@ class FlowTimeAllocatorTests(unittest.TestCase):
                     "invalid payload"],
         })
         self.assertEqual(stages, {})
+        self.assertEqual(report["observed_seconds"], 1)
+        self.assertEqual(report["coverage_ratio"], 0)
         self.assertEqual(report["invalid_stage_records"], 1)
         self.assertEqual(report["timebase"]["payload_time_valid_records"], 1)
         self.assertEqual(report["timebase"]["key_minus_payload_time_min_seconds"], 5)
         self.assertEqual(report["timebase"]["key_minus_payload_time_max_seconds"], 5)
         self.assertEqual(report["timebase"]["payload_scope"], "matching_road_with_valid_mapping_key")
+
+    def test_unconfigured_stage_cannot_pass_full_window_quality(self):
+        for stage in (0, 99):
+            with self.subTest(stage=stage):
+                result = allocate_from_runtime_data(
+                    "1300069", {}, _extend("1300069", [stage] * 600),
+                    experience_table=self.table,
+                    cross_info={"1300069": {"phase": {"1": "U", "3": "LR"}}},
+                )
+                runtime = result["runtime_input"]
+                self.assertFalse(runtime["quality_passed"])
+                self.assertEqual(runtime["extend"]["coverage_ratio"], 0)
+                self.assertEqual(runtime["extend"]["unconfigured_stage_records"], 600)
+                self.assertEqual(runtime["extend"]["observed_seconds"], 600)
+
+    def test_invalid_stage_edges_remain_in_full_window_denominator(self):
+        result = allocate_from_runtime_data(
+            "1300069", {}, _extend("1300069", [0] * 80 + [1] * 520),
+            experience_table=self.table,
+            cross_info={"1300069": {"phase": {"1": "U"}, "Cycle": [[1]]}},
+        )
+        runtime = result["runtime_input"]
+        self.assertEqual(runtime["extend"]["span_seconds"], 600)
+        self.assertEqual(runtime["normalization_mode"], "full_10min_window")
+        self.assertFalse(runtime["quality_passed"])
+        self.assertAlmostEqual(runtime["extend"]["coverage_ratio"], 520 / 600, places=6)
+
+    def test_distant_invalid_stage_does_not_expand_valid_window(self):
+        stages, report = normalize_runtime_extend(
+            "1300069", {1000: {"curStageNo": "1"}, 1001: {"curStageNo": "1"},
+                        10**9: {"curStageNo": "99"}}, valid_stages={"1"},
+        )
+        self.assertEqual(stages, {1000: "1", 1001: "1"})
+        self.assertEqual(report["span_seconds"], 2)
+        self.assertEqual(report["observed_seconds"], 2)
+        self.assertEqual(report["out_of_window_invalid_stage_seconds"], 1)
+        self.assertEqual(report["unconfigured_stage_records"], 1)
+
+    def test_all_invalid_stages_report_sparse_observations_without_expansion(self):
+        stages, report = normalize_runtime_extend(
+            "1300069", {1000: {"curStageNo": "99"}, 10**9: {"curStageNo": "99"}},
+            valid_stages={"1"},
+        )
+        self.assertEqual(stages, {})
+        self.assertEqual(report["span_seconds"], 10**9 - 1000 + 1)
+        self.assertEqual(report["observed_seconds"], 2)
+        self.assertEqual(report["coverage_ratio"], 0)
+
+    def test_unconfigured_stage_breaks_inheritance_and_configured_zero_is_valid(self):
+        stages, report = normalize_runtime_extend(
+            "1300069", {1000: {"curStageNo": "1"}, 1001: {"curStageNo": "0"},
+                        1003: {"curStageNo": "1"}}, valid_stages={"1"},
+        )
+        self.assertEqual(stages, {1000: "1", 1001: "-1", 1002: "-1", 1003: "1"})
+        self.assertEqual(report["coverage_ratio"], 0.5)
+        result = allocate_from_runtime_data(
+            "1300069", {}, _extend("1300069", [0] * 600),
+            experience_table=self.table, cross_info={"1300069": {"phase": {"0": "U"}}},
+        )
+        self.assertTrue(result["runtime_input"]["quality_passed"])
 
     def test_invalid_or_missing_payload_clock_cannot_change_selection(self):
         missing = _extend("1300069", [1] * 600)
