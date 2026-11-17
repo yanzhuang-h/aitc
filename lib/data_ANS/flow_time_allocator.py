@@ -12,6 +12,7 @@ from pathlib import Path
 
 try:
     from lib.data_ANS.phase_definitions import PHASE_DIRECTION_MAP
+    from lib.data_ANS.experience_reader import load_experience_table, runtime_experience_path
     from lib.data_ANS.cycle_quality import (
         MAX_ADJACENT_STAGE_CHANGE_SECONDS,
         compress_stage_layers,
@@ -26,6 +27,7 @@ try:
     )
 except ModuleNotFoundError:  # Supports direct execution from this directory.
     from phase_definitions import PHASE_DIRECTION_MAP
+    from experience_reader import load_experience_table, runtime_experience_path
     from cycle_quality import (
         MAX_ADJACENT_STAGE_CHANGE_SECONDS,
         compress_stage_layers,
@@ -48,7 +50,8 @@ DEFAULT_MAX_STAGE_GAP_SECONDS = 3
 DEFAULT_SAFE_FALLBACK_GREEN_TIME = 30
 
 LIB_DIR = Path(__file__).resolve().parents[1]
-DEFAULT_EXPERIENCE_PATH = LIB_DIR / "experience_pool" / "online_experience.json"
+from app.paths import EXPERIENCE_POOL_DIR
+DEFAULT_EXPERIENCE_PATH = EXPERIENCE_POOL_DIR / "online_experience.json"
 DEFAULT_CROSS_INFO_PATH = LIB_DIR / "cross_info.json"
 
 
@@ -702,7 +705,9 @@ def allocate_from_runtime_data(
     """
     road_id = str(road_id)
     if experience_table is None:
-        experience_table = _load_json(DEFAULT_EXPERIENCE_PATH)
+        experience_table = load_experience_table(
+            online_path=runtime_experience_path(DEFAULT_EXPERIENCE_PATH), road_id=road_id,
+        )
     if cross_info is None:
         cross_info = _load_json(DEFAULT_CROSS_INFO_PATH)
     if road_id not in cross_info:

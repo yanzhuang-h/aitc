@@ -3,8 +3,10 @@
 
 try:
     from lib.data_ANS.phase_definitions import PHASE_DIRECTION_MAP
+    from lib.data_ANS.experience_reader import load_experience_table
 except ModuleNotFoundError:
     from data_ANS.phase_definitions import PHASE_DIRECTION_MAP
+    from data_ANS.experience_reader import load_experience_table
 
 import json
 import bisect
@@ -33,11 +35,7 @@ def sum_vec(v):
 
 # 加载经验表
 def load_jiyan():
-    if not os.path.exists(JIYAN_PATH):
-        print("经验表文件不存在:", JIYAN_PATH)
-        return {}
-    with open(JIYAN_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+    return load_experience_table(offline_path=JIYAN_PATH, include_online=False)
 
 
 

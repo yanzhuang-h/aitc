@@ -1,9 +1,11 @@
-"""Allocate movement green times using the legacy offline experience table."""
+"""历史方向配时；保留离线回退来源，通过共用读取器刷新经验。"""
 
 try:
     from lib.data_ANS.phase_definitions import PHASE_DIRECTION_MAP
+    from lib.data_ANS.experience_reader import load_experience_table
 except ModuleNotFoundError:
     from data_ANS.phase_definitions import PHASE_DIRECTION_MAP
+    from data_ANS.experience_reader import load_experience_table
 
 import json
 import os
@@ -23,9 +25,7 @@ with open(info, 'r',encoding='utf-8') as f:
     lines3=json.load(f)
 
 def jiangyan_biao_get(road_id):
-    with open(JIYAN_PATH, "r", encoding="utf-8") as f:
-        data= json.load(f)
-    return data[road_id]
+    return load_experience_table(offline_path=JIYAN_PATH, road_id=road_id, include_online=False)[str(road_id)]
 
 
 def quihe(L_set,L):
