@@ -6,7 +6,7 @@
 
 生产入口继续使用原 logger、控制台和每日轮转的 `server.log`。每次 `run_once()` 为每个
 已配置路口生成独立 `trace_id`，同批次共用 `batch_id`；ID 使用 UUID，不消耗算法的
-`random` 状态。记录格式为单行 JSON，`event=aitc.decision`、`schema_version=1`。
+`random` 状态。记录格式为单行 JSON，`event=aitc.decision`、`schema_version=2`。
 
 追踪对象属于当前调用，通过执行上下文传给路口 worker 和 LangGraph。共享组件不保存
 last trace；每条记录在批次发布成功或失败后写出一次。
@@ -15,7 +15,8 @@ last trace；每条记录在批次发布成功或失败后写出一次。
 |---|---|
 | trace_id / batch_id / intersection_id | 路口本轮身份、批次身份与路口 |
 | input_timestamp | 原控制请求的 current_time；它是决策输入时间，不冒充原始传感器事件时间 |
-| traffic_snapshot / snapshot_status | 原选择器前捕获的完整 TrafficSnapshot，包含真实全局预测和上一轮协调映射 |
+| traffic_snapshot / snapshot_status | 原选择器前捕获的路口输入；19/49保留完整窗口，其他历史路口记录明确标记的窗口摘要；内存中的 TrafficSnapshot 仍完整 |
+| input_detail / input_context_batch_id | full 或 summary；批次全局上下文的关联 ID，与 batch_id 对应 |
 | input_request | 无 DataHub 或本轮快照捕获失败时记录原请求，不用上一轮快照替代本轮 |
 | control_policy | 当前装配的策略类型，生产为 BaselineController；不推测内部 selector 的具体分支 |
 | route / expert_calls | 图节点路由、专家读取尝试与重试、状态、confidence、missing_fields；缓存复用明确标记 cached |
@@ -32,7 +33,19 @@ last trace；每条记录在批次发布成功或失败后写出一次。
 检查报告写入、格式化和结果仓库发布。批次阶段耗时在同批记录中一致；聚合与 worker
 阶段包含路口控制阶段，不能将所有字段直接相加当作总耗时。
 
-快照记录完整保留普通 JSON 数据，不采用模型提示词的有界摘要。JSON 对象键转换为字符串；
+2026-11-17起，生产管线将全局字段 previous_coordinate、predicted_flow 和 predicted_queue
+在 worker 启动前通过一条 event=aitc.decision_batch、schema_version=1 记录于 shared_input。
+每条路口记录用 input_context_batch_id 关联该批次，不再复制全局映射。批次记录与路口记录
+都在原 server.log 中，runtime.replay 的 decisions.jsonl 也同时保留两类事件；统计决策数量时仅筛选 aitc.decision。
+当前路口记录 schema_version=2，历史完整内联记录为1。
+
+【19组及49组】input_detail=full，每轮完整保留路口窗口，可用批次 shared_input 与
+traffic_snapshot（或 input_request）合并还原本轮完整输入。其他历史路口 input_detail=summary，
+保留路口、当前时间和向量，原始 *_map 改为 {trace_summary: bucket_count, buckets: N}，
+不可当作可回放的完整输入。算法和 DataHub 内存快照始终使用原始数据，未按日志摘要裁剪；
+本轮不迁移历史路口控制逻辑。独立调用 DecisionTrace.capture_input 默认仍保留完整输入。
+
+完整窗口保留普通 JSON 数据，摘要均显式标注。JSON 对象键转换为字符串；
 非有限数值、不支持的对象、循环引用、异常映射键和极深结构使用带路径的 `trace_omitted`
 标记，不调用不透明对象的 repr。所有记录使用 ASCII 转义并拒绝非标准 NaN JSON，避免
 供应商字符串中的孤立 Unicode surrogate 破坏日志编码。
@@ -81,3 +94,13 @@ rg '具体的trace_id' server.log
 
 2026-10-14 验证：主套件 483 项、经验模块 118 项、控制函数 9 项、全局处理器 23 项
 全部通过，compileall、pip check 和 git diff --check 通过。本阶段未连接真实模型 API。
+
+
+## 1117.0材料驱动的精简验证
+
+【本地可完成】同一13:20批次235个路口的消息体从19,337,239字节降至5,983,184字节，
+减少69.06%；67个19/49路口完整输入合并批次上下文后逐字段一致，168个历史路口保留摘要。
+同机三次序列化中位约0.992秒→0.190秒，仅衡量日志序列化，不等于线上总决策耗时改善。
+正常溢出告警接入的逐报文日志、重复路口结果改为DEBUG；异常警告、状态更新及最终方案记录保留。
+证据：aitc-shared/verification/production-1117.0-20261117/logging_benchmark.json。
+【生产验收】下次部署核对日志体积、接收延迟、batch_id与发送指纹；无需新增协议或额外运维配置。

@@ -35,7 +35,10 @@ class ProductionDiagnosticsTests(unittest.TestCase):
                 "additional": {"tlLogic": {"id": road, "programID": action[9],
                                            "phase": [{"duration": action[0]}, {"duration": action[1]}]}}}
             results = pipeline.run_once()
-            record = emitted(pipeline.logger)[0]
+            logs = emitted(pipeline.logger)
+            batch, = [item for item in logs if item["event"] == "aitc.decision_batch"]
+            record, = [item for item in logs if item["event"] == "aitc.decision"]
+            self.assertEqual(record["input_context_batch_id"], batch["batch_id"])
             self.assertEqual(observed, [record["batch_id"]])
             self.assertEqual(record["formatted_plan"], results[0]["additional"]["tlLogic"])
             self.assertEqual(record["plan_sha256"], plan_fingerprint(record["formatted_plan"]))
