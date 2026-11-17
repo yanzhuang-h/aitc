@@ -257,6 +257,7 @@ def record_shadow_comparison(
     *,
     experience_table=None,
     cross_info=None,
+    road_info=None,
     log_directory=None,
     observed_at=None,
     runtime_mode="shadow",
@@ -304,6 +305,7 @@ def record_shadow_comparison(
             extend_map_single_intersection,
             experience_table=experience_table,
             cross_info=cross_info,
+            road_info=road_info,
             zero_demand_fallback=uses_platform_phase_timing(road_id),
         )
         new_vector = _schedule_vector(result["time_vector"])
@@ -333,6 +335,7 @@ def record_shadow_comparison(
                 new - old
                 for old, new in zip(old_vector, new_vector)
             ],
+            "cold_start": runtime.get("cold_start", {}),
             "quality_passed": bool(runtime.get("quality_passed")),
             "normalization_mode": runtime.get("normalization_mode"),
             "normalization_factor": runtime.get("normalization_factor"),

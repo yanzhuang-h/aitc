@@ -112,3 +112,26 @@ def allocate_phase_times(demand, state_config):
         "unmapped_movements": [d for d in targets if targets[d] > 0
                                and not any(d in dirs for dirs in movements)],
     }
+
+
+def allocate_phase_budget(weights, state_config, budget):
+    """在同一绿灯预算和既有阶段上下界内按受控流量分配整数秒。"""
+    phases, lows, highs = phase_bounds(state_config)
+    if len(weights) != len(phases):
+        raise ValueError("phase weights must match configured phases")
+    weights = [float(value) for value in weights]
+    if any(not math.isfinite(value) or value < 0 for value in weights):
+        raise ValueError("phase weights must be finite and non-negative")
+    if not math.isfinite(budget) or budget < 0:
+        raise ValueError("phase budget must be finite and non-negative")
+    target = max(sum(lows), min(sum(highs), int(budget)))
+    times = list(lows)
+    while sum(times) < target:
+        eligible = [i for i, weight in enumerate(weights)
+                    if weight > 0 and times[i] < highs[i]]
+        if not eligible:
+            break
+        index = max(eligible, key=lambda i: (weights[i] / (times[i] + 1), -i))
+        times[index] += 1
+    return times, {"requested_budget": int(budget), "bounded_budget": target,
+                   "allocated_budget": sum(times), "unallocated_budget": target - sum(times)}

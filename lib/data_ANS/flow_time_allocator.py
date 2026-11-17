@@ -7,6 +7,7 @@ behavior can be compared against a lane-policy-aware implementation.
 
 from collections import Counter
 import json
+
 import math
 from pathlib import Path
 
@@ -39,6 +40,8 @@ except ModuleNotFoundError:  # Supports direct execution from this directory.
     from lane_policy import configured_movement_lane_policy, policy_metadata
 
 
+from lib.intersection_strategy import supports_online_experience_growth
+
 LANE_COUNT = 10
 DIRECTIONS = ("U", "D", "L", "R", "UTL", "DTL", "LTL", "RTL")
 BASE_DIRECTIONS = ("U", "D", "L", "R")
@@ -48,9 +51,11 @@ DEFAULT_TARGET_FLOW_SECONDS = 600
 DEFAULT_FULL_WINDOW_MIN_SECONDS = 570
 DEFAULT_MAX_STAGE_GAP_SECONDS = 3
 DEFAULT_SAFE_FALLBACK_GREEN_TIME = 30
+# 运行参考用两个相邻稳定周期比较；学习入池仍要求三个完整稳定周期。
+MIN_COLD_START_REFERENCE_CYCLES = 2
 
 LIB_DIR = Path(__file__).resolve().parents[1]
-from app.paths import EXPERIENCE_POOL_DIR
+from app.paths import EXPERIENCE_POOL_DIR, ROAD_INFO_PATH
 DEFAULT_EXPERIENCE_PATH = EXPERIENCE_POOL_DIR / "online_experience.json"
 DEFAULT_CROSS_INFO_PATH = LIB_DIR / "cross_info.json"
 
@@ -718,6 +723,7 @@ def allocate_from_runtime_data(
     *,
     experience_table=None,
     cross_info=None,
+    road_info=None,
     saturation_ratio=DEFAULT_SATURATION_RATIO,
     left_turn_extra_seconds=0,
     safe_fallback_green_time=DEFAULT_SAFE_FALLBACK_GREEN_TIME,
@@ -829,7 +835,35 @@ def allocate_from_runtime_data(
         min_green_time=min_green_time,
         max_green_time=max_green_time,
     )
+    cold_start = {"status": "not_needed"}
+    needs_capacity = any(
+        decision.get("active") and decision.get("lane_indexes")
+        and not decision.get("experience_profile", {}).get("positive_capacity_points", 0)
+        for decision in result["decisions"].values()
+    )
+    if supports_online_experience_growth(road_id) and needs_capacity:
+        if not quality_passed or len(selected_cycles) < MIN_COLD_START_REFERENCE_CYCLES:
+            cold_start = {"status": "insufficient_stable_stage_feedback"}
+        else:
+            from lib.data_ANS.cold_start_timing import observed_cycle_fallback
+            from lib.data_ANS.experience_reader import load_json_cached
+            programs = (road_info if road_info is not None else load_json_cached(ROAD_INFO_PATH))
+            updates, cold_start = observed_cycle_fallback(
+                selected_cycles, cross_config, programs.get(road_id, {}),
+                {direction: _direction_flow(scaled_vectors, direction, set(directions_seen))
+                 for direction in DIRECTIONS}, result["decisions"],
+                min_green_time=min_green_time, max_green_time=max_green_time,
+            )
+            for direction, green in updates.items():
+                result["times"][direction] = green
+                decision = result["decisions"][direction]
+                decision.update({"status": "cold_start_observed_cycle",
+                                 "selected_green_time": green, "table_green_time": 0,
+                                 "fallback_source": "observed_cycle_flow_budget"})
+            result["direction_time_vector"] = [result["times"][direction] for direction in DIRECTIONS]
+            result["time_vector"] = result["direction_time_vector"] + [0, 0]
     result["runtime_input"] = {
+        "cold_start": cold_start,
         "quality_passed": quality_passed,
         "normalization_mode": normalization_mode,
         "normalization_factor": round(normalization_factor, 6),
