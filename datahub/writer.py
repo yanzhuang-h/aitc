@@ -11,6 +11,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.config import ExperienceReleaseSettings
+from infra.logging import plan_fingerprint
 from .classifier import DataKind
 from .output_store import FileRuntimeOutputStore
 
@@ -53,6 +54,9 @@ class RuntimeDataWriter:
     def write_send_result(self, data: dict[str, Any]) -> None:
         # 仅给本地日志副本补元数据，不能污染结果仓库或 TCP 报文。
         record = dict(data)
+        tl_logic = data.get("additional", {}).get("tlLogic")
+        if isinstance(tl_logic, dict):
+            record["AITC_PLAN_SHA256"] = plan_fingerprint(tl_logic)
         provenance = self.get_active_experience_provenance()
         if provenance:
             record["AITC_EXPERIENCE_PROVENANCE"] = provenance

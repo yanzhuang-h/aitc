@@ -2,6 +2,7 @@ import argparse
 import copy
 import json
 import logging
+from infra.logging import decision_batch_id
 import os
 import sys
 import tempfile
@@ -653,8 +654,8 @@ def apply_floating_value(action_map, current_time=None, path=FLOATING_VALUE_PATH
 
         if road_group(intersection_id) is not None:
             LOGGER.info(
-                "floating_value_match cross_id=%s plan_id=%s day=%s slot=%s matches=%s offsets=%s",
-                intersection_id, plan_id, workday_key, time_slot_key, matches, offsets,
+                "floating_value_match batch_id=%s cross_id=%s plan_id=%s day=%s slot=%s matches=%s offsets=%s",
+                decision_batch_id.get(), intersection_id, plan_id, workday_key, time_slot_key, matches, offsets,
             )
         if offsets is None:
             continue

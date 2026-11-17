@@ -1,3 +1,6 @@
+from lib.road_groups import road_group
+from infra.logging import decision_batch_id
+import logging
 from lib.intersection_strategy import uses_platform_phase_timing
 import json
 import time
@@ -38,7 +41,12 @@ direction = ""
 def _apply_forced_state(Cross_id, state, road_info):
     forced_state, road_state_report = get_forced_state(Cross_id, state, road_info)
     if road_state_report:
-        print(f"road state report:{json.dumps(road_state_report, ensure_ascii=False)}")
+        if road_group(Cross_id) is not None:
+            logging.getLogger("FlowControl").info("road_state_match %s", json.dumps({
+                "cross_id": str(Cross_id), "batch_id": decision_batch_id.get(), **road_state_report,
+            }, separators=(",", ":")))
+        else:
+            print(f"road state report:{json.dumps(road_state_report, ensure_ascii=False)}")
     return forced_state
 
 

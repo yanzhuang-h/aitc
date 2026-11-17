@@ -91,6 +91,8 @@ class DecisionTrace(BaseModel):
     candidate_legacy: Any = None
     final_signal_plan: SignalPlan | None = None
     final_legacy: Any = None
+    formatted_plan: dict[str, Any] | None = None
+    plan_sha256: str | None = None
     safety_report: dict[str, Any] | None = None
     fallback_reason: list[str] = Field(default_factory=list)
     quality_issues: list[str] = Field(default_factory=list)

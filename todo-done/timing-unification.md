@@ -62,3 +62,26 @@
 发布后继续通过既有三类日志验证现场输入质量与回退频率。
 
 编译验证：python -m compileall -q app datahub control agents models safety runtime infra lib tools 通过。
+
+## 发布前诊断补齐（2026-11-17）
+
+质量选择修复见PR #119。后续诊断增强不改变配时算法或TCP协议，复用现有日志：
+
+- runtime_context：本次包目录、工作目录、Python、运行模式、实际在线表/经验清单路径、调度开关。
+- flow_time_allocator：19/49组增加batch_id，实际cross_info配置、原始/折算车道向量、
+  输入窗口起止、阶段秒数分布、经验路口指纹、点数、正容量点、容量下降次数和所选点车道向量。
+- flow_control / flow_control_final：同一batch_id关联计算/强制方案号、实际方案上下界、
+  手工浮动前后值及再次限幅变化。flow_control_final表示协调内收尾，之后仍可能经phase_check调整。
+- aitc.decision：记录最终格式化tlLogic和方案指纹，包含phase_check与格式化回退后的真实输出。
+- send.txt：仅本地副本增加AITC_PLAN_SHA256，关联格式化方案；对外报文不加元数据。
+  send_batch汇总客户端数、实际sendall帧数和断连数，socket发送完成不等于信号机执行确认。
+- experience_pool_schedule / experience_pool_run：记录实际T-2学习日、每日运行时刻、初次触发延迟、
+  采集/更新范围、样本门槛、候选计数和未发布原因，避免将实时采集误当每周期发布。
+
+本地行为测试覆盖并发批次隔离及失败恢复、配置限幅、经验容量下降、发送副本不污染协议、
+零客户端/断连、学习门槛及启动日志不含密码；未新增重试或诊断开关。
+运维操作与三个回传文件见docs/tongzhou-production-check.md。
+更早历史路口配时策略与混合经验默认来源保持不变，仍不将全部历史底表切换为混合视图。
+长期最小绿、冷启动周期预算及1700125经验/反馈语义尚需新版本现场日志继续核实，不宣称全部解决。
+
+最终验证：compileall覆盖运行、数据、控制、Agent、基础设施与lib/tools通过；805项测试通过（主603、经验149、控制9、全局44）。

@@ -10,6 +10,8 @@ from lib.intersection_strategy import PLATFORM_PHASE_ROAD_IDS, uses_platform_pha
 
 from datetime import datetime
 import json
+import hashlib
+from infra.logging import decision_batch_id
 import logging
 import os
 from pathlib import Path
@@ -181,6 +183,7 @@ def _decision_summary(result):
     for direction in DIRECTIONS:
         decision = result.get("decisions", {}).get(direction, {})
         decisions[direction] = {
+            "active": bool(decision.get("active", False)),
             "requested_flow": int(decision.get("requested_flow", 0)),
             "selected_green_time": int(
                 decision.get("selected_green_time", 0)
@@ -198,6 +201,11 @@ def _decision_summary(result):
         decisions[direction]["threshold_at_selected_time"] = float(
             decision.get("threshold_at_selected_time", 0)
         )
+        if "experience_profile" in decision:
+            decisions[direction]["experience_profile"] = decision["experience_profile"]
+        if "selected_capacity_lane_vector" in decision:
+            decisions[direction]["selected_capacity_lane_vector"] = decision["selected_capacity_lane_vector"]
+        decisions[direction]["excluded_non_capacity_lanes"] = decision.get("excluded_non_capacity_lanes", {})
         if "fallback_source" in decision:
             decisions[direction]["fallback_source"] = decision[
                 "fallback_source"
@@ -301,6 +309,23 @@ def record_shadow_comparison(
         new_vector = _schedule_vector(result["time_vector"])
         decisions = _decision_summary(result)
         runtime = result.get("runtime_input", {})
+        if road_group(road_id) in {"19", "49"}:
+            road_table = experience_table.get(road_id, {})
+            config = cross_info[road_id]
+            record["batch_id"] = decision_batch_id.get()
+            record["runtime_input"] = runtime
+            record["flow_10min_lane_vectors"] = result["flow_10min"]
+            record["effective_cross_info"] = {
+                key: config[key] for key in ("phase", "LaneNo", "jtll_ddbh", "Cycle", "zhouqi")
+                if key in config
+            }
+            record["experience_road_sha256"] = hashlib.sha256(json.dumps(
+                road_table, sort_keys=True, separators=(",", ":"),
+            ).encode("utf-8")).hexdigest()
+            record["raw_experience_point_counts"] = {
+                direction: len(points) for direction, points in road_table.items()
+                if isinstance(points, dict)
+            }
         record.update({
             "status": "ok",
             "new_schedule": new_vector,

@@ -11,6 +11,7 @@ import logging
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
 from typing import Any, Callable
 
 from app.paths import LOGS_DIR
@@ -19,7 +20,7 @@ from uuid import uuid4
 from control.policies import BaselineController
 from datahub.classifier import DataKind
 from datahub.service import TrafficDataHub
-from infra.logging import LoggingMixin
+from infra.logging import LoggingMixin, decision_batch_id, plan_fingerprint
 from lib.control_functions.types import IntersectionControlRequest
 from .tracing import DecisionTrace, trace_stage, trace_value
 
@@ -97,6 +98,7 @@ class PeriodicDecisionPipeline(LoggingMixin):
                                 control_policy=type(self.control_policy).__name__)
             for road in self.lambdas.intersection_list
         }
+        batch_token = decision_batch_id.set(batch_id)
         try:
             with trace_stage(traces.values(), "aggregation_and_workers"):
                 current_result, online_map, overflow_map, extend_map = self._process_data(traces=traces)
@@ -107,6 +109,7 @@ class PeriodicDecisionPipeline(LoggingMixin):
                 trace.record_error(trace.failed_stage, error)
             raise
         finally:
+            decision_batch_id.reset(batch_token)
             logger = self.logger if self.logger is not None else logging.getLogger("aitc.decision.trace")
             finished_ns = time.perf_counter_ns()
             for trace in traces.values():
@@ -150,14 +153,15 @@ class PeriodicDecisionPipeline(LoggingMixin):
         with trace_stage(traces.values(), "format"):
             for intersection_id, result in current_result.items():
                 result["result_action"] = action[intersection_id]
-                results_to_send.append(
-                    self.select_data_to_send(
-                        intersection_id,
-                        action[intersection_id],
-                        result["traffic_vector"],
-                        result["model_info_list"],
-                    )
+                payload = self.select_data_to_send(
+                    intersection_id, action[intersection_id],
+                    result["traffic_vector"], result["model_info_list"],
                 )
+                results_to_send.append(payload)
+                tl_logic = payload.get("additional", {}).get("tlLogic")
+                if isinstance(tl_logic, dict):
+                    traces[intersection_id].formatted_plan = trace_value(tl_logic)
+                    traces[intersection_id].plan_sha256 = plan_fingerprint(tl_logic)
         with trace_stage(traces.values(), "publish"):
             self.result_warehouse.replace(results_to_send)
         for trace in traces.values():
@@ -222,7 +226,7 @@ class PeriodicDecisionPipeline(LoggingMixin):
         with ThreadPoolExecutor(max_workers=self.worker_count) as executor:
             futures = [
                 (intersection_id, executor.submit(
-                    self._process_single_intersection,
+                    copy_context().run, self._process_single_intersection,
                     intersection_id,
                     intersection_flow,
                     result_queue_length,

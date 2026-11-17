@@ -318,6 +318,14 @@ def allocate_green_times(
             max_green_time,
         )
         decision["experience_point_count"] = len(points)
+        capacities = [sum(vector[i] for i in lane_indexes) for _, vector in points]
+        decision["experience_profile"] = {
+            "minimum_green_time": points[0][0] if points else None,
+            "maximum_green_time": points[-1][0] if points else None,
+            "positive_capacity_points": sum(value > 0 for value in capacities),
+            "maximum_capacity": max(capacities, default=0),
+            "capacity_drop_count": sum(b < a for a, b in zip(capacities, capacities[1:])),
+        }
         safe_time = max(
             min_green_time,
             min(max_green_time, int(safe_fallback_green_time)),
@@ -384,6 +392,7 @@ def allocate_green_times(
             "selected_green_time": selected_time,
             "table_green_time": chosen_time,
             "capacity_at_selected_time": capacity,
+            "selected_capacity_lane_vector": list(chosen_vector),
             "threshold_at_selected_time": round(threshold, 3),
             "left_turn_extra_seconds": extra,
             "status": status,
@@ -668,6 +677,8 @@ def _select_runtime_flow_records(flow_map, bounds=None):
             continue
         selected[raw_timestamp] = record
         stats["selected_records"] += 1
+        stats["selected_first_timestamp"] = min(stats.get("selected_first_timestamp", timestamp), timestamp)
+        stats["selected_last_timestamp"] = max(stats.get("selected_last_timestamp", timestamp), timestamp)
     return selected, dict(stats)
 
 
@@ -817,6 +828,7 @@ def allocate_from_runtime_data(
             )
         ),
         "extend": extend_stats,
+        "observed_stage_seconds": dict(Counter(stage_map.values())),
         "cycle": cycle_audit,
     }
     return result

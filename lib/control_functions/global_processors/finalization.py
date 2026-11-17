@@ -1,6 +1,7 @@
 """Shared final plan value finalization."""
 import json
 import logging
+from infra.logging import decision_batch_id
 from lib.floating_value import apply_floating_value
 from lib.road_groups import road_group
 from lib.intersection_strategy import uses_platform_phase_timing
@@ -14,6 +15,8 @@ def finalize_plan_values(result_action_map, *, road_info=None):
     for plan in result_action_map.values():
         for index in range(len(plan)):
             plan[index] = int(plan[index])
+    before_floating = {str(road): list(plan) for road, plan in result_action_map.items()
+                       if road_group(road) is not None or uses_platform_phase_timing(road)}
     result_action_map, report = apply_floating_value(result_action_map, return_report=True)
     if road_info is not None:
         for cross_id, plan in result_action_map.items():
@@ -21,6 +24,7 @@ def finalize_plan_values(result_action_map, *, road_info=None):
             platform_strategy = uses_platform_phase_timing(cross_id)
             if group is None and not platform_strategy:
                 continue
+            after_floating = list(plan)
             if platform_strategy:
                 config = road_info[str(cross_id)][str(plan[9])]
                 phases, lows, highs = phase_bounds(config)
@@ -33,6 +37,17 @@ def finalize_plan_values(result_action_map, *, road_info=None):
                 audit = {}
             LOGGER.info("flow_control_final %s", json.dumps({
                 "cross_id": str(cross_id), "road_group": group,
+                "batch_id": decision_batch_id.get(),
+                "stage": "coordinator_finalization",
+                "before_floating": before_floating[str(cross_id)],
+                "after_floating_before_bounds": after_floating,
+                "selected_program": {key: config[key] for key in (
+                    "phase", "min_pass_time", "max_pass_time",
+                    "platform_min_pass_time", "platform_max_pass_time") if key in config},
+                "bounded_phase_changes": [
+                    {"index": i, "before": after_floating[i], "after": plan[i]}
+                    for i in range(min(8, len(plan))) if after_floating[i] != plan[i]
+                ],
                 "state": str(plan[9]), "phase_names": phases,
                 "output_phase_vector": list(plan), "is_final": True, **audit,
             }, separators=(",", ":")))
