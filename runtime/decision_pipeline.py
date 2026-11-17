@@ -376,6 +376,8 @@ class PeriodicDecisionPipeline(LoggingMixin):
                     cognitive = self.decision_graph.cognitive_controller
                     trace.capture_graph(decision, provider=cognitive.gateway.provider_name if cognitive is not None else None)
             else:
+                if trace is not None:
+                    trace.route = ["control_policy"]
                 with trace_stage([trace] if trace is not None else [], "control"):
                     selection = self.dqn_select(request)
             result_action, coordinate_map, model_info_list, exp_list = selection

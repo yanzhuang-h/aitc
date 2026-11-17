@@ -304,7 +304,21 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
         config_supplier=get_intersection_result_config, phase_check=phase_check,
         fallback_loader=control_policy.fallback_legacy, logger=logger,
     )
-    pipeline = PeriodicDecisionPipeline(cache=cache, data_processor=control_processor, lambdas_module=Lambdas, writer=writer, result_warehouse=warehouse, flow_predictor=flow_predictor, queue_predictor=queue_predictor, control_policy=control_policy, phase_check=phase_check, select_data_to_send=partial(format_result, lambdas_module=Lambdas), is_millisecond_timestamp=is_millisecond_timestamp, overflow_warning_map=overflow_warning_map, radar_event_map=radar_event_map, flow_duration_seconds=settings.flow_duration_seconds, logger=logger, control_snapshot_enabled=settings.control_snapshot_enabled, control_snapshot_dir=settings.control_snapshot_dir, datahub=datahub, decision_graph=decision_graph, safety_engine=safety_engine)
+    # 固定配时直接使用原策略；诊断图仍可显式调用，启用周期 Agent 时再接入图。
+    pipeline = PeriodicDecisionPipeline(
+        cache=cache, data_processor=control_processor, lambdas_module=Lambdas,
+        writer=writer, result_warehouse=warehouse, flow_predictor=flow_predictor,
+        queue_predictor=queue_predictor, control_policy=control_policy,
+        phase_check=phase_check,
+        select_data_to_send=partial(format_result, lambdas_module=Lambdas),
+        is_millisecond_timestamp=is_millisecond_timestamp,
+        overflow_warning_map=overflow_warning_map, radar_event_map=radar_event_map,
+        flow_duration_seconds=settings.flow_duration_seconds, logger=logger,
+        control_snapshot_enabled=settings.control_snapshot_enabled,
+        control_snapshot_dir=settings.control_snapshot_dir, datahub=datahub,
+        decision_graph=decision_graph if cognitive_agent is not None else None,
+        safety_engine=safety_engine,
+    )
     prediction_scheduler = PredictionScheduler(flow_job=flow_predictor.daily_prediction_job, queue_job=queue_predictor.daily_queue_prediction, hour=settings.prediction_hour, minute=settings.prediction_minute, logger=logger)
     experience_pool_scheduler = (
         ExperiencePoolScheduler(logger=logger, release_settings=settings.experience_release)

@@ -5,6 +5,8 @@ import json
 import unittest
 from unittest.mock import patch
 
+from agents.experts import RadarExpert, VideoExpert
+
 import Lambdas
 from models import MockProvider, ModelResponse
 from agents.control_tools import snapshot_summary
@@ -38,9 +40,12 @@ class V2AcceptanceTest(unittest.TestCase):
         if radar:
             send_radar_http(app, payloads[2][2])
 
-    def run_wire_case(self, *, provider="disabled", base_url="", timeout=1.0, video=True, queue=True, radar=False, unavailable_snapshot=False):
+    def run_wire_case(self, *, provider="disabled", base_url="", timeout=1.0, video=True, queue=True, radar=False, unavailable_snapshot=False, diagnostic_graph=False):
         with isolated_runtime(), acceptance_application(provider=provider, base_url=base_url, timeout=timeout) as (app, logger), tcp_channel(app) as client:
             self.feed(app, client, video=video, queue=queue, radar=radar)
+            if diagnostic_graph:
+                # 显式验证诊断图；默认固定链不执行专家提取。
+                app.decision_pipeline.decision_graph = app.decision_graph
             if unavailable_snapshot:
                 with patch.object(app.datahub, "capture", return_value=None):
                     result = app.decision_pipeline.run_once()
@@ -56,11 +61,19 @@ class V2AcceptanceTest(unittest.TestCase):
             return result, trace_records
 
     def test_no_llm_video_only_reaches_original_tcp_output(self):
-        with patch("models.openai_compatible.request.urlopen", side_effect=AssertionError("no LLM mode must not use model network")) as network:
+        with patch("models.openai_compatible.request.urlopen", side_effect=AssertionError("no LLM mode must not use model network")) as network, patch.object(
+            VideoExpert, "extract", side_effect=AssertionError("fixed control must not repeat video aggregation"),
+        ) as video, patch.object(
+            RadarExpert, "extract", side_effect=AssertionError("fixed control must not repeat radar aggregation"),
+        ) as radar:
             result, traced = self.run_wire_case()
         network.assert_not_called()
+        video.assert_not_called()
+        radar.assert_not_called()
         record = next(item for item in traced if item["intersection_id"] == VIDEO_INTERSECTION)
-        self.assertEqual([item["source"] for item in record["expert_calls"]], ["video"])
+        self.assertEqual(record["expert_calls"], [])
+        self.assertEqual(record["route"], ["control_policy"])
+        self.assertTrue(record["safety_report"]["safe"])
         self.assertFalse(record["llm_participated"])
         self.assertEqual(record["traffic_snapshot"]["traffic_vector"], [1, 0, 0, 0])
         self.assertEqual(record["input_context_batch_id"], record["batch_id"])
@@ -68,6 +81,29 @@ class V2AcceptanceTest(unittest.TestCase):
         self.assertNotIn("predicted_queue", record["traffic_snapshot"])
         payload = next(item for item in result if item["additional"]["tlLogic"]["id"] == VIDEO_INTERSECTION)
         self.assertEqual(record["final_signal_plan"]["program_id"], payload["additional"]["tlLogic"]["programID"])
+
+    def test_fixed_control_matches_explicit_graph_tcp_output(self):
+        direct, _traced = self.run_wire_case()
+        graph, _graph_traced = self.run_wire_case(diagnostic_graph=True)
+        self.assertEqual(direct, graph)
+
+    def test_fixed_control_still_applies_final_safety(self):
+        with isolated_runtime(), acceptance_application() as (app, logger):
+            coordinate = app.decision_pipeline.coordinate
+
+            def corrupt(*args):
+                plans = coordinate(*args)
+                plans[VIDEO_INTERSECTION][8] = 7
+                return plans
+
+            app.decision_pipeline.coordinate = corrupt
+            result = app.decision_pipeline.run_once()
+            self.assertEqual(result, app.decision_pipeline.result_warehouse.snapshot())
+            trace = next(item for item in records(logger) if item["intersection_id"] == VIDEO_INTERSECTION)
+            self.assertEqual(trace["route"], ["control_policy"])
+            self.assertTrue(trace["safety_report"]["safe"])
+            self.assertEqual(trace["final_legacy"][8], 0)
+            self.assertIn("safety:reserved_slot_must_be_zero", trace["fallback_reason"])
 
     def test_cold_start_snapshot_fix_preserves_previous_legacy_outputs(self):
         old, old_trace = self.run_wire_case(unavailable_snapshot=True)
@@ -77,7 +113,7 @@ class V2AcceptanceTest(unittest.TestCase):
         self.assertTrue(all(item["snapshot_status"] == "captured" for item in corrected_trace))
 
     def test_missing_video_queue_and_http_radar_take_real_fallback_path(self):
-        _result, traced = self.run_wire_case(queue=False, radar=True)
+        _result, traced = self.run_wire_case(queue=False, radar=True, diagnostic_graph=True)
         video = next(item for item in traced if item["intersection_id"] == VIDEO_INTERSECTION)
         radar = next(item for item in traced if item["intersection_id"] == RADAR_INTERSECTION)
         self.assertEqual([item["source"] for item in video["expert_calls"]], ["video", "radar"])

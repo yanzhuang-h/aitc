@@ -95,8 +95,7 @@ class ExpertIntegrationTest(unittest.TestCase):
                     side_effect=AssertionError("legacy control must not request an LLM"),
                 ))
                 with composed_application() as app:
-                    if not use_graph:
-                        app.decision_pipeline.decision_graph = None
+                    app.decision_pipeline.decision_graph = app.decision_graph if use_graph else None
                     video = stack.enter_context(patch.object(
                         app.experts["video"], "extract", wraps=app.experts["video"].extract,
                     ))

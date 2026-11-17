@@ -90,6 +90,7 @@ class CognitiveGraphIntegrationTest(unittest.TestCase):
             self.assertIs(app.control_agent_tools.video_expert, app.experts["video"])
             self.assertIs(app.control_agent_tools.radar_expert, app.experts["radar"])
             self.assertIs(app.decision_graph.cognitive_controller, app.cognitive_agent)
+            self.assertIs(app.decision_pipeline.decision_graph, app.decision_graph)
 
     def test_disabled_llm_or_control_switch_omits_cognition(self):
         cases = ((False, True, "qwen"), (True, False, "mock"), (True, True, "disabled"))
@@ -99,6 +100,7 @@ class CognitiveGraphIntegrationTest(unittest.TestCase):
             ) as app:
                 self.assertIsNone(app.cognitive_agent)
                 self.assertIsNone(app.decision_graph.cognitive_controller)
+                self.assertIsNone(app.decision_pipeline.decision_graph)
                 self.assertIsNotNone(app.control_agent_tools)
 
     def test_complete_video_fast_path_makes_no_model_calls(self):
