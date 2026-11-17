@@ -327,6 +327,72 @@ class ExperienceRuntimeTests(unittest.TestCase):
         self.assertTrue(updated["1"]["U"])
         self.assertTrue(report["pool_summary"]["publication_recovery_required"])
 
+    def test_same_date_can_add_other_roads_and_recheck_does_not_blend_twice(self):
+        from lib.data_ANS.experience_reader import load_experience_table
+        from lib.data_ANS.experience_release import _canonical_hash
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            logs = root / "logs_data"
+            for kind in ("flow", "extend"):
+                folder = logs / kind
+                folder.mkdir(parents=True)
+                (folder / f"2026-11-12_{kind}.txt").touch()
+            active, cross = root / "active.json", root / "cross.json"
+            active.write_text(json.dumps({"1700125": {"U": {"10": [0, 10] + [0] * 8}}}))
+            cross.write_text(json.dumps({
+                road: {"LaneNo": {"U": {"1": "1B"}}, "phase": {"1": "U"}, "Cycle": [[1]]}
+                for road in ("1700240", "1700125")
+            }))
+            environment = {
+                "AITC_EXPERIENCE_POOL_STATE_DIR": str(root / "state"),
+                "AITC_EXPERIENCE_POOL_ARTIFACT_DIR": str(root / "daily"),
+                "AITC_EXPERIENCE_RUNTIME_TABLE": str(active),
+                "AITC_EXPERIENCE_CROSS_INFO": str(cross),
+                "AITC_EXPERIENCE_VERSIONS_DIR": str(root / "versions"),
+                "AITC_EXPERIENCE_MANIFEST": str(root / "versions" / "active_manifest.json"),
+                "AITC_EXPERIENCE_POOL_MIN_SAMPLES": "1",
+                "AITC_FLOW_ALLOCATOR_SHADOW_TABLE": "",
+            }
+            def observations(**kwargs):
+                return [{
+                    "CrossId": road, "direction": "U", "actual_green_time": 10,
+                    "source_date": "2026-11-12", "source_window_start": 1000,
+                    "quality_gate_passed": True, "capacity_lane_indexes": [1],
+                    "candidate_observed_flow": [0, 50] + [0] * 8,
+                } for road in kwargs["target_cross_ids"]], {}
+
+            with mock.patch.object(RUNTIME, "LOGS_DIR", logs), mock.patch.dict(os.environ, environment), \
+                    mock.patch.object(RUNTIME, "normalize_raw_feedback", side_effect=observations) as normalize:
+                before = load_experience_table(road_id="1700125")["1700125"]["U"]["10"]
+                for road in ("1700240", "1700125"):
+                    with mock.patch.dict(os.environ, {
+                        "AITC_EXPERIENCE_POOL_ROADS": road,
+                        "AITC_EXPERIENCE_TABLE_UPDATE_ROADS": road,
+                    }):
+                        report = run_experience_pool_day("2026-11-12")
+                        self.assertEqual(report["target_road_ids"], [road])
+                        self.assertEqual(report["pool_summary"]["accumulation"]["accepted_samples"], 1)
+                after = load_experience_table(road_id="1700125")["1700125"]["U"]["10"]
+                self.assertNotEqual(before, after)
+                self.assertEqual(after[1], 18)
+                manifest = json.loads((root / "versions" / "active_manifest.json").read_text())
+                self.assertEqual(manifest["active_sha256"], _canonical_hash(json.loads(active.read_text())))
+                with mock.patch.dict(os.environ, {
+                    "AITC_EXPERIENCE_POOL_ROADS": "1700125",
+                    "AITC_EXPERIENCE_TABLE_UPDATE_ROADS": "1700125",
+                }):
+                    table_bytes = active.read_bytes()
+                    run_experience_pool_day("2026-11-12")
+                    self.assertEqual(normalize.call_count, 2)
+                    rechecked = run_experience_pool_day("2026-11-12", recheck=True)
+                self.assertEqual(normalize.call_count, 3)
+                self.assertEqual(active.read_bytes(), table_bytes)
+                self.assertFalse(rechecked["table_updated"])
+                self.assertEqual(rechecked["pool_summary"]["days"]["2026-11-12"]["status"], "already_applied")
+                pool = json.loads((root / "state" / "online_experience_samples.json").read_text())
+                self.assertEqual(pool["state"]["daily_runs"]["2026-11-12"]["processed_road_ids"],
+                                 ["1700125", "1700240"])
+
     def test_invalid_nonempty_or_wrong_type_table_still_blocks_learning(self):
         for initial in ({"1": {}}, [], {"1": {"U": {"10": [-1] * 10}}}):
             with self.subTest(initial=initial), mock.patch.object(
