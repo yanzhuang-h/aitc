@@ -57,6 +57,16 @@ class ColdStartTimingTests(unittest.TestCase):
                 self.assertEqual(plan[:2], expected)
                 self.assertEqual(plan[8:], [0, 1])
 
+    def test_minimum_only_reference_reports_no_budget_to_reallocate(self):
+        extend = {1000 + offset: [{"CrossId": ROAD,
+                                  "curStageNo": "1" if offset % 60 < 30 else "2"}]
+                  for offset in range(600)}
+        result = self.evaluate(extend=extend, programs={ROAD: {"1": config(lows=(30, 30))}})
+        audit = result["runtime_input"]["cold_start"]
+        self.assertEqual(audit["allocated_phase_times"], [30, 30])
+        self.assertEqual(audit["reallocation_headroom_seconds"], 0)
+        self.assertEqual(audit["allocated_budget"], 60)
+
     def test_two_stable_cycles_are_enough_for_runtime_reference(self):
         extend = {1000 + offset: [{"CrossId": ROAD,
                                   "curStageNo": "1" if offset % 150 < 100 else "2"}]

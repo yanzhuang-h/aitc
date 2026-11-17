@@ -88,5 +88,7 @@ def observed_cycle_fallback(cycles, cross_config, road_programs, flow, decisions
         "reference_phase_times": reference, "allocated_phase_times": times,
         "minimums": lows, "maximums": highs, "flow_weights": weights,
         "held_phase_indexes": held, "cold_phase_indexes": cold,
+        "adjustable_phase_count": sum(weight > 0 for weight in weights),
+        "reallocation_headroom_seconds": sum(reference[i] - lows[i] for i in cold if i not in held),
         "direction_targets": updates, **cycle_audit, **budget_audit,
     }
