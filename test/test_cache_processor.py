@@ -1,5 +1,7 @@
 """运行数据聚合的行为基线测试。"""
 
+import json
+from types import SimpleNamespace
 import unittest
 
 import Lambdas
@@ -60,6 +62,48 @@ class CacheProcessorTest(unittest.TestCase):
         self.assertEqual(stage_map["1300068"][1_700_000_000]["curStageNo"], 3)
         self.assertEqual(stage_map["1300068"][1_700_000_000]["curStageLen"], 19)
         self.assertEqual(extend_map["1300068"][1_700_000_000][0]["curStageRemainLen"], 8)
+
+    def test_bad_stage_record_preserves_prior_and_later_intersections(self):
+        template = SimpleNamespace(
+            map_lambda={"A": {}, "B": {}}, aibi_to_xinkongji={"alias": "B"},
+            stage_map_lambda={"curStageNo": 0, "curStageLen": 0},
+        )
+        good = {"CrossId": "A", "time": 1_700_000_000_000,
+                "curStageNo": "3", "curStageLen": "19"}
+        later = {**good, "CrossId": "alias", "time": 1_700_000_001_000}
+        for bad in (None, {}, {**good, "curStageLen": ""},
+                    {**good, "curStageNo": None}, {**good, "time": float("inf")},
+                    {**good, "CrossId": []}):
+            with self.subTest(bad=bad):
+                stage_map = cache_processor.process_stage_data([good, bad, later], template)
+                self.assertEqual(stage_map["A"][1_700_000_000]["curStageLen"], 19)
+                self.assertEqual(stage_map["B"][1_700_000_001]["curStageNo"], 3)
+                self.assertEqual(sum(map(len, stage_map.values())), 2)
+
+    def test_missing_stage_identity_is_malformed_instead_of_unregistered(self):
+        with self.assertLogs("ProcessCacheData", level="WARNING") as logs:
+            stages = cache_processor.process_stage_data([
+                {"time": 1_700_000_000_000, "curStageNo": 3, "curStageLen": 19},
+                {"CrossId": "unknown", "time": 1_700_000_000_000,
+                 "curStageNo": 3, "curStageLen": 19},
+            ], Lambdas)
+        summary = json.loads(logs.records[0].getMessage().split("stage_aggregation ", 1)[1])
+        self.assertEqual(summary["counts"], {
+            "input_records": 2, "malformed_record": 1, "unregistered_intersection": 1,
+        })
+        self.assertEqual(stages, Lambdas.map_lambda)
+
+    def test_stage_rejections_are_summarized_once_without_overwriting_valid_bucket(self):
+        good = {"CrossId": "1300068", "time": 1_700_000_000_000,
+                "curStageNo": "3", "curStageLen": "19"}
+        bad = {**good, "curStageLen": ""}
+        with self.assertLogs("ProcessCacheData", level="WARNING") as logs:
+            stages = cache_processor.process_stage_data([good, bad, bad], Lambdas)
+        self.assertEqual(len(logs.records), 1)
+        summary = json.loads(logs.records[0].getMessage().split("stage_aggregation ", 1)[1])
+        self.assertEqual(summary["counts"], {"input_records": 3, "accepted": 1, "malformed_record": 2})
+        self.assertEqual(summary["malformed_by_road"], {"1300068": 2})
+        self.assertEqual(stages["1300068"][1_700_000_000]["curStageLen"], 19)
 
     def test_online_data_uses_registered_rid(self):
         rid = next(iter(Lambdas.online_data_map_lambda))

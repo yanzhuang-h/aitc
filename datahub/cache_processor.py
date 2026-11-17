@@ -135,29 +135,42 @@ def process_queue_data(cache, lambdas_module):
     return max_queue_lengths,queue_map
 
 def process_stage_data(cache, lambdas_module):
-    logger.info("Processing stage data...")
-    stage_map=copy.deepcopy(lambdas_module.map_lambda)
-
-    try:
-        for stage_data in cache:
-    
-            IntersectionID=stage_data.get('CrossId')
-            if lambdas_module.aibi_to_xinkongji.__contains__(IntersectionID):
-                IntersectionID=lambdas_module.aibi_to_xinkongji.get(IntersectionID)
-            if not stage_map.__contains__(IntersectionID):
+    """仅统计已进入 STAGE 缓存的记录，坏记录不能截断同批后续数据。"""
+    stage_map = copy.deepcopy(lambdas_module.map_lambda)
+    counters = collections.Counter()
+    malformed_by_road = collections.Counter()
+    for stage_data in cache:
+        counters["input_records"] += 1
+        if not isinstance(stage_data, dict):
+            counters["malformed_record"] += 1
+            continue
+        intersection_id = stage_data.get("CrossId")
+        if not isinstance(intersection_id, str) or not intersection_id.strip():
+            counters["malformed_record"] += 1
+            continue
+        try:
+            intersection_id = lambdas_module.aibi_to_xinkongji.get(intersection_id, intersection_id)
+            if intersection_id not in stage_map:
+                counters["unregistered_intersection"] += 1
                 continue
-            start_time_second=(int(stage_data.get("time"))//1000)
-            curStageNo=int(stage_data.get("curStageNo"))
-            curStageLen=int(stage_data.get("curStageLen"))
-            if start_time_second not in stage_map[IntersectionID]:
-                stage_map[IntersectionID][start_time_second] = copy.deepcopy(lambdas_module.stage_map_lambda)
-            stage_map[IntersectionID][start_time_second]['curStageNo']=curStageNo
-            stage_map[IntersectionID][start_time_second]['curStageLen']=curStageLen
-    except KeyError as e:
-        logger.error(f"Missing key in stage data:{e}")
-    except Exception as e:
-        logger.error(f"Error processing stage data: {e}")
-    
+            start_time_second = int(stage_data.get("time")) // 1000
+            stage_no = int(stage_data.get("curStageNo"))
+            stage_length = int(stage_data.get("curStageLen"))
+        except (TypeError, ValueError, OverflowError):
+            counters["malformed_record"] += 1
+            # 仅记录已知路口，既便于定位源头，也不回显整条报文。
+            if isinstance(intersection_id, str) and intersection_id in stage_map:
+                malformed_by_road[intersection_id] += 1
+            continue
+        bucket = stage_map[intersection_id].setdefault(
+            start_time_second, copy.deepcopy(lambdas_module.stage_map_lambda))
+        bucket["curStageNo"] = stage_no
+        bucket["curStageLen"] = stage_length
+        counters["accepted"] += 1
+    log = logger.warning if counters["malformed_record"] else logger.info
+    log("stage_aggregation %s", json.dumps({
+        "counts": dict(counters), "malformed_by_road": dict(malformed_by_road),
+    }, separators=(",", ":")))
     return stage_map
 
 def process_extend_data(cache, lambdas_module):
