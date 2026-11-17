@@ -2,11 +2,12 @@
 
 try:
     from lib.data_ANS.phase_definitions import PHASE_DIRECTION_MAP
-    from lib.data_ANS.experience_reader import load_experience_table
+    from lib.data_ANS.experience_reader import load_experience_table, load_json_cached
 except ModuleNotFoundError:
     from data_ANS.phase_definitions import PHASE_DIRECTION_MAP
-    from data_ANS.experience_reader import load_experience_table
+    from data_ANS.experience_reader import load_experience_table, load_json_cached
 
+from lib.road_groups import road_group
 import json
 import os
 from pathlib import Path
@@ -35,8 +36,15 @@ def quihe(L_set,L):
     return sum
 
 
-def movement_lane_sets(road_id, direction):
-    cross_config = lines3.get(str(road_id), {})
+def _cross_config_for_road(road_id):
+    if road_group(road_id) == "19":
+        return load_json_cached(info).get(str(road_id), {})
+    return lines3.get(str(road_id), {})
+
+
+def movement_lane_sets(road_id, direction, cross_config=None):
+    if cross_config is None:
+        cross_config = _cross_config_for_road(road_id)
     base_lanes = configured_movement_lane_policy(
         cross_config,
         direction,
@@ -49,7 +57,8 @@ def movement_lane_sets(road_id, direction):
 
 
 def   chuli_shuju(road_id, flow_map_single_intersection, extend_map_single_intersection):
-
+    # 每次计算使用同一配置快照，相位判断和车道需求不能各取一个版本。
+    cross_config = _cross_config_for_road(road_id)
     liu={
         'U':[0]*10,
         'D': [0] * 10,
@@ -91,9 +100,9 @@ def   chuli_shuju(road_id, flow_map_single_intersection, extend_map_single_inter
     print(zhuangtai_set,"uweweyudsnabksjd",road_id,"ksdjsakldjsakldsjadlksadjsalkdsajdslka")
     for x in zhuangtai_set:
         try:
-            if x in lines3[road_id]['phase']:
-                juti=yingshe_1[lines3[road_id]['phase'][x]]
-                print(lines3[road_id]['phase'][x],juti,"wewebhjgsd")
+            if x in cross_config['phase']:
+                juti=yingshe_1[cross_config['phase'][x]]
+                print(cross_config['phase'][x],juti,"wewebhjgsd")
                 for d in juti:
                     print(d)
                     str[d]=1
@@ -120,7 +129,7 @@ def   chuli_shuju(road_id, flow_map_single_intersection, extend_map_single_inter
         if d in  ['UTL','DTL','LTL','RTL'] and str[d]!=0:
             dd = d[0]
             t = 0
-            _, L_lan = movement_lane_sets(road_id, dd)
+            _, L_lan = movement_lane_sets(road_id, dd, cross_config)
 
 
             for time, key in jingyan_biao[d].items():
@@ -139,7 +148,7 @@ def   chuli_shuju(road_id, flow_map_single_intersection, extend_map_single_inter
         else:
 
             t = 0
-            base_lanes, _ = movement_lane_sets(road_id, d)
+            base_lanes, _ = movement_lane_sets(road_id, d, cross_config)
             for time, key in jingyan_biao[d].items():
 
                 if int(quihe(base_lanes, key) * 0.8) >= quihe(base_lanes, liu[d]):
@@ -170,7 +179,7 @@ def   chuli_shuju(road_id, flow_map_single_intersection, extend_map_single_inter
 
 
 def   chuli_shuju3(road_id, flow_map_single_intersection):
-
+    cross_config = _cross_config_for_road(road_id)
     liu={
         'U':[0]*10,
         'D': [0] * 10,
@@ -250,7 +259,7 @@ def   chuli_shuju3(road_id, flow_map_single_intersection):
         if d in  ['UTL','DTL','LTL','RTL']:
             dd = d[0]
             t = 0
-            _, L_lan = movement_lane_sets(road_id, dd)
+            _, L_lan = movement_lane_sets(road_id, dd, cross_config)
 
 
             for time, key in jingyan_biao[d].items():
@@ -267,7 +276,7 @@ def   chuli_shuju3(road_id, flow_map_single_intersection):
             print(d,sch[d], "inytysdkjsahduweysjduweyuwnsjdgsfbdmsl")
         else:
             t = 0
-            base_lanes, _ = movement_lane_sets(road_id, d)
+            base_lanes, _ = movement_lane_sets(road_id, d, cross_config)
             for time, key in jingyan_biao[d].items():
 
                 if int(quihe(base_lanes, key) * 0.8) >= quihe(base_lanes, liu[d]):
