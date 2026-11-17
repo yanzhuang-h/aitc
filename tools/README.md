@@ -1,6 +1,6 @@
-# tools：离线脚本
+# tools：手动维护脚本
 
-这里的脚本不参与生产运行，只在本地手工执行。请在**仓库根目录**用项目环境执行：
+脚本由维护人员在本地或生产版本目录按需执行，不由服务自动调用。请在**版本目录**用项目环境执行：
 
 ```bash
 .venv/bin/python tools/config_check.py
@@ -13,6 +13,30 @@
 | `config_check.py` | 检查 `Lambdas.py` 中路口/设备映射配置的完整性（方向缺失、重复、未映射等） | 当前目录下 `lambda_config_check_report_<时间戳>.json` 与 `lambda_config_summary_<时间戳>.txt` |
 | `gen_online_config.py` | 由 `lib/Global_intersection_coordinate` 的 `road_map`/`online_map_info` 计算互联网数据映射 | 当前目录下 `intersection_to_rid_lambda.py`、`new_online_data_map_lambda.py`；核对后手工合并进 `Lambdas.py`，不要提交（已在 `.gitignore` 中） |
 | `gen_api_docs.py` | 生成《AITC 对外 HTTP 接口说明》Word 文档，依赖 `python-docx` | 仓库 `docs/对外HTTP接口说明.docx`，路径按脚本位置定位，与当前目录无关 |
+
+## 生产环境经验补训与只读诊断
+
+正式补训使用生产保存的flow/extend。本地数据用于解析、筛选和配时回归，不能代表完整训练效果。
+
+~~~bash
+# 预览过去7个完整日，不含当天；默认19组＋已登记的平台路口
+.venv/bin/python tools/backfill_experience.py
+
+# 在生产版本目录执行，积累经验并按原质量门槛发布
+.venv/bin/python tools/backfill_experience.py --apply
+
+# 只读核查任务记录、发布文件、当前配置的读取表和最近候选日志
+.venv/bin/python tools/check_online_learning.py --cross 1700125 --cross 1700240
+~~~
+
+- 读取版本目录的.env，环境变量优先；打印实际发布表、版本清单及逐日输入/任务报告路径。--root可指定版本目录，相对路径以该目录为准。
+- 日期默认昨天结束，向前七天；也可用--days或--start/--end。服务原有每天12:00处理T-2的调度不变，没有新增后台补跑。
+- --roads online为19组和本地已登记的平台路口；19/49为批次，也可填ID列表。旧all仍只取plan_id_overrides.json登记，通常仅49组，不把旧命令悄悄扩成全部路口。
+- 正式门槛默认30样本。缺文件、缺配置等跳过会在报告说明，执行结束返回非零；零候选及未达到发布门槛不伪装为已发布。
+- --force仅在锁内复查日记录，已入池样本仍去重；它不清空样本池、不重新混合已处理路口，也不代替历史重建。若旧日期早于该路口已入池日期，原时间顺序约束仍会阻止倒序补入，需按保留基表另行制定重建方案。
+- run_experience_pool_now.py保留单日手动入口并复用同一实现；立即执行的语义不变，默认改为T-2、30样本和19组＋平台路口。正式周补训统一使用上述入口。
+- 诊断逐行扫描日志，检查最近七个完整日的运行记录与范围（缺日记录不直接认定未训练）、发布表与清单指纹、分配器配置读取路径和最新日志经验指纹。路径不同可能是有意对照，指纹不同也可能是日志早于文件更新；需结合时段判断，不能单凭诊断证明另一进程已加载或信号机已执行。
+- 生产补训完成后回传终端输出及输出中列出的逐日报告；正常部署排查仍沿用[运维与问题](https://dkrg-heu.feishu.cn/wiki/MYYgwcG52iK4rjk0gTkcTaddnCc)的回传流程。
 
 ## 新路口本地登记
 
@@ -65,5 +89,5 @@
 - 脚本内部已把仓库根目录加入 `sys.path`，因此可以导入 `Lambdas` 与 `lib`；
   `config_check.py` 与 `gen_online_config.py` 读取的 `lib/*.json` 仍按进程工作目录解析，
   所以推荐在仓库根目录执行。
-- 离线脚本不在服务启动路径中，改动后至少跑一次脚本本身确认可执行；审计工具另有自动化测试。
+- 维护脚本不在服务启动路径中；改动后验证脚本入口和必要测试，正式补训仅在生产数据具备时执行。
 - 新增离线脚本一律放这里，根目录只保留运行入口与算法资产。
