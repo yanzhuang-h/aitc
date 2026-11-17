@@ -60,3 +60,5 @@
 证据：aitc-shared/verification/tongzhou-quality-20261117/selection-replay.json。
 本地主测试593项、经验149项、全局44项通过。无需新增生产数据完成此修复；
 发布后继续通过既有三类日志验证现场输入质量与回退频率。
+
+编译验证：python -m compileall -q app datahub control agents models safety runtime infra lib tools 通过。

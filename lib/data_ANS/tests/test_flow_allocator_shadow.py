@@ -334,7 +334,10 @@ class FlowAllocatorShadowTests(unittest.TestCase):
                     )
                     self.assertEqual(record["quality_passed"], expected)
                     self.assertEqual(record["selected_schedule_source"], "new" if expected else "legacy")
-                    if not expected:
+                    if expected:
+                        self.assertEqual(record["selected_schedule"], record["new_schedule"])
+                        self.assertNotEqual(record["selected_schedule"], legacy)
+                    else:
                         self.assertEqual(record["selected_schedule"], legacy)
                         self.assertEqual(record["selection_fallback_reason"], "runtime_input_quality_not_passed")
                     self.assertEqual(legacy, [41,42,43,44,21,22,23,24,0,0])
