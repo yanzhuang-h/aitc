@@ -97,6 +97,6 @@ Windows DSH 宿主无法用原生文件工具改这个 9p 工作区；`workspace
 
 
 需对方核对的供数、配置与现场语义问题统一维护飞书
-[《生产环境问题》](https://dkrg-heu.feishu.cn/wiki/MYYgwcG52iK4rjk0gTkcTaddnCc)：
+[《AITC 运维与问题》](https://dkrg-heu.feishu.cn/wiki/MYYgwcG52iK4rjk0gTkcTaddnCc)：
 每条1–2行，注明登记日期、19/49组与路口编号，区分对方已知限制、日志事实和待核对结论。
 不在不同开发文档重复维护问题清单，也不把候选发送记录当作信号机执行记录。
