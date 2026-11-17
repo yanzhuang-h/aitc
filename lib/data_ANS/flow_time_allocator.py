@@ -448,12 +448,14 @@ def normalize_runtime_extend(
     extend_map_single_intersection,
     *,
     max_stage_gap_seconds=DEFAULT_MAX_STAGE_GAP_SECONDS,
+    valid_stages=None,
 ):
     """Convert Server ``extend`` records to one cleaned stage per second."""
     if not isinstance(extend_map_single_intersection, dict):
         raise TypeError("runtime extend input must be a dictionary")
 
     road_id = str(road_id)
+    configured_stages = None if valid_stages is None else {str(stage) for stage in valid_stages}
     stage_candidates = {}
     invalid_stage_seconds = set()
     stats = Counter()
@@ -501,7 +503,11 @@ def normalize_runtime_extend(
                         previous = timebase[key]
                         timebase[key] = difference if previous is None else combine(previous, difference)
             stage = _normalized_stage(payload.get("curStageNo"))
-            if stage is None:
+            unconfigured = (stage is not None and stage != "-1"
+                            and configured_stages is not None and stage not in configured_stages)
+            if stage is None or unconfigured:
+                if unconfigured:
+                    stats["unconfigured_stage_records"] += 1
                 stats["invalid_stage_records"] += 1
                 invalid_stage_seconds.add(timestamp)
                 continue
@@ -510,7 +516,7 @@ def normalize_runtime_extend(
 
     timebase["payload_time_observed_seconds"] = len(event_seconds)
     timebase["payload_time_span_seconds"] = max(event_seconds) - min(event_seconds) + 1 if event_seconds else 0
-    if not stage_candidates:
+    if not stage_candidates and not invalid_stage_seconds:
         return {}, {
             **dict(stats),
             "timebase": timebase,
@@ -531,8 +537,10 @@ def normalize_runtime_extend(
             observed[timestamp] = "-1"
             conflict_seconds.add(timestamp)
 
-    start = min(observed)
-    end = max(observed)
+    # 无效阶段仍属于观测窗口，不能裁掉两端后把不完整输入当作完整短周期。
+    timestamps = observed.keys() | invalid_stage_seconds
+    start = min(timestamps)
+    end = max(timestamps)
     cleaned = {}
     last_observed_timestamp = None
     last_valid_stage = None
@@ -732,6 +740,7 @@ def allocate_from_runtime_data(
         road_id,
         extend_map_single_intersection,
         max_stage_gap_seconds=max_stage_gap_seconds,
+        valid_stages=cross_config.get("phase", {}),
     )
     selected_cycles, cycle_audit = _select_complete_cycle_segment(
         stage_map,
