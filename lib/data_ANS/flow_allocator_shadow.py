@@ -115,11 +115,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 LIB_DIR = PROJECT_ROOT / "lib"
 DEFAULT_CROSS_INFO_PATH = LIB_DIR / "cross_info.json"
 from app.paths import EXPERIENCE_POOL_DIR, SHADOW_LOG_DIR
+from lib.data_ANS.experience_reader import (
+    _JSON_CACHE, _CACHE_LOCK, load_json_cached as _load_json_cached,
+    load_experience_table, runtime_experience_path,
+)
 DEFAULT_EXPERIENCE_PATH = EXPERIENCE_POOL_DIR / "online_experience.json"
 DEFAULT_LOG_DIRECTORY = SHADOW_LOG_DIR
 
-_JSON_CACHE = {}
-_CACHE_LOCK = threading.Lock()
 _LOG_LOCK = threading.Lock()
 
 
@@ -160,22 +162,6 @@ def _pilot_mode():
 
 def _configured_path(environment_name, default_path):
     return Path(os.environ.get(environment_name, default_path)).resolve()
-
-
-def _load_json_cached(path):
-    path = Path(path).resolve()
-    stat = path.stat()
-    version = (stat.st_mtime_ns, stat.st_size)
-    with _CACHE_LOCK:
-        cached = _JSON_CACHE.get(path)
-        if cached and cached["version"] == version:
-            return cached["data"]
-        with open(path, "r", encoding="utf-8") as file:
-            data = json.load(file)
-        if not isinstance(data, dict):
-            raise TypeError(f"shadow JSON root must be a dictionary: {path}")
-        _JSON_CACHE[path] = {"version": version, "data": data}
-        return data
 
 
 def _schedule_vector(schedule):
@@ -283,11 +269,10 @@ def record_shadow_comparison(
 
     try:
         if experience_table is None:
-            experience_path = _configured_path(
-                "AITC_FLOW_ALLOCATOR_SHADOW_TABLE",
-                DEFAULT_EXPERIENCE_PATH,
+            experience_path = runtime_experience_path(DEFAULT_EXPERIENCE_PATH)
+            experience_table = load_experience_table(
+                online_path=experience_path, road_id=road_id,
             )
-            experience_table = _load_json_cached(experience_path)
             record["experience_table"] = str(experience_path)
         else:
             record["experience_table"] = "injected"

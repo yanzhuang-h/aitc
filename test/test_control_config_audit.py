@@ -125,11 +125,12 @@ def DQN_select(cross_id):
 
     def test_env_whitelist_and_precedence_without_secret_leak(self):
         self.write('.env', "SECRET_TOKEN=never-show\nAITC_FLOW_ALLOCATOR_PILOT_MODE=legacy\nAITC_DATA_ROOT=/private/path")
-        report = audit(self.root, environ={'AITC_FLOW_ALLOCATOR_PILOT_MODE': 'new', 'OTHER_SECRET': 'never-show'})
+        report = audit(self.root, environ={'AITC_FLOW_ALLOCATOR_PILOT_MODE': 'new', 'OTHER_SECRET': 'never-show', 'AITC_EXPERIENCE_RUNTIME_TABLE': '/private/online.json'})
         self.assertEqual(report['pilot_policy']['mode'], 'new')
-        self.assertEqual(report['pilot_policy']['external_data_settings_present'], ['AITC_DATA_ROOT'])
+        self.assertEqual(report['pilot_policy']['external_data_settings_present'], ['AITC_DATA_ROOT', 'AITC_EXPERIENCE_RUNTIME_TABLE'])
         self.assertNotIn('never-show', json.dumps(report))
         self.assertNotIn('/private/path', json.dumps(report))
+        self.assertNotIn('/private/online.json', json.dumps(report))
 
     def test_alias_and_rotated_cycle_are_not_mismatches(self):
         self.assertNotIn('detector_mapping_mismatch', self.codes())

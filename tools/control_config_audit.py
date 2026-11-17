@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ENV_KEYS = {"AITC_FLOW_ALLOCATOR_PILOT_MODE", "AITC_FLOW_ALLOCATOR_PILOT_ROADS",
             "AITC_FLOW_ALLOCATOR_SHADOW_ROADS", "AITC_FLOW_ALLOCATOR_SHADOW_ENABLED",
             "AITC_FLOW_ALLOCATOR_SHADOW_TABLE", "AITC_FLOW_ALLOCATOR_SHADOW_CROSS_INFO",
-            "AITC_DATA_ROOT"}
+            "AITC_DATA_ROOT", "AITC_EXPERIENCE_RUNTIME_TABLE"}
 
 
 def _literal(node, known):
@@ -400,7 +400,7 @@ def audit(root=ROOT, *, roads=None, group="all", environ=None):
                              "mode_source": "显式环境/本地.env" if "AITC_FLOW_ALLOCATOR_PILOT_MODE" in env else "代码默认值",
                              "target_source": "显式环境/本地.env" if selected else "代码默认值",
                              "target_count": len(pilot_roads),
-                              "external_data_settings_present": sorted(set(env) & {"AITC_DATA_ROOT", "AITC_FLOW_ALLOCATOR_SHADOW_TABLE", "AITC_FLOW_ALLOCATOR_SHADOW_CROSS_INFO"}),
+                              "external_data_settings_present": sorted(set(env) & {"AITC_DATA_ROOT", "AITC_EXPERIENCE_RUNTIME_TABLE", "AITC_FLOW_ALLOCATOR_SHADOW_TABLE", "AITC_FLOW_ALLOCATOR_SHADOW_CROSS_INFO"}),
                               "config_scope": "仅审计指定仓库的lib配置，不读取外部数据路径或经验表",
                              "target_roads_sha256": hashlib.sha256(json.dumps(sorted(pilot_roads)).encode()).hexdigest()},
             "sources": [{"path": path, "sha256": hashlib.sha256(snapshot[path]).hexdigest()} for path in sources],
