@@ -516,17 +516,31 @@ def normalize_runtime_extend(
 
     timebase["payload_time_observed_seconds"] = len(event_seconds)
     timebase["payload_time_span_seconds"] = max(event_seconds) - min(event_seconds) + 1 if event_seconds else 0
-    if not stage_candidates and not invalid_stage_seconds:
+    if not stage_candidates:
+        # 没有可用阶段时仅报告观测边界，不展开全空窗口。
+        start = min(invalid_stage_seconds) if invalid_stage_seconds else None
+        end = max(invalid_stage_seconds) if invalid_stage_seconds else None
         return {}, {
             **dict(stats),
             "timebase": timebase,
-            "start": None,
-            "end": None,
-            "span_seconds": 0,
-            "observed_seconds": 0,
+            "start": start,
+            "end": end,
+            "span_seconds": end - start + 1 if start is not None else 0,
+            "observed_seconds": len(invalid_stage_seconds),
+            "invalid_stage_seconds": len(invalid_stage_seconds),
             "valid_seconds": 0,
             "coverage_ratio": 0.0,
         }
+
+    # 坏记录可保留正常十分钟窗的首尾，但不能将无关的远端时间展开进窗口。
+    first_stage, last_stage = min(stage_candidates), max(stage_candidates)
+    in_window_invalid = {
+        timestamp for timestamp in invalid_stage_seconds
+        if first_stage - DEFAULT_TARGET_FLOW_SECONDS <= timestamp
+        <= last_stage + DEFAULT_TARGET_FLOW_SECONDS
+    }
+    stats["out_of_window_invalid_stage_seconds"] = len(invalid_stage_seconds - in_window_invalid)
+    invalid_stage_seconds = in_window_invalid
 
     observed = {}
     conflict_seconds = set()
@@ -587,7 +601,7 @@ def normalize_runtime_extend(
         "start": start,
         "end": end,
         "span_seconds": span_seconds,
-        "observed_seconds": len(observed),
+        "observed_seconds": len(timestamps),
         "valid_seconds": valid_seconds,
         "coverage_ratio": round(valid_seconds / span_seconds, 6),
     }

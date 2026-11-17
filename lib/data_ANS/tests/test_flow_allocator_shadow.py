@@ -113,6 +113,20 @@ class FlowAllocatorShadowTests(unittest.TestCase):
         self.assertEqual(flow, original_flow)
         self.assertEqual(self.extend, original_extend)
 
+    def test_stage_rejection_counts_are_logged_for_historical_pilot(self):
+        extend = {timestamp: [{"curStageNo": "99"}] for timestamp in range(1000, 1600)}
+        with tempfile.TemporaryDirectory() as directory:
+            record = record_shadow_comparison(
+                "1300069", [40] * 10, self.flow, extend,
+                experience_table=self.experience_table, cross_info=self.cross_info,
+                log_directory=directory, observed_at=self.observed_at,
+            )
+            saved = json.loads(Path(record["log_path"]).read_text())
+        self.assertNotIn("runtime_input", saved)
+        self.assertFalse(saved["quality_passed"])
+        self.assertEqual(saved["extend_stage_validation"]["unconfigured_stage_records"], 600)
+        self.assertEqual(saved["extend_stage_validation"]["invalid_stage_records"], 600)
+
     def test_allocator_error_is_logged_and_not_raised(self):
         with tempfile.TemporaryDirectory() as directory:
             with self.assertLogs("FlowAllocatorShadow", level="ERROR"):

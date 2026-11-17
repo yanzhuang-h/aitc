@@ -90,7 +90,8 @@ class FlowTimeAllocatorTests(unittest.TestCase):
                     {"CrossId": "another", "curStageNo": "1", "time": (start - 100) * 1000},
                     "invalid payload"],
         })
-        self.assertEqual(stages, {start: "-1"})
+        self.assertEqual(stages, {})
+        self.assertEqual(report["observed_seconds"], 1)
         self.assertEqual(report["coverage_ratio"], 0)
         self.assertEqual(report["invalid_stage_records"], 1)
         self.assertEqual(report["timebase"]["payload_time_valid_records"], 1)
@@ -110,6 +111,7 @@ class FlowTimeAllocatorTests(unittest.TestCase):
                 self.assertFalse(runtime["quality_passed"])
                 self.assertEqual(runtime["extend"]["coverage_ratio"], 0)
                 self.assertEqual(runtime["extend"]["unconfigured_stage_records"], 600)
+                self.assertEqual(runtime["extend"]["observed_seconds"], 600)
 
     def test_invalid_stage_edges_remain_in_full_window_denominator(self):
         result = allocate_from_runtime_data(
@@ -122,6 +124,27 @@ class FlowTimeAllocatorTests(unittest.TestCase):
         self.assertEqual(runtime["normalization_mode"], "full_10min_window")
         self.assertFalse(runtime["quality_passed"])
         self.assertAlmostEqual(runtime["extend"]["coverage_ratio"], 520 / 600, places=6)
+
+    def test_distant_invalid_stage_does_not_expand_valid_window(self):
+        stages, report = normalize_runtime_extend(
+            "1300069", {1000: {"curStageNo": "1"}, 1001: {"curStageNo": "1"},
+                        10**9: {"curStageNo": "99"}}, valid_stages={"1"},
+        )
+        self.assertEqual(stages, {1000: "1", 1001: "1"})
+        self.assertEqual(report["span_seconds"], 2)
+        self.assertEqual(report["observed_seconds"], 2)
+        self.assertEqual(report["out_of_window_invalid_stage_seconds"], 1)
+        self.assertEqual(report["unconfigured_stage_records"], 1)
+
+    def test_all_invalid_stages_report_sparse_observations_without_expansion(self):
+        stages, report = normalize_runtime_extend(
+            "1300069", {1000: {"curStageNo": "99"}, 10**9: {"curStageNo": "99"}},
+            valid_stages={"1"},
+        )
+        self.assertEqual(stages, {})
+        self.assertEqual(report["span_seconds"], 10**9 - 1000 + 1)
+        self.assertEqual(report["observed_seconds"], 2)
+        self.assertEqual(report["coverage_ratio"], 0)
 
     def test_unconfigured_stage_breaks_inheritance_and_configured_zero_is_valid(self):
         stages, report = normalize_runtime_extend(

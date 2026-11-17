@@ -344,6 +344,11 @@ def record_shadow_comparison(
             "extend_coverage_ratio": float(
                 runtime.get("extend", {}).get("coverage_ratio", 0.0)
             ),
+            "extend_stage_validation": {
+                key: int(runtime.get("extend", {}).get(key, 0))
+                for key in ("invalid_stage_records", "unconfigured_stage_records",
+                            "out_of_window_invalid_stage_seconds")
+            },
             # 原始方向计数与受控需求分开记录，零需求不能直接解释为没有来车。
             "flow_input": {
                 "selected_timestamp_records": int(runtime.get("flow_selection", {}).get("selected_records", 0)),
