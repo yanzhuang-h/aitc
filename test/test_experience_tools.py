@@ -176,7 +176,7 @@ class ExperienceToolsTests(unittest.TestCase):
         self.assertIn("最新文件: 未找到", output)
         self.assertIn("与发布表一致: True", output)
         self.assertIn("【19组】1700125", output)
-        self.assertIn("2026-11-15 未运行", output)
+        self.assertIn("2026-11-15 无日任务记录", output)
         self.assertIn("未覆盖=1700125", output)
 
     def test_diagnostic_compares_latest_log_to_configured_read_table(self):

@@ -128,12 +128,12 @@ def main(argv=None) -> int:
 
     today = dt.date.today()
     due_date = runtime.ExperiencePoolScheduler.source_date_for_run(today)
-    print("\n最近7个完整日的积累记录（未运行不自动补跑）:")
+    print("\n最近7个完整日的积累记录（无日记录不等于未入池，不自动补跑）:")
     for offset in range(7, 0, -1):
         day = today - dt.timedelta(days=offset)
         paths = runtime._run_paths(day)
         report = _read_json(Path(paths["run_manifest"]))
-        default_status = "未到日更源日期" if day > due_date else "未运行"
+        default_status = "未到日更源日期" if day > due_date else "无日任务记录"
         status = report.get("status", default_status)
         covered = set(report.get("pool_collection_road_ids", report.get("target_road_ids", [])))
         uncovered = sorted(set(cross_ids) - covered) if status.startswith("completed") else []
