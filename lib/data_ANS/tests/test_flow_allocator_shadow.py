@@ -315,6 +315,32 @@ class FlowAllocatorShadowTests(unittest.TestCase):
             "new_schedule_all_directions_zero",
         )
 
+    def test_tongzhou_rejects_incomplete_or_sparse_input_but_accepts_qualified_window(self):
+        import copy
+        for road in ["1700125", "1700062"]:
+            config = {road: copy.deepcopy(self.cross_info["1300069"])}
+            table = {road: copy.deepcopy(self.experience_table["1300069"])}
+            for timestamps, expected in [(range(1000, 1010), False),
+                                         ([1000, 1599], False),
+                                         (range(1000, 1600), True)]:
+                stages = {timestamp: [{"CrossId": road, "curStageNo": "3"}]
+                          for timestamp in timestamps}
+                legacy = [41,42,43,44,21,22,23,24,0,0]
+                with self.subTest(road=road, expected=expected), tempfile.TemporaryDirectory() as directory:
+                    record = record_shadow_comparison(
+                        road, legacy, self.flow, stages, experience_table=table,
+                        cross_info=config, log_directory=directory,
+                        observed_at=self.observed_at, runtime_mode="new",
+                    )
+                    self.assertEqual(record["quality_passed"], expected)
+                    self.assertEqual(record["selected_schedule_source"], "new" if expected else "legacy")
+                    if not expected:
+                        self.assertEqual(record["selected_schedule"], legacy)
+                        self.assertEqual(record["selection_fallback_reason"], "runtime_input_quality_not_passed")
+                    self.assertEqual(legacy, [41,42,43,44,21,22,23,24,0,0])
+                    saved = json.loads(Path(record["log_path"]).read_text())
+                    self.assertEqual(saved["selected_schedule_source"], record["selected_schedule_source"])
+
     def test_new_mode_can_select_nonzero_result_when_quality_is_false(self):
         short_extend = {
             float(timestamp): [{

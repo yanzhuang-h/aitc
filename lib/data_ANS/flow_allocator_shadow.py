@@ -214,6 +214,9 @@ def _new_schedule_rejection_reason(record, old_vector):
         for value in new_vector
     ):
         return "invalid_new_schedule_value"
+    # 通州19/49组只采用通过输入质量检查的候选；其他历史路口暂不迁移此规则。
+    if record.get("road_group") in {"19", "49"} and not record.get("quality_passed"):
+        return "runtime_input_quality_not_passed"
     if record.get("positive_flow_zero_directions"):
         return "positive_flow_direction_has_zero_time"
     if any(value > 0 for value in old_vector[:8]) and not any(
