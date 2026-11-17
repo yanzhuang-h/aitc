@@ -98,7 +98,7 @@ class TcpRuntimeServer(LoggingMixin):
         for client_socket in disconnected:
             self._remove_client(client_socket)
             client_socket.close()
-        self._info("结果已发送：客户端 %d 个，断开 %d 个", len(clients), len(disconnected))
+        # 发送器汇总实际sendall帧数，避免零客户端时误报“结果已发送”。
 
     def handle_client(self, client_socket: socket.socket, address: Any) -> None:
         self._info("Connection from %s established.", address)

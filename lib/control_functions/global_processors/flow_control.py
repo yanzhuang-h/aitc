@@ -2,6 +2,7 @@
 
 import json
 import logging
+from infra.logging import decision_batch_id
 
 from lib.road_groups import road_group
 from lib.intersection_strategy import uses_platform_phase_timing, program_id_override
@@ -103,6 +104,7 @@ def _process_legacy_flow_intersection(cross_id, current_plan, road_config, hour,
         for index in range(8):
             current_plan[index] = 0
         state = select_flow_control_state(cross_id, demand, road_config, hour)
+        report["computed_state"] = state
         state = forced_state_selector(str(cross_id), state)
         generate_flow_phase_plan(current_plan, demand, road_config[state])
         current_plan[9] = int(state)
@@ -122,6 +124,7 @@ def _process_platform_intersection(cross_id, current_plan, road_config, hour,
               "fallback": None, "error": None}
     try:
         default_state = select_flow_control_state(cross_id, {}, road_config, hour)
+        report["computed_state"] = default_state
         state = str(forced_state_selector(str(cross_id), default_state))
         report["state"] = state
         if state not in road_config:
@@ -197,5 +200,14 @@ def process_flow_intersection(cross_id, current_plan, road_config, hour,
     report["adapted_phase_vector"] = list(plan)
     report["is_final"] = False
     if report["road_group"] is not None or uses_platform_phase_timing(cross_id):
+        report["batch_id"] = decision_batch_id.get()
+        state_config = road_config.get(str(report["state"]), {}) if isinstance(road_config, dict) else {}
+        if not isinstance(state_config, dict):
+            state_config = {}
+        report["selected_program"] = {
+            key: state_config[key] for key in ("phase", "min_pass_time", "max_pass_time",
+                                               "platform_min_pass_time", "platform_max_pass_time")
+            if key in state_config
+        }
         LOGGER.info("flow_control %s", json.dumps(report, separators=(",", ":")))
     return plan, report

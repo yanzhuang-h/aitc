@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import copy
+import json
+import logging
+import os
+import sys
 import threading
 import time
 from functools import partial
@@ -15,6 +19,8 @@ from lib.Global_intersection_coordinate import coordinate
 from phase_check import get_intersection_result_config, phase_check
 
 from app.config import RuntimeSettings
+from app.paths import PROJECT_ROOT
+from lib.data_ANS.experience_reader import runtime_experience_path
 from control.policies import BaselineController
 from safety.service import ControlSafetyEngine
 
@@ -177,6 +183,16 @@ class AITCApplication(LoggingMixin):
 def create_application(logger=None, settings: RuntimeSettings | None = None) -> AITCApplication:
     """装配完整运行应用：数据底座 → 决策管线 → Agent → 协议服务与调度。"""
     settings = (settings or RuntimeSettings.from_environment()).validate()
+    logging.getLogger("aitc.runtime").info("runtime_context %s", json.dumps({
+        "package_directory": str(PROJECT_ROOT), "working_directory": os.getcwd(),
+        "python": sys.version.split()[0], "run_mode": str(settings.run_mode),
+        "online_experience_path": str(runtime_experience_path()),
+        "experience_manifest_path": str(settings.experience_release.active_manifest_path),
+        "experience_scheduler_enabled": settings.enable_experience_pool_scheduler,
+        "config_sync_enabled": settings.enable_config_sync,
+        "decision_interval_seconds": settings.decision_interval_seconds,
+        "diagnostic_groups": ["19", "49"],
+    }, separators=(",", ":")))
     unknown_roads = set(settings.control_agent.roads).difference(Lambdas.intersection_list)
     if unknown_roads:
         raise ValueError(f"Unknown control agent roads: {sorted(unknown_roads)}")

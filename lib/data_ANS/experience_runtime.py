@@ -568,6 +568,15 @@ class ExperiencePoolScheduler:
         if self._thread and self._thread.is_alive():
             return
         self._stop_event.clear()
+        self.logger.info("experience_pool_schedule %s", json.dumps({
+            "source_day_delay": DEFAULT_SOURCE_DAY_DELAY,
+            "daily_run_time": DEFAULT_DAILY_RUN_TIME.isoformat(),
+            "next_daily_run_in_seconds": round(self.seconds_until_next_daily_run()),
+            "initial_delay_seconds": self.initial_delay_seconds(),
+            "minimum_samples": os.environ.get("AITC_EXPERIENCE_POOL_MIN_SAMPLES", str(DEFAULT_MIN_SAMPLE_COUNT)),
+            "collection_roads": _configured_collection_roads(),
+            "update_roads": sorted(_configured_update_roads()),
+        }, separators=(",", ":")))
         self._thread = threading.Thread(
             target=self._run_loop,
             name="experience-pool-daily-noon",
@@ -616,11 +625,20 @@ class ExperiencePoolScheduler:
             return None
         try:
             report = run_experience_pool_day(source_date, release_settings=self.release_settings)
-            self.logger.info(
-                "Experience pool daily task finished: source_date=%s status=%s",
-                source_date,
-                report.get("status"),
-            )
+            pool = report.get("pool_summary", {})
+            self.logger.info("experience_pool_run %s", json.dumps({
+                **{key: report[key] for key in (
+                    "source_date", "status", "missing_files", "missing_crosses",
+                    "observation_count", "candidate_count", "minimum_sample_count",
+                    "pool_committed", "table_updated", "artifacts") if key in report},
+                "accumulation": pool.get("accumulation", {}),
+                "blend": pool.get("blend", {}),
+                "days": {day: {
+                    "status": item.get("status"),
+                    "eligible_lane_cells": item.get("compression", {}).get("summary", {}).get("eligible_lane_cells"),
+                } for day, item in pool.get("days", {}).items()},
+                "validation_errors": report.get("validation", {}).get("errors", [])[:10],
+            }, separators=(",", ":")))
             return report
         except Exception:
             self.logger.exception(

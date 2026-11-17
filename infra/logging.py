@@ -6,6 +6,9 @@
 from __future__ import annotations
 
 from typing import Any
+from contextvars import ContextVar
+import hashlib
+import json
 
 
 class LoggingMixin:
@@ -28,3 +31,14 @@ class LoggingMixin:
     def _error(self, message: str, *args: Any, **kwargs: Any) -> None:
         if self.logger is not None:
             self.logger.error(message, *args, **kwargs)
+
+
+# 每轮主线程与其工作线程共用批次号，不进入协议报文。
+decision_batch_id = ContextVar("aitc_decision_batch_id", default=None)
+
+
+def plan_fingerprint(tl_logic):
+    """计算实际格式化方案的稳定指纹，用于关联决策记录与本地发送日志。"""
+    return hashlib.sha256(json.dumps(
+        tl_logic, sort_keys=True, separators=(",", ":"),
+    ).encode("utf-8")).hexdigest()
