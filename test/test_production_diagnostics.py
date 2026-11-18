@@ -156,7 +156,8 @@ class ProductionDiagnosticsTests(unittest.TestCase):
                                          "AITC_EXPERIENCE_POOL_INITIAL_DELAY_SECONDS":"0"}):
             scheduler.start()
         summary = json.loads(logger.info.call_args.args[1])
-        self.assertEqual(summary["source_day_delay"],2)
+        self.assertEqual(summary["source_day_delay"], 1)
+        self.assertEqual(summary["catchup_days"], 10)
         self.assertEqual(summary["minimum_samples"],"30")
         self.assertIn("1700125",summary["update_roads"])
         self.assertIn("1700062",summary["collection_roads"])

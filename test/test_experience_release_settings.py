@@ -45,4 +45,6 @@ class ExperienceReleaseSettingsTests(unittest.TestCase):
                 return_value={"status": "completed"},
             ) as run_day:
                 scheduler.run_for_date(source_date="2026-07-17")
-            run_day.assert_called_once_with(dt.date(2026, 7, 17), release_settings=release)
+            run_day.assert_called_once_with(
+                dt.date(2026, 7, 17), release_settings=release, log_dir=settings.runtime_output_dir,
+            )

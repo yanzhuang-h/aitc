@@ -1,7 +1,7 @@
 """Server-owned daily experience-pool accumulation and table update.
 
 The initial E_T training and buqi completion are intentionally absent here.
-This module only processes T-2 operational logs while Server_AITC is running.
+This module processes completed operational days while Server_AITC is running.
 """
 
 from __future__ import annotations
@@ -16,10 +16,12 @@ import threading
 from app.config import ExperienceReleaseSettings
 from lib.intersection_strategy import PLATFORM_PHASE_ROAD_IDS, supports_online_experience_growth
 from lib.road_groups import TONGZHOU_19
+from lib.data_ANS.cycle_quality import WINDOW_SECONDS
 
 from lib.data_ANS.experience_pool import (
     DEFAULT_DENSE_CLUSTER_FRACTION,
     DEFAULT_POOL_SELECTION_METHOD,
+    ExperiencePool,
     _candidate_sample_count,
     _load_json,
     _write_json_atomic,
@@ -44,11 +46,11 @@ from app.paths import EXPERIENCE_POOL_DIR, LOGS_DIR
 DEFAULT_STATE_DIR = EXPERIENCE_POOL_DIR
 DEFAULT_ARTIFACT_DIR = LOGS_DIR / "experience_pool" / "daily"
 DEFAULT_MIN_SAMPLE_COUNT = 30
-DEFAULT_SOURCE_DAY_DELAY = 2
+DEFAULT_SOURCE_DAY_DELAY = 1
 DEFAULT_DAILY_RUN_TIME = dt.time(12, 0)
-# Optional live-test trigger. Set this environment variable to 300 to run T-2
-# once five minutes after server startup; zero retains only daily noon runs.
-DEFAULT_INITIAL_DELAY_SECONDS = 0
+DEFAULT_CATCHUP_DAYS = 10
+# 生产启动后留出接收和配时的预热时间，显式设为 0 时只运行中午日更。
+DEFAULT_INITIAL_DELAY_SECONDS = 300
 # 与 V2.65 保持一致：采集 30 个路口的运行样本。
 DEFAULT_POOL_COLLECTION_ROAD_IDS = frozenset({
     "1300039",
@@ -277,8 +279,9 @@ def _source_day_bounds(source_date):
     return int(start.timestamp()), int(end.timestamp())
 
 
-def _run_paths(source_date):
+def _run_paths(source_date, *, log_dir=None):
     source_date_text = source_date.isoformat()
+    log_dir = Path(log_dir or os.environ.get("AITC_RUNTIME_OUTPUT_DIR") or LOGS_DIR)
     state_dir = _configured_path(
         "AITC_EXPERIENCE_POOL_STATE_DIR",
         DEFAULT_STATE_DIR,
@@ -292,9 +295,9 @@ def _run_paths(source_date):
         "state_dir": state_dir,
         "artifact_dir": artifact_dir,
         "run_manifest": state_dir / "runs" / f"{source_date_text}.json",
-        "flow": LOGS_DIR / "flow" / f"{source_date_text}_flow.txt",
-        "extend": LOGS_DIR / "extend" / f"{source_date_text}_extend.txt",
-        "queue": LOGS_DIR / "queue" / f"{source_date_text}_queue.txt",
+        "flow": log_dir / "flow" / f"{source_date_text}_flow.txt",
+        "extend": log_dir / "extend" / f"{source_date_text}_extend.txt",
+        "queue": log_dir / "queue" / f"{source_date_text}_queue.txt",
         "observations": artifact_dir / "observations.json",
         "normalization_report": artifact_dir / "normalization_report.json",
         "candidates": artifact_dir / "near_capacity_candidates.json",
@@ -304,15 +307,54 @@ def _run_paths(source_date):
     }
 
 
-def _existing_terminal_manifest(path, source_paths=(), *, target_road_ids=(), missing_crosses=None):
+def _source_pair_status(paths, source_date):
+    """用日末最后一个学习窗口区分已收齐的回传与提前截断的文件。"""
+    _, end_time = _source_day_bounds(source_date)
+    issue = {"missing": [], "incomplete": [], "unreadable": []}
+    for kind in ("flow", "extend"):
+        try:
+            with paths[kind].open("rb") as stream:
+                offset = max(0, stream.seek(0, os.SEEK_END) - 8192)
+                stream.seek(offset)
+                tail = stream.read().splitlines()
+        except FileNotFoundError:
+            issue["missing"].append(kind)
+            continue
+        except OSError:
+            issue["unreadable"].append(kind)
+            continue
+
+        last_timestamp = None
+        if offset:
+            tail = tail[1:]
+        for record in reversed(tail):
+            try:
+                last_timestamp = int(json.loads(record)["AITC_SYS_TS"])
+            except (ValueError, TypeError, KeyError, OverflowError):
+                continue
+            break
+        if last_timestamp is None or not end_time - WINDOW_SECONDS < last_timestamp <= end_time:
+            issue["incomplete"].append(kind)
+
+    if any(issue.values()):
+        return {"status": "waiting_complete_source_pair",
+                **{key: kinds for key, kinds in issue.items() if kinds}}
+    return None
+
+
+def _existing_terminal_manifest(path, source_paths=(), *, target_road_ids=(),
+                                missing_crosses=None, rebuild_required_roads=None):
     manifest = _load_json(str(path), default={})
     if not isinstance(manifest, dict):
         return None
     status = str(manifest.get("status", ""))
-    if status.startswith("completed"):
+    if status.startswith("completed") or status == "skipped_chronological_rebuild":
         completed_roads = manifest.get("pool_collection_road_ids", manifest.get("target_road_ids", []))
-        if (completed_roads and set(target_road_ids).issubset(completed_roads)
-                and (missing_crosses is None or missing_crosses == manifest.get("missing_crosses", []))):
+        if ((completed_roads or status == "skipped_chronological_rebuild")
+                and set(target_road_ids).issubset(completed_roads)
+                and (missing_crosses is None or missing_crosses == manifest.get("missing_crosses", []))
+                and (rebuild_required_roads is None
+                     or rebuild_required_roads == manifest.get("rebuild_required_roads", []))):
             return manifest
         # 同日其他路口仍可补入；池内继续按日期、路口和样本去重。
         return None
@@ -324,14 +366,8 @@ def _existing_terminal_manifest(path, source_paths=(), *, target_road_ids=(), mi
     return None
 
 
-def _run_experience_pool_day_unlocked(source_date, *, release_settings=None, recheck=False):
-    """Process one T-2 source date exactly once and conditionally release."""
-    if isinstance(source_date, str):
-        source_date = dt.date.fromisoformat(source_date)
-    if not isinstance(source_date, dt.date):
-        raise TypeError("source_date must be a date or ISO date string")
-
-    paths = _run_paths(source_date)
+def _run_experience_pool_day_unlocked(source_date, paths, *, release_settings=None, recheck=False):
+    """按来源日积累经验，更新达到发布条件的运行表。"""
     target_roads = _configured_roads()
     source_paths = (paths["flow"], paths["extend"])
     missing_files = [str(path) for path in source_paths if not path.is_file()]
@@ -351,6 +387,22 @@ def _run_experience_pool_day_unlocked(source_date, *, release_settings=None, rec
     if terminal is not None:
         return terminal
 
+    rebuild_required_roads = []
+    if target_roads and paths["full_pool"].is_file():
+        rebuild_required_roads = ExperiencePool(
+            _load_json(str(paths["full_pool"]), default={})
+        ).roads_requiring_chronological_rebuild(source_date, target_roads)
+        if rebuild_required_roads:
+            late = set(rebuild_required_roads)
+            target_roads = [road for road in target_roads if road not in late]
+            if not recheck:
+                terminal = _existing_terminal_manifest(
+                    paths["run_manifest"], source_paths, target_road_ids=target_roads,
+                    missing_crosses=missing_crosses, rebuild_required_roads=rebuild_required_roads,
+                )
+                if terminal is not None:
+                    return terminal
+
     source_date_text = source_date.isoformat()
     base_report = {
         "schema_version": 1,
@@ -360,6 +412,8 @@ def _run_experience_pool_day_unlocked(source_date, *, release_settings=None, rec
     }
     if missing_crosses:
         base_report["missing_crosses"] = missing_crosses
+    if rebuild_required_roads:
+        base_report["rebuild_required_roads"] = rebuild_required_roads
     if missing_files or not target_roads:
         report = {
             **base_report,
@@ -368,6 +422,8 @@ def _run_experience_pool_day_unlocked(source_date, *, release_settings=None, rec
         }
         if missing_files:
             report.update(status="skipped_missing_source_data", missing_files=missing_files)
+        elif rebuild_required_roads:
+            report["status"] = "skipped_chronological_rebuild"
         else:
             report["status"] = "skipped_missing_cross_configuration"
         _write_json_atomic(str(paths["run_manifest"]), report)
@@ -540,7 +596,7 @@ def _run_experience_pool_day_unlocked(source_date, *, release_settings=None, rec
     return report
 
 
-def run_experience_pool_day(source_date, *, release_settings=None, recheck=False):
+def run_experience_pool_day(source_date, *, release_settings=None, recheck=False, log_dir=None):
     """共享池锁覆盖读取运行表、更新样本和最终发布，防止调度与手工补训覆盖彼此。"""
     from lib.data_ANS.experience_pool import pool_update_lock
     if isinstance(source_date, str):
@@ -550,18 +606,21 @@ def run_experience_pool_day(source_date, *, release_settings=None, recheck=False
     runtime_path = _configured_path(
         "AITC_EXPERIENCE_RUNTIME_TABLE", DEFAULT_STATE_DIR / "online_experience.json",
     )
-    with pool_update_lock(_run_paths(source_date)["full_pool"]), pool_update_lock(runtime_path):
+    paths = _run_paths(source_date, log_dir=log_dir)
+    with pool_update_lock(paths["full_pool"]), pool_update_lock(runtime_path):
         return _run_experience_pool_day_unlocked(
-            source_date, release_settings=release_settings, recheck=recheck,
+            source_date, paths, release_settings=release_settings, recheck=recheck,
         )
 
 
 class ExperiencePoolScheduler:
     """Server-owned scheduler with an optional initial run and noon runs."""
 
-    def __init__(self, logger=None, *, release_settings=None):
+    def __init__(self, logger=None, *, release_settings=None, log_dir=None, production=True):
         self.logger = logger or LOGGER
         self.release_settings = release_settings
+        self.log_dir = log_dir
+        self._default_startup_delay = DEFAULT_INITIAL_DELAY_SECONDS if production else 0
         self._stop_event = threading.Event()
         self._thread = None
         self._run_lock = threading.Lock()
@@ -575,6 +634,7 @@ class ExperiencePoolScheduler:
             "daily_run_time": DEFAULT_DAILY_RUN_TIME.isoformat(),
             "next_daily_run_in_seconds": round(self.seconds_until_next_daily_run()),
             "initial_delay_seconds": self.initial_delay_seconds(),
+            "catchup_days": DEFAULT_CATCHUP_DAYS,
             "minimum_samples": os.environ.get("AITC_EXPERIENCE_POOL_MIN_SAMPLES", str(DEFAULT_MIN_SAMPLE_COUNT)),
             "collection_roads": _configured_collection_roads(),
             "update_roads": sorted(_configured_update_roads()),
@@ -605,16 +665,39 @@ class ExperiencePoolScheduler:
             next_run += dt.timedelta(days=1)
         return max(0.0, (next_run - now).total_seconds())
 
-    @staticmethod
-    def initial_delay_seconds():
+    def initial_delay_seconds(self):
         raw_value = os.environ.get(
             "AITC_EXPERIENCE_POOL_INITIAL_DELAY_SECONDS",
-            str(DEFAULT_INITIAL_DELAY_SECONDS),
+            str(self._default_startup_delay),
         )
         try:
             return max(0.0, float(raw_value))
         except (TypeError, ValueError):
-            return float(DEFAULT_INITIAL_DELAY_SECONDS)
+            return float(self._default_startup_delay)
+
+    def run_catchup(self, run_date=None):
+        """同一任务串行补齐近期来源日，沿用日更去重和发布校验。"""
+        run_date = run_date or dt.datetime.now().astimezone().date()
+        last = self.source_date_for_run(run_date)
+        days = {}
+        for offset in reversed(range(DEFAULT_CATCHUP_DAYS)):
+            if self._stop_event.is_set():
+                break
+            source_date = last - dt.timedelta(days=offset)
+            pending = _source_pair_status(_run_paths(source_date, log_dir=self.log_dir), source_date)
+            if pending is not None:
+                days[source_date.isoformat()] = pending
+                continue
+            report = self.run_for_date(source_date=source_date)
+            if report is None:
+                days[source_date.isoformat()] = {"status": "run_failed_or_busy"}
+                break
+            days[source_date.isoformat()] = {
+                key: report[key] for key in ("status", "candidate_count", "rebuild_required_roads")
+                if key in report
+            }
+        self.logger.info("experience_pool_catchup %s", json.dumps(days, separators=(",", ":")))
+        return days
 
     def run_for_date(self, run_date=None, source_date=None):
         if source_date is None:
@@ -626,12 +709,15 @@ class ExperiencePoolScheduler:
             self.logger.warning("Experience pool daily task is already running")
             return None
         try:
-            report = run_experience_pool_day(source_date, release_settings=self.release_settings)
+            report = run_experience_pool_day(
+                source_date, release_settings=self.release_settings, log_dir=self.log_dir,
+            )
             pool = report.get("pool_summary", {})
             self.logger.info("experience_pool_run %s", json.dumps({
                 **{key: report[key] for key in (
                     "source_date", "status", "missing_files", "missing_crosses",
-                    "observation_count", "candidate_count", "minimum_sample_count",
+                    "triggered_at", "rebuild_required_roads", "observation_count",
+                    "candidate_count", "minimum_sample_count",
                     "pool_committed", "table_updated", "artifacts") if key in report},
                 "accumulation": pool.get("accumulation", {}),
                 "blend": pool.get("blend", {}),
@@ -655,7 +741,7 @@ class ExperiencePoolScheduler:
         initial_delay = self.initial_delay_seconds()
         if initial_delay > 0:
             self.logger.info(
-                "Experience pool initial T-2 test run scheduled in %.0f seconds",
+                "Experience pool startup catchup scheduled in %.0f seconds",
                 initial_delay,
             )
             if self._stop_event.wait(initial_delay):
@@ -664,13 +750,16 @@ class ExperiencePoolScheduler:
                 "AITC_EXPERIENCE_POOL_TEST_SOURCE_DATE",
                 "",
             ).strip()
-            self.run_for_date(source_date=test_source_date or None)
+            if test_source_date:
+                self.run_for_date(source_date=test_source_date)
+            else:
+                self.run_catchup()
 
         while not self._stop_event.is_set():
             wait_seconds = self.seconds_until_next_daily_run()
             if self._stop_event.wait(wait_seconds):
                 return
-            self.run_for_date()
+            self.run_catchup()
 
 
 def start_experience_pool_scheduler(logger=None):

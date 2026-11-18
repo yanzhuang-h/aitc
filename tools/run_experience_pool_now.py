@@ -1,6 +1,6 @@
 """手动执行单日经验积累，复用backfill_experience的配置、发布与去重入口。
 
-默认T-2、最小样本30；此命令立即执行，周范围补训使用backfill_experience.py。
+默认T-1、最小样本30；此命令立即执行，周范围补训使用backfill_experience.py。
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ def _resolve_date(value: str | None) -> dt.date:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="手动执行单日经验池更新（立即执行）")
     parser.add_argument("--root", default=".", help="版本目录")
-    parser.add_argument("--source-date", default="T-2", help="today/yesterday/T-1/T-2或YYYY-MM-DD")
+    parser.add_argument("--source-date", default="T-1", help="today/yesterday/T-1/T-2或YYYY-MM-DD")
     parser.add_argument("--min-samples", type=int, default=30, help="正式补训保持默认30")
     parser.add_argument("--roads", default="online", help="默认19组及平台路口，或指定批次/ID")
     parser.add_argument("--force", action="store_true", help="锁内复查日记录，已入池样本仍去重")

@@ -139,8 +139,8 @@ class ExperienceToolsTests(unittest.TestCase):
             code = single.main(["--root", str(self.root)])
         self.assertEqual(code, 0)
         args = delegate.call_args.args[0]
-        self.assertEqual(args[args.index("--start") + 1], "2026-11-15")
-        self.assertEqual(args[args.index("--end") + 1], "2026-11-15")
+        self.assertEqual(args[args.index("--start") + 1], "2026-11-16")
+        self.assertEqual(args[args.index("--end") + 1], "2026-11-16")
         self.assertEqual(args[args.index("--min-samples") + 1], "30")
         self.assertIn("--apply", args)
 
