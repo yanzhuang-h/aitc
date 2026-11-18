@@ -92,7 +92,8 @@ class ExperienceRuntimeTests(unittest.TestCase):
             self.assertFalse(first["table_updated"])
 
     def _run_raw_feedback_day(self, initial_table, minimum_samples=1, road_id="1",
-                              resume_after_skip=None, repeat_completed=False, interrupt_publication=False):
+                              resume_after_skip=None, repeat_completed=False, interrupt_publication=False,
+                              missing_road=None):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             logs = root / "logs_data"
@@ -168,6 +169,9 @@ class ExperienceRuntimeTests(unittest.TestCase):
                 "AITC_EXPERIENCE_TABLE_UPDATE_ROADS": road_id,
                 "AITC_EXPERIENCE_POOL_MIN_SAMPLES": str(minimum_samples),
             }
+            if missing_road:
+                for key in ("AITC_EXPERIENCE_POOL_ROADS", "AITC_EXPERIENCE_TABLE_UPDATE_ROADS"):
+                    environment[key] = f"{road_id},{missing_road}"
             with mock.patch.object(RUNTIME, "LOGS_DIR", logs), mock.patch.dict(
                 os.environ,
                 environment,
@@ -223,6 +227,27 @@ class ExperienceRuntimeTests(unittest.TestCase):
                     self.assertEqual(run_experience_pool_day(source_date), report)
                     self.assertEqual(runtime_path.read_bytes(), table_bytes)
                     self.assertEqual(pool_path.read_bytes(), pool_bytes)
+                if missing_road:
+                    # 补齐配置、重放同一日时，应处理新路口，已入池路口不再加权。
+                    cross_info[missing_road] = {
+                        **cross_info[road_id], "jtll_ddbh": {"12": "U", "13": "D"},
+                    }
+                    cross_info_path.write_text(json.dumps(cross_info))
+                    for name, rows in (("flow", flow_rows), ("extend", extend_rows)):
+                        path = logs / name / f"2026-07-24_{name}.txt"
+                        duplicated = [
+                            {**row, "jtll_ddbh": str(int(row["jtll_ddbh"]) + 2)}
+                            if name == "flow" else {**row, "CrossId": missing_road}
+                            for row in rows
+                        ]
+                        with path.open("a") as stream:
+                            stream.write("\n" + "\n".join(json.dumps(row) for row in duplicated))
+                    resumed = run_experience_pool_day(source_date)
+                    self.assertEqual(resumed["status"], "completed_table_updated")
+                    self.assertNotIn("missing_crosses", resumed)
+                    self.assertEqual(resumed["target_road_ids"], [road_id, missing_road])
+                    self.assertEqual(json.loads(runtime_path.read_text())[road_id],
+                                     json.loads(table_bytes)[road_id])
 
             updated = (
                 json.loads(runtime_path.read_text(encoding="utf-8"))
@@ -317,6 +342,20 @@ class ExperienceRuntimeTests(unittest.TestCase):
                 self.assertEqual(report["status"], "completed_table_updated")
                 self.assertTrue(activated)
                 self.assertTrue(updated["1"]["U"])
+
+    def test_missing_config_only_skips_the_affected_road_until_restored(self):
+        with mock.patch.object(RUNTIME, "normalize_raw_feedback",
+                               wraps=RUNTIME.normalize_raw_feedback) as normalize:
+            report, updated, activated = self._run_raw_feedback_day(
+                {}, road_id="1700125", missing_road="1700458", repeat_completed=True,
+            )
+        self.assertEqual(report["status"], "completed_table_updated")
+        self.assertEqual(report["missing_crosses"], ["1700458"])
+        self.assertEqual(report["table_update_road_ids"], ["1700125"])
+        self.assertEqual(set(updated), {"1700125", "1700458"})
+        self.assertTrue(activated)
+        self.assertEqual([call.kwargs["target_cross_ids"] for call in normalize.call_args_list],
+                         [["1700125"], ["1700125", "1700458"]])
 
     def test_completed_day_stays_idempotent(self):
         with mock.patch.object(RUNTIME, "normalize_raw_feedback",
