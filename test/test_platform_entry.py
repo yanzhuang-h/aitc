@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import lib.DQN_Select as selectors
 from lib import intersection_strategy as strategy
-from lib.road_groups import TONGZHOU_49, road_group
+from lib.road_groups import TONGZHOU_19, TONGZHOU_49, road_group
 from lib.control_functions.global_processors.flow_control import process_flow_intersection
 from lib.control_functions.global_processors.finalization import finalize_plan_values
 from runtime.result_formatter import _plan_id_for
@@ -37,6 +37,35 @@ class PlatformEntryTests(unittest.TestCase):
                 model.assert_called_once_with(args[0], args[5], args[6])
                 experience.assert_called_once_with(args[0], args[2])
                 pilot.assert_called_once_with(road, [0]*10, args[4], args[7])
+
+    def test_registered_19_roads_preserve_their_fallbacks_through_shared_entry(self):
+        flow_only = {"1700086", "1700275", "1700276"}
+        timetable = {"1700448", "1700449", "1700450", "1700542", "1700545"}
+        args = {name: {} for name in inspect.signature(selectors.DQN_select).parameters}
+        flow, extend = args["flow_map_single_intersection"], args["extend_map_single_intersection"]
+        args.update(current_time=1)
+        del args["cross_id"]
+        for road in TONGZHOU_19 - {"1700458"}:
+            with (
+                self.subTest(road=road),
+                patch.object(selectors, "get_model_map", return_value="model"),
+                patch.object(selectors, "get_exp", return_value="experience"),
+                patch.object(selectors, "chuli_shuju", return_value=[34] * 10) as staged,
+                patch.object(selectors, "chuli_shuju3", return_value=[42] * 10) as flow_lookup,
+                patch.object(selectors, "select_pilot_schedule", side_effect=lambda _, fallback, f, e: fallback) as pilot,
+            ):
+                result = selectors.DQN_select(**args, cross_id=road)
+                expected = [0] * 10 if road in timetable else [42 if road in flow_only else 34] * 10
+                self.assertEqual(result, (expected, {"Start1": 1, "start2": 0}, "model", "experience"))
+                pilot.assert_called_once_with(road, expected, flow, extend)
+                if road in flow_only:
+                    flow_lookup.assert_called_once_with(road, flow)
+                else:
+                    flow_lookup.assert_not_called()
+                if road not in (flow_only | timetable):
+                    staged.assert_called_once_with(road, flow, extend)
+                else:
+                    staged.assert_not_called()
 
     def test_new_road_outside_49_uses_shared_entry_without_offline_lookup(self):
         road = "999999"

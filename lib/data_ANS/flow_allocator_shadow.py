@@ -5,7 +5,7 @@ schedule, shadow the new allocator, or select the new result for explicitly
 configured pilot roads. Every error falls back to the legacy schedule.
 """
 
-from lib.road_groups import road_group
+from lib.road_groups import TONGZHOU_19, road_group
 from lib.intersection_strategy import (
     PLATFORM_PHASE_ROAD_IDS, supports_online_experience_growth, uses_platform_phase_timing,
 )
@@ -134,7 +134,7 @@ def _shadow_enabled():
     return str(value).strip().lower() not in {"0", "false", "no", "off"}
 
 
-def _target_road_ids():
+def _configured_road_ids():
     configured = os.environ.get("AITC_FLOW_ALLOCATOR_PILOT_ROADS", "").strip()
     if not configured:
         configured = os.environ.get(
@@ -142,7 +142,7 @@ def _target_road_ids():
             "",
         ).strip()
     if not configured:
-        return DEFAULT_TARGET_ROAD_IDS | PLATFORM_PHASE_ROAD_IDS
+        return None
     return frozenset(
         item.strip()
         for item in configured.split(",")
@@ -150,7 +150,14 @@ def _target_road_ids():
     )
 
 
-def _pilot_mode():
+def _target_road_ids():
+    configured = _configured_road_ids()
+    if configured is not None:
+        return configured
+    return DEFAULT_TARGET_ROAD_IDS | PLATFORM_PHASE_ROAD_IDS | TONGZHOU_19
+
+
+def _pilot_mode(road_id=None):
     mode = os.environ.get(
         "AITC_FLOW_ALLOCATOR_PILOT_MODE",
         DEFAULT_PILOT_MODE,
@@ -161,6 +168,10 @@ def _pilot_mode():
             mode,
         )
         return "legacy"
+    # 新接入的19组先记录对照，原有已接线路口继续使用其默认模式。
+    if (mode == "new" and road_id in TONGZHOU_19
+            and road_id not in DEFAULT_TARGET_ROAD_IDS and not uses_platform_phase_timing(road_id)):
+        return "shadow"
     return mode
 
 
@@ -394,8 +405,12 @@ def record_shadow_comparison(
         )
 
     rejection_reason = None
-    if runtime_mode == "new" and record.get("status") == "ok":
+    if record.get("status") == "ok" and (
+        runtime_mode == "new" or (runtime_mode == "shadow" and supports_online_experience_growth(road_id))
+    ):
         rejection_reason = _new_schedule_rejection_reason(record, old_vector)
+        if runtime_mode == "shadow" and rejection_reason:
+            record["candidate_rejection_reason"] = rejection_reason
     if runtime_mode == "new" and not rejection_reason and record.get("status") == "ok":
         record["selected_schedule"] = list(record["new_schedule"])
         record["selected_schedule_source"] = "new"
@@ -444,7 +459,7 @@ def select_pilot_schedule(
     if road_id not in _target_road_ids():
         return legacy_vector
 
-    mode = _pilot_mode()
+    mode = _pilot_mode(road_id)
     if mode == "legacy":
         return legacy_vector
 

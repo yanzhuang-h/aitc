@@ -125,7 +125,7 @@ class OnboardIntersectionTest(unittest.TestCase):
         dqn_text = (self.root / "lib" / "DQN_Select.py").read_text(encoding="utf-8-sig")
         self.assertNotIn("def DQN_select_999999(", dqn_text)
         self.assertNotIn("cross_id == '999999'", dqn_text)
-        self.assertIn("DQN_select_platform(", dqn_text)
+        self.assertIn("return DQN_select_online(", dqn_text)
 
         overrides = json.loads(
             (self.root / "lib" / "plan_id_overrides.json").read_text(encoding="utf-8")

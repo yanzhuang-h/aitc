@@ -92,18 +92,20 @@ def _calls(function):
                    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)})
 
 
-def _selectors(path, source, platform_roads=()):
+def _selectors(source, platform_roads, online_roads):
     tree = ast.parse(source.decode("utf-8-sig"))
     functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
     dispatcher = functions["DQN_select"]
     routes = {}
+    shared_routes = {"uses_platform_phase_timing": platform_roads,
+                     "supports_online_experience_growth": online_roads}
     for node in ast.walk(dispatcher):
         if not isinstance(node, ast.If):
             continue
-        shared = (isinstance(node.test, ast.Call)
-                  and isinstance(node.test.func, ast.Name)
-                  and node.test.func.id == "uses_platform_phase_timing")
-        ids = list(platform_roads) if shared else []
+        predicate = (node.test.func.id if isinstance(node.test, ast.Call)
+                     and isinstance(node.test.func, ast.Name) else None)
+        shared = predicate in shared_routes
+        ids = list(shared_routes.get(predicate, ()))
         for test in ast.walk(node.test):
             if isinstance(test, ast.Compare) and len(test.ops) == 1 and isinstance(test.ops[0], ast.Eq):
                 operands = [test.left, *test.comparators]
@@ -114,15 +116,16 @@ def _selectors(path, source, platform_roads=()):
         calls = _calls(ast.Module(body=node.body, type_ignores=[]))
         targets = [name for name in calls if name.startswith("DQN_select_")]
         for rid in ids:
-            if rid in routes and routes[rid].get("platform_route"):
+            if rid in routes and routes[rid].get("shared_route"):
                 continue
             route = {"dispatcher_line": node.lineno,
                      "functions": targets, "direct_calls": calls if not targets else []}
             if shared:
-                route["platform_route"] = True
+                route["shared_route"] = True
+                route["platform_route"] = rid in platform_roads
                 call = next((item for item in ast.walk(ast.Module(body=node.body, type_ignores=[]))
                              if isinstance(item, ast.Call) and isinstance(item.func, ast.Name)
-                             and item.func.id == "DQN_select_platform"), None)
+                             and item.func.id in ("DQN_select_online", "DQN_select_platform")), None)
                 argument = call.args[0] if call and call.args else None
                 route["bound_cross_id"] = (rid if isinstance(argument, ast.Name) and argument.id == "cross_id"
                                            else str(argument.value) if isinstance(argument, ast.Constant) else None)
@@ -212,15 +215,22 @@ def audit(root=ROOT, *, roads=None, group="all", environ=None):
     cross_info = _read_json(root/"lib/cross_info.json", snapshot["lib/cross_info.json"])
     forced = _read_json(root/"lib/road_state.json", snapshot["lib/road_state.json"])
     overrides = _read_json(root/"lib/plan_id_overrides.json", snapshot["lib/plan_id_overrides.json"])
-    functions, routes = _selectors(root/"lib/DQN_Select.py", snapshot["lib/DQN_Select.py"], platform_roads)
     video_registry = static("lib/DQN_Select.py", {"Cross_Video"})["Cross_Video"]
+    functions, routes = _selectors(
+        snapshot["lib/DQN_Select.py"], platform_roads, (old | platform_roads) & set(video_registry),
+    )
+    timetable_fallback = (
+        static("lib/DQN_Select.py", {"_TIMETABLE_FALLBACK_ROADS"})["_TIMETABLE_FALLBACK_ROADS"]
+        if "DQN_select_online" in functions else set()
+    )
     env = _environment(root, os.environ if environ is None else environ)
     mode = env.get("AITC_FLOW_ALLOCATOR_PILOT_MODE", pilot["DEFAULT_PILOT_MODE"]).strip().lower()
     invalid_mode = mode not in {"new", "shadow", "legacy"}
     if invalid_mode:
         mode = "legacy"
     selected = env.get("AITC_FLOW_ALLOCATOR_PILOT_ROADS", "").strip() or env.get("AITC_FLOW_ALLOCATOR_SHADOW_ROADS", "").strip()
-    pilot_roads = {x.strip() for x in selected.split(",") if x.strip()} if selected else set(pilot["DEFAULT_TARGET_ROAD_IDS"]) | platform_roads
+    default_pilots = set(pilot["DEFAULT_TARGET_ROAD_IDS"]) | platform_roads
+    pilot_roads = {x.strip() for x in selected.split(",") if x.strip()} if selected else default_pilots | old
     enabled = env.get("AITC_FLOW_ALLOCATOR_SHADOW_ENABLED", "1").strip().lower() not in {"0", "false", "no", "off"}
     def batch(rid):
         return "19" if rid in old else "49" if rid in new else "unclassified" if rid in platform_roads else "historical"
@@ -242,10 +252,14 @@ def audit(root=ROOT, *, roads=None, group="all", environ=None):
         targets = route.get("functions", [])
         calls = sorted({call for name in targets if name in functions for call in _calls(functions[name])})
         pilot_call_roads = set().union(*(
-            _pilot_call_roads(functions[name], route.get("bound_cross_id") if route.get("platform_route") else None)
+            _pilot_call_roads(functions[name], route.get("bound_cross_id"))
             for name in targets if name in functions))
         wired = rid in pilot_call_roads
-        online_eligible = wired and rid in registered and rid in video_registry and rid in pilot_roads and enabled and mode == "new"
+        road_mode = "shadow" if mode == "new" and rid in old - default_pilots else mode
+        online_eligible = wired and rid in registered and rid in video_registry and rid in pilot_roads and enabled and road_mode == "new"
+        legacy_lookup = bool({"chuli_shuju", "chuli_shuju3"} & set(calls))
+        if route.get("shared_route"):
+            legacy_lookup = legacy_lookup and rid in old - platform_roads - timetable_fallback
         if None in pilot_call_roads:
             issue(rid, "unresolved_pilot_road", "在线候选的路口参数无法静态解析，不能确认接线")
         if pilot_call_roads - {rid, None}:
@@ -254,15 +268,16 @@ def audit(root=ROOT, *, roads=None, group="all", environ=None):
         inventory.append({"road_id": rid, "group": batch(rid), "registered": rid in registered,
                           "dispatcher_line": route.get("dispatcher_line"), "selector_functions": targets,
                           "selector_calls": calls, "direct_dispatch_calls": route.get("direct_calls", []),
-                          "legacy_experience_lookup": bool({"chuli_shuju", "chuli_shuju3"} & set(calls)),
+                          "legacy_experience_lookup": legacy_lookup,
                           "pilot_wired": wired, "pilot_call_road_ids": sorted(pilot_call_roads, key=str), "pilot_target": rid in pilot_roads,
-                          "configured_pilot_mode": mode, "online_candidate_eligible": online_eligible,
+                          "configured_pilot_mode": road_mode, "online_candidate_eligible": online_eligible,
                           "selector_entry": ("not_registered" if rid not in registered else
                                              "shared_platform_function" if route.get("platform_route") else
+                                             "shared_online_function" if route.get("shared_route") else
                                              "dedicated_function" if targets else
                                              "generic_timetable_candidate" if rid in video_registry else
                                              "generic_zero_candidate"),
-                          "legacy_computation_precedes_pilot": wired and bool({"chuli_shuju", "chuli_shuju3"} & set(calls)),
+                          "legacy_computation_precedes_pilot": wired and legacy_lookup,
                           "coordination_categories": categories,
                           "phase_adapter": "bounded_movement_adapter" if rid in platform_roads and "video_flow_road" in categories else "existing_category_rules",
                           "program_ids": list(road_info.get(rid, {})) if isinstance(road_info.get(rid), dict) else []})
@@ -273,8 +288,8 @@ def audit(root=ROOT, *, roads=None, group="all", environ=None):
                 issue(rid, "missing_selector_function", f"分派目标 {target} 未定义", severity="error")
         if len(categories) > 1:
             issue(rid, "multiple_coordination_categories", f"同时属于 {categories}，需保留协调覆盖顺序")
-        if wired and (rid not in pilot_roads or not enabled or mode != "new"):
-            issue(rid, "online_candidate_not_selected", "虽然已接线到试点，但当前配置不会选用在线候选", severity="info")
+        if wired and (rid not in pilot_roads or not enabled or road_mode != "new"):
+            issue(rid, "online_candidate_not_selected", "当前路口保留既有候选，按配置决定是否记录对照", severity="info")
         cross = cross_info.get(rid)
         cross_present = isinstance(cross, dict)
         if not cross_present:

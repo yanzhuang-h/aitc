@@ -292,6 +292,36 @@ class FlowAllocatorShadowTests(unittest.TestCase):
                     [9] * 10,
                 )
 
+    def test_newly_wired_19_roads_compare_before_adopting(self):
+        road = "1700067"
+        legacy = [25] * 8 + [0, 0]
+        envs = ({}, {"AITC_FLOW_ALLOCATOR_PILOT_ROADS": road})
+        for env in envs:
+            with (
+                self.subTest(env=env),
+                mock.patch.dict(os.environ, env),
+                mock.patch.object(SHADOW, "record_shadow_comparison",
+                                  return_value={"selected_schedule": legacy}) as recorder,
+            ):
+                self.assertEqual(select_pilot_schedule(road, legacy, self.flow, self.extend), legacy)
+                recorder.assert_called_once_with(road, legacy, self.flow, self.extend, runtime_mode="shadow")
+        self.assertEqual(SHADOW._pilot_mode("1700125"), "new")
+        self.assertEqual(SHADOW._pilot_mode("2706537"), "new")
+
+    def test_online_shadow_logs_candidate_gate_without_changing_result(self):
+        road = "1700067"
+        legacy = [25] * 8 + [0, 0]
+        config = {road: self.cross_info["1300069"]}
+        with tempfile.TemporaryDirectory() as directory:
+            record = record_shadow_comparison(
+                road, legacy, self.flow, {}, experience_table={}, cross_info=config,
+                log_directory=directory, runtime_mode="shadow",
+            )
+            saved = json.loads(Path(record["log_path"]).read_text())
+        self.assertEqual(saved["candidate_rejection_reason"], "runtime_input_quality_not_passed")
+        self.assertEqual(saved["selected_schedule"], legacy)
+        self.assertNotIn("selection_fallback_reason", saved)
+
     def test_non_pilot_selector_always_returns_legacy(self):
         legacy = [3] * 10
         with mock.patch.object(SHADOW, "record_shadow_comparison") as recorder:

@@ -96,6 +96,32 @@ def DQN_select(cross_id):
         self.assertIn('pilot_road_mismatch', self.codes(roads={'490'}))
         self.assertFalse(self.report(roads={'490'})['inventory'][0]['online_candidate_eligible'])
 
+    def test_online_dispatch_audits_adoption_and_fallback_per_road(self):
+        self.write("lib/intersection_strategy.py", "PLATFORM_PHASE_ROAD_IDS = frozenset({'490'})")
+        self.write("lib/data_ANS/flow_allocator_shadow.py",
+                   "DEFAULT_PILOT_MODE = 'new'\nDEFAULT_TARGET_ROAD_IDS = frozenset({'490'})")
+        self.write("lib/DQN_Select.py", """
+Cross_Video = ['190', '490']
+_TIMETABLE_FALLBACK_ROADS = frozenset()
+def DQN_select_online(cross_id):
+    if cross_id in TONGZHOU_19:
+        old = chuli_shuju()
+    return select_pilot_schedule(cross_id)
+def DQN_select(cross_id):
+    if cross_id in Cross_Video:
+        if supports_online_experience_growth(cross_id):
+            return DQN_select_online(cross_id)
+""")
+        rows = {row["road_id"]: row for row in self.report()["inventory"]}
+        self.assertEqual(rows["190"]["selector_entry"], "shared_online_function")
+        self.assertEqual(rows["190"]["configured_pilot_mode"], "shadow")
+        self.assertTrue(rows["190"]["pilot_wired"])
+        self.assertFalse(rows["190"]["online_candidate_eligible"])
+        self.assertTrue(rows["190"]["legacy_experience_lookup"])
+        self.assertFalse(rows["191"]["pilot_wired"])
+        self.assertTrue(rows["490"]["online_candidate_eligible"])
+        self.assertFalse(rows["490"]["legacy_experience_lookup"])
+
     def test_static_execution_and_file_preservation(self):
         before = {p: p.read_bytes() for p in self.root.rglob('*') if p.is_file()}
         report = self.report()
