@@ -108,10 +108,10 @@ def build_unified_registry(settings: RuntimeSettings | None = None) -> ToolRegis
 
 
 def _tool_callable(spec, registry: ToolRegistry):
-    """把 ToolSpec 转成 FastMCP 可注册的调用函数（携带生成 schema 的签名）。"""
+    """把 ToolSpec 转成 MCPServer 可注册的调用函数（携带生成 schema 的签名）。"""
 
     async def _invoke(**kwargs: Any) -> dict[str, Any]:
-        # FastMCP 会把带默认值的参数以 None 传入，这里与「未传」等价，统一过滤
+        # 工具注册的可选参数以 None 表示未传，由工具使用其默认值。
         arguments = {key: value for key, value in kwargs.items() if value is not None}
         try:
             result = registry.invoke(spec.name, arguments)
@@ -145,21 +145,21 @@ def _tool_callable(spec, registry: ToolRegistry):
 
 def create_mcp_server(registry: ToolRegistry | None = None):
     """创建 MCP 服务器，自动把 registry 全部工具注册为 MCP tools。"""
-    from mcp.server.fastmcp import FastMCP
+    from mcp.server.mcpserver import MCPServer
 
     registry = registry if registry is not None else build_unified_registry()
-    mcp = FastMCP(
+    server = MCPServer(
         "aitc",
         instructions="AITC 交通信号控制系统：运行数据查询与放行控制工具。",
     )
     for spec in registry.all_specs():
-        mcp.add_tool(
+        server.add_tool(
             _tool_callable(spec, registry),
             name=spec.name,
             description=spec.description,
         )
     logger.info("MCP 服务器已注册 %d 个工具：%s", len(registry), registry.names())
-    return mcp
+    return server
 
 
 def main() -> None:

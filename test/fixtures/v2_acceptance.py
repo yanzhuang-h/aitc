@@ -3,16 +3,14 @@
 from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor
 import http.client
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
 import socket
 import tempfile
 import threading
-import Lambdas
 from unittest.mock import Mock, patch
 
-from app.config import ControlAgentSettings, RuntimeSettings, TrafficMemorySettings
+from app.config import RuntimeSettings, TrafficMemorySettings
 from datahub.classifier import DataKind, DataSource
 from runtime.application import create_application
 
@@ -37,78 +35,23 @@ def source_payloads(now):
 
 
 @contextmanager
-def acceptance_application(*, provider="disabled", base_url="", timeout=1.0, model_roads=None):
+def acceptance_application(*, provider="disabled"):
     with tempfile.TemporaryDirectory(prefix="aitc-acceptance-") as directory:
         root = Path(directory)
         logger = Mock()
         app = create_application(logger=logger, settings=RuntimeSettings(
             llm_enabled=provider != "disabled", model_provider=provider,
-            llm_model="acceptance-model", llm_base_url=base_url, llm_api_key="acceptance-test-key",
+            llm_model="acceptance-model", llm_base_url="", llm_api_key="acceptance-test-key",
             runtime_data_dir=root / "history", runtime_output_dir=root / "output",
             prediction_data_dir=root / "prediction", control_snapshot_dir=root / "snapshot",
             enable_config_sync=False, enable_prediction_scheduler=False, enable_experience_pool_scheduler=False,
             traffic_memory=TrafficMemorySettings(memory_window=2),
-            control_agent=ControlAgentSettings(enabled=provider != "disabled", timeout_seconds=timeout,
-                                               roads=tuple(Lambdas.intersection_list) if model_roads is None else model_roads),
         ))
         app.decision_pipeline.worker_count = 1
         try:
             yield app, logger
         finally:
             app.stop()
-
-
-@contextmanager
-def model_endpoint(mode="review"):
-    """真实本地 HTTP 边界；回复脚本只用于验收，不属于生产 provider。"""
-    requests = []
-
-    class Handler(BaseHTTPRequestHandler):
-        def log_message(self, *_args):
-            pass
-
-        def do_GET(self):
-            self.reply(200, {"data": [{"id": "acceptance-model"}]})
-
-        def do_POST(self):
-            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-            requests.append({"path": self.path, "body": body, "authorization": self.headers.get("Authorization")})
-            if mode == "unavailable":
-                self.reply(503, {"error": "acceptance service unavailable"})
-                return
-            if mode == "timeout":
-                threading.Event().wait(0.2)
-            context = json.loads(body["messages"][-1]["content"])
-            if mode == "invalid_action":
-                action = {"tool": "set_phase_time", "arguments": {"seconds": 37}}
-            elif context["phase"] == "planner":
-                action = {"tool": "run_control_policy", "arguments": {}}
-            else:
-                action = {"tool": "review_signal_plan", "arguments": {"decision": "ACCEPT", "reason": "Keep original policy"}}
-            self.reply(200, {"choices": [{"message": {"role": "assistant", "content": json.dumps(action)}}]})
-
-        def reply(self, status, body):
-            encoded = json.dumps(body).encode("utf-8")
-            try:
-                self.send_response(status)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Length", str(len(encoded)))
-                self.end_headers()
-                self.wfile.write(encoded)
-            except (BrokenPipeError, ConnectionResetError):
-                pass  # 超时用例的客户端已经关闭连接。
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    server.daemon_threads = True
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    try:
-        with patch.dict("os.environ", {"NO_PROXY": "127.0.0.1,localhost", "no_proxy": "127.0.0.1,localhost"}):
-            yield f"http://127.0.0.1:{server.server_address[1]}/v1", requests
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=2)
 
 
 @contextmanager

@@ -5,18 +5,15 @@
 #   .venv/bin/python -m pip install -r requirements.txt
 #
 # 说明：
-# - mcp 固定在 1.x：agent/mcp_server.py 使用 mcp.server.fastmcp（2.x 已更名为 MCPServer）；
+# - AgentScope 2.0.12 与 AITC 的 stdio 工具服务共用 MCP SDK 2.x。
 # - 以下依赖仅离线工具/历史脚本使用，不随本文件安装：
 #     pandas        -> time_schedule/*.py 表格处理脚本
 #     python-docx   -> tools/gen_api_docs.py 生成接口说明文档
 #     torch / transformers / einops -> infra/model/qwen/main.py 本地模型冒烟脚本
-mcp>=1.0,<2
+agentscope==2.0.12
+mcp==2.3.0
 APScheduler>=3.10,<4
 chinesecalendar>=1.9
 numpy>=1.26,<3
 pydantic>=2.10,<3
 pydantic-settings>=2.10,<3
-# 1.2 支持专家读取重试耗尽后的节点错误处理与确定性回退。
-# UUID 随机源兼容适配依赖此版本；升级时须通过全局 RNG 与两轮黄金回放。
-langgraph==1.2.12
-langgraph-checkpoint==4.2.0

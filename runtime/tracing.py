@@ -150,37 +150,6 @@ class DecisionTrace(BaseModel):
         self.snapshot_status = "captured" if snapshot is not None else "unavailable" if has_datahub else "not_captured"
         self.traffic_snapshot = captured if snapshot is not None else None
 
-    def capture_graph(self, decision, *, provider: str | None) -> None:
-        self.route = list(decision.route)
-        self.quality_issues = list(decision.quality_issues)
-        for issue in decision.quality_issues:
-            self.errors.append(TraceError(stage="graph", type="GraphQualityIssue", message=issue))
-        for source, node, state in (("video", "primary_expert", decision.primary),
-                                    ("radar", "fallback_expert", decision.fallback)):
-            if node in decision.route and not any(item["source"] == source for item in self.expert_calls):
-                self.expert_calls.append({
-                    "source": source, "status": "ok" if state is not None else "failed",
-                    "confidence": state.confidence if state is not None else None,
-                    "missing_fields": list(state.missing_fields) if state is not None else [],
-                })
-        if decision.used_fallback:
-            self.fallback_reason.append("expert:video_insufficient_or_unavailable")
-        session = decision.cognition
-        if session is None:
-            return
-        self.llm_participated = session.model_participated
-        self.model_calls = session.model_calls
-        self.model_provider = provider
-        self.model_reason = session.reason
-        self.model_attempts = trace_value(session.model_attempts)
-        self.tool_calls = trace_value(session.tool_calls)
-        self.review = trace_value(session.review.model_dump()) if session.review is not None else None
-        for error in session.error_details:
-            self.errors.append(TraceError.model_validate(error))
-            self.fallback_reason.append(f"model:{error['stage']}")
-        if session.reason not in {None, "planner_complete", "review_complete"}:
-            self.fallback_reason.append(f"model:{session.reason}")
-
     def capture_plan(self, raw_plan, *, final: bool = False) -> None:
         try:
             plan = signal_plan_from_legacy(self.intersection_id, raw_plan).model_copy(deep=True)

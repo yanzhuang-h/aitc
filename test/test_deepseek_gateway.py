@@ -5,25 +5,24 @@ from dataclasses import replace
 import json
 import os
 import unittest
-import Lambdas
 from unittest.mock import patch
 
 from pydantic import ValidationError
 
-from app.config import ControlAgentSettings, ModelSettings, RuntimeSettings
+from app.config import ModelSettings, RuntimeSettings
 from models import DeepSeekProvider, ModelGateway, ModelRequest, OpenAICompatibleLLMClient
 from runtime.application import create_application
 from test.fixtures.v2_baseline_controller import isolated_runtime
-from test.test_model_gateway import _Response, _http_error
+from test.test_model_gateway import _Response
 from test.test_model_gateway_integration import model_application
 
 
 @contextmanager
-def deepseek_application(*, control_enabled=False):
+def deepseek_application():
     def create(**kwargs):
         kwargs["settings"] = replace(
             kwargs["settings"], llm_model="deepseek-flash", llm_base_url="https://api.deepseek.com",
-            llm_api_key="test-key", control_agent=ControlAgentSettings(enabled=control_enabled, roads=tuple(Lambdas.intersection_list)),
+            llm_api_key="test-key",
         )
         return create_application(**kwargs)
 
@@ -107,24 +106,18 @@ class DeepSeekGatewayTest(unittest.TestCase):
             self.assertEqual(req.method, "GET")
             self.assertEqual(req.full_url, "https://api.deepseek.com/models")
 
-    def test_remote_auth_or_timeout_failure_keeps_186_road_control_and_cooldown(self):
+    def test_fixed_control_does_not_call_configured_deepseek_model(self):
         with isolated_runtime(), model_application("disabled") as app:
             app.decision_pipeline.worker_count = 1
             expected = app.decision_pipeline.run_once()
-        for failure in (_http_error(401), TimeoutError("remote timed out")):
-            with self.subTest(failure=failure), isolated_runtime(), deepseek_application(control_enabled=True) as app, patch(
-                "models.openai_compatible.request.urlopen", side_effect=failure,
-            ) as network:
-                app.decision_pipeline.worker_count = 1
-                actual = app.decision_pipeline.run_once()
-                self.assertEqual(actual, expected)
-                self.assertEqual(len(actual), 235)
-                self.assertEqual(network.call_count, 1)
-                self.assertEqual(network.call_args.kwargs["timeout"], 2)
-                body = json.loads(network.call_args.args[0].data)
-                self.assertEqual(body["thinking"], {"type": "disabled"})
-                self.assertEqual(body["model"], "deepseek-flash")
-                self.assertNotIn("chat_template_kwargs", body)
+        with isolated_runtime(), deepseek_application() as app, patch(
+            "models.openai_compatible.request.urlopen", side_effect=AssertionError("固定配时无需模型请求"),
+        ) as network:
+            app.decision_pipeline.worker_count = 1
+            actual = app.decision_pipeline.run_once()
+        self.assertEqual(actual, expected)
+        self.assertEqual(len(actual), 235)
+        network.assert_not_called()
 
 
 if __name__ == "__main__":

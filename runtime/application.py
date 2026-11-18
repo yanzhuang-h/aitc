@@ -54,9 +54,6 @@ from agents.qwen_agent import QwenSignalTimingAgent, QwenToolRouterAgent, Symbol
 from agents.control_agent import ControlProcessAgent
 from agents.harness import AgentHarness
 from agents.experts import EVExpert, InternetExpert, RadarExpert, VideoExpert
-from agents.graph import ControlGraph
-from agents.cognitive import CognitiveController
-from agents.control_tools import ControlAgentTools
 from agents.tools import DataQueryTools
 from control.synergy.green_wave_service import GreenWaveDataService
 from models import (
@@ -89,16 +86,10 @@ class AITCApplication(LoggingMixin):
         logger=None,
         datahub=None,
         experts=None,
-        decision_graph=None,
         model_gateway=None,
-        cognitive_agent=None,
-        control_agent_tools=None,
     ):
         self.datahub = datahub
         self.experts = experts if experts is not None else {}
-        self.decision_graph = decision_graph
-        self.cognitive_agent = cognitive_agent
-        self.control_agent_tools = control_agent_tools
         self.model_gateway = (
             model_gateway if model_gateway is not None
             else as_model_gateway(llm_client) if llm_client is not None else None
@@ -193,10 +184,6 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
         "decision_interval_seconds": settings.decision_interval_seconds,
         "diagnostic_groups": ["19", "49"],
     }, separators=(",", ":")))
-    unknown_roads = set(settings.control_agent.roads).difference(Lambdas.intersection_list)
-    if unknown_roads:
-        raise ValueError(f"Unknown control agent roads: {sorted(unknown_roads)}")
-
     # ── ① 数据底座：接收、缓存、长期仓库、聚合、查询、配置与结果收发 ──
     # 窗口缓存：各类型窗口时长使用 ShortTermMemory 的默认表（flow 600s / queue 240s / online·latest 1800s …）
     cache = ShortTermMemory()
@@ -290,21 +277,10 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
     http_server = HttpRuntimeServer(host=settings.http_host, port=settings.http_port, ingestor=ingestor, config_service=config_service, query_service=query_service, agent_harness=agent_harness, green_wave_service=green_wave_service, logger=logger)
     tcp_server = TcpRuntimeServer(host=settings.tcp_host, port=settings.tcp_port, buffer_size=settings.tcp_buffer_size, ingestor=ingestor, result_warehouse=warehouse, result_sender=sender, send_interval=settings.result_send_interval_seconds, logger=logger)
     control_policy = BaselineController(selector=call_dqn_select, coordinator=coordinate)
-    control_agent_tools = ControlAgentTools(datahub, experts["video"], experts["radar"])
-    cognitive_agent = (
-        CognitiveController(model_gateway, control_agent_tools, settings.control_agent, logger=logger)
-        if settings.control_agent.enabled and model_gateway.enabled else None
-    )
-    decision_graph = ControlGraph(
-        datahub, primary_expert=experts["video"], fallback_expert=experts["radar"],
-        control_policy=control_policy, logger=logger,
-        cognitive_controller=cognitive_agent,
-    )
     safety_engine = ControlSafetyEngine(
         config_supplier=get_intersection_result_config, phase_check=phase_check,
         fallback_loader=control_policy.fallback_legacy, logger=logger,
     )
-    # 固定配时直接使用原策略；诊断图仍可显式调用，启用周期 Agent 时再接入图。
     pipeline = PeriodicDecisionPipeline(
         cache=cache, data_processor=control_processor, lambdas_module=Lambdas,
         writer=writer, result_warehouse=warehouse, flow_predictor=flow_predictor,
@@ -316,7 +292,6 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
         flow_duration_seconds=settings.flow_duration_seconds, logger=logger,
         control_snapshot_enabled=settings.control_snapshot_enabled,
         control_snapshot_dir=settings.control_snapshot_dir, datahub=datahub,
-        decision_graph=decision_graph if cognitive_agent is not None else None,
         safety_engine=safety_engine,
     )
     prediction_scheduler = PredictionScheduler(flow_job=flow_predictor.daily_prediction_job, queue_job=queue_predictor.daily_queue_prediction, hour=settings.prediction_hour, minute=settings.prediction_minute, logger=logger)
@@ -328,4 +303,4 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
         if settings.enable_experience_pool_scheduler
         else None
     )
-    return AITCApplication(config_sync_manager=ConfigSyncManager(), http_server=http_server, tcp_server=tcp_server, decision_pipeline=pipeline, prediction_scheduler=prediction_scheduler, experience_pool_scheduler=experience_pool_scheduler, decision_interval=settings.decision_interval_seconds, enable_config_sync=settings.enable_config_sync, enable_prediction_scheduler=settings.enable_prediction_scheduler, llm_client=qwen_client, llm_required=settings.llm_required and model_gateway.enabled, logger=logger, datahub=datahub, experts=experts, decision_graph=decision_graph, model_gateway=model_gateway, cognitive_agent=cognitive_agent, control_agent_tools=control_agent_tools)
+    return AITCApplication(config_sync_manager=ConfigSyncManager(), http_server=http_server, tcp_server=tcp_server, decision_pipeline=pipeline, prediction_scheduler=prediction_scheduler, experience_pool_scheduler=experience_pool_scheduler, decision_interval=settings.decision_interval_seconds, enable_config_sync=settings.enable_config_sync, enable_prediction_scheduler=settings.enable_prediction_scheduler, llm_client=qwen_client, llm_required=settings.llm_required and model_gateway.enabled, logger=logger, datahub=datahub, experts=experts, model_gateway=model_gateway)

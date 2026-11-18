@@ -55,7 +55,6 @@ class PeriodicDecisionPipeline(LoggingMixin):
         control_snapshot_dir: str | os.PathLike = LOGS_DIR / "control_snapshots",
         control_policy: BaselineController | None = None,
         datahub: TrafficDataHub | None = None,
-        decision_graph: Any | None = None,
         safety_engine: Any | None = None,
     ) -> None:
         if control_policy is not None:
@@ -69,7 +68,6 @@ class PeriodicDecisionPipeline(LoggingMixin):
         if datahub is not None and cache is not datahub.cache:
             raise ValueError("pipeline cache must be the DataHub cache")
         self.datahub = datahub
-        self.decision_graph = decision_graph
         self.safety_engine = safety_engine
         self.data_processor = data_processor
         self.lambdas = lambdas_module
@@ -369,22 +367,10 @@ class PeriodicDecisionPipeline(LoggingMixin):
                     full=road_group(intersection_id) in {"19", "49"},
                 )
             stage = "control"
-            if self.decision_graph is not None:
-                # 保留完整聚合请求及动态替换的 selector；专家观测不改写旧控制输入。
-                with trace_stage([trace] if trace is not None else [], "control"):
-                    decision = self.decision_graph.execute_legacy(
-                        request, selector=self.dqn_select, snapshot=snapshot,
-                        **({"trace_id": trace.trace_id, "expert_calls": trace.expert_calls} if trace is not None else {}),
-                    )
-                selection = decision.selection
-                if trace is not None:
-                    cognitive = self.decision_graph.cognitive_controller
-                    trace.capture_graph(decision, provider=cognitive.gateway.provider_name if cognitive is not None else None)
-            else:
-                if trace is not None:
-                    trace.route = ["control_policy"]
-                with trace_stage([trace] if trace is not None else [], "control"):
-                    selection = self.dqn_select(request)
+            if trace is not None:
+                trace.route = ["control_policy"]
+            with trace_stage([trace] if trace is not None else [], "control"):
+                selection = self.dqn_select(request)
             result_action, coordinate_map, model_info_list, exp_list = selection
             if trace is not None:
                 trace.capture_plan(result_action)
@@ -399,8 +385,5 @@ class PeriodicDecisionPipeline(LoggingMixin):
             if trace is not None:
                 trace.record_error(stage, error)
                 trace.fallback_reason.append(f"legacy:{stage}_failed")
-                if (stage == "control" and self.decision_graph is not None
-                        and self.decision_graph.cognitive_controller is not None):
-                    trace.llm_participated, trace.model_calls = None, None
             self._error("Error getting dqn_%s result: %s", intersection_id, error, exc_info=True)
         return intersection_id, result, coordinate_map

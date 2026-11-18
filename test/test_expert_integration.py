@@ -5,14 +5,14 @@ import json
 import random
 import tempfile
 import unittest
-from contextlib import ExitStack, contextmanager
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
 import Lambdas
 from pydantic import ValidationError
 
-from agents.experts import EVExpert, InternetExpert, RadarExpert, VideoExpert
+from agents.experts import RadarExpert, VideoExpert
 from app.config import RuntimeSettings, TrafficMemorySettings
 from control.policies import BaselineController
 from datahub import RuntimeDataProcessor, TrafficDataHub
@@ -20,7 +20,7 @@ from datahub.classifier import DataKind, DataSource
 from datahub.traffic_schemas import ExpertTrafficState, RawTrafficEvent, TrafficSnapshot
 from runtime.application import create_application
 from test.fixtures.v2_baseline_controller import (
-    FIXED_TIME, FIXTURE, compact_round, full_replay, isolated_runtime, sensor_request,
+    FIXED_TIME, FIXTURE, compact_round, full_replay, sensor_request,
 )
 from test.fixtures.v2_acceptance import RADAR_DEVICE, RADAR_INTERSECTION, VIDEO_INTERSECTION, source_payloads
 
@@ -83,50 +83,6 @@ class ExpertIntegrationTest(unittest.TestCase):
             self.assertIsNone(app.http_server._server)
             self.assertIsNone(app.tcp_server._server_socket)
             llm.assert_not_called()
-
-    def test_source_graph_preserves_actual_legacy_pipeline_with_missing_observations(self):
-        def run_round(use_graph):
-            with isolated_runtime(), ExitStack() as stack:
-                unused = [stack.enter_context(patch.object(
-                    cls, "extract", side_effect=AssertionError("unimplemented experts must not run"),
-                )) for cls in (InternetExpert, EVExpert)]
-                llm = stack.enter_context(patch(
-                    "runtime.application.OpenAICompatibleLLMClient._open_json",
-                    side_effect=AssertionError("legacy control must not request an LLM"),
-                ))
-                with composed_application() as app:
-                    app.decision_pipeline.decision_graph = app.decision_graph if use_graph else None
-                    video = stack.enter_context(patch.object(
-                        app.experts["video"], "extract", wraps=app.experts["video"].extract,
-                    ))
-                    radar = stack.enter_context(patch.object(
-                        app.experts["radar"], "extract", wraps=app.experts["radar"].extract,
-                    ))
-                    # Serial selection keeps real legacy random diagnostics reproducible.
-                    app.decision_pipeline.worker_count = 1
-                    with patch.object(
-                        app.decision_pipeline, "dqn_select", wraps=app.decision_pipeline.dqn_select,
-                    ) as selector:
-                        payloads = app.decision_pipeline.run_once()
-                    self.assertEqual(selector.call_count, 235)
-                    self.assertEqual(len(payloads), 235)
-                    self.assertEqual(payloads, app.decision_pipeline.result_warehouse.snapshot())
-                    # 冷启动预测仍是 None，契约准确保留它，历史不再因正常缺文件而丢失。
-                    snapshot = app.datahub.latest(VIDEO_INTERSECTION)
-                    self.assertIsNotNone(snapshot)
-                    self.assertIsNone(snapshot.predicted_flow)
-                    self.assertIsNone(snapshot.predicted_queue)
-                    self.assertNotIn("snapshot_current_round", app.datahub.query(VIDEO_INTERSECTION).missing_fields)
-                    llm.assert_not_called()
-                    self.assertEqual(video.call_count, 235 if use_graph else 0)
-                    self.assertEqual(radar.call_count, 235 if use_graph else 0)
-                    for call in unused:
-                        call.assert_not_called()
-                    return payloads
-
-        expected = run_round(False)
-        actual = run_round(True)
-        self.assertEqual(actual, expected)
 
     def test_read_only_expert_extraction_preserves_two_round_control_and_tcp_golden(self):
         golden = json.loads(FIXTURE.read_text(encoding="utf-8"))

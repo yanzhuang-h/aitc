@@ -1,4 +1,4 @@
-"""Production graph composition and deterministic control compatibility."""
+"""固定配时装配、快照和黄金回放。"""
 
 import copy
 import json
@@ -8,8 +8,6 @@ from unittest.mock import Mock, patch
 
 import Lambdas
 
-from agents.experts import RadarExpert, VideoExpert
-from agents.graph import ControlGraph
 from app.config import RuntimeSettings
 from control.policies import BaselineController
 from datahub import TrafficDataHub
@@ -22,15 +20,9 @@ from test.test_decision_pipeline import _Lambdas
 from test.test_expert_integration import composed_application, ingest_observations
 
 
-class GraphIntegrationTest(unittest.TestCase):
+class FixedControlIntegrationTest(unittest.TestCase):
     def make_pipeline(self, selector):
-        pipeline, hub = datahub_tests.DataHubIntegrationTest()._make_pipeline(selector)
-        graph = ControlGraph(
-            hub, primary_expert=VideoExpert(hub), fallback_expert=RadarExpert(hub),
-            control_policy=pipeline.control_policy,
-        )
-        pipeline.decision_graph = graph
-        return pipeline, hub, graph
+        return datahub_tests.DataHubIntegrationTest()._make_pipeline(selector)
 
     def test_composition_shares_hub_policy_and_experts_without_any_llm_objects(self):
         with patch("runtime.application.OpenAICompatibleLLMClient") as client, patch(
@@ -38,8 +30,6 @@ class GraphIntegrationTest(unittest.TestCase):
         ) as qwen, patch("runtime.application.QwenToolRouterAgent") as router, patch(
             "runtime.application.ControlProcessAgent",
         ) as controller, composed_application(llm_required=True) as app:
-            self.assertIsInstance(app.decision_graph, ControlGraph)
-            self.assertIsNone(app.decision_pipeline.decision_graph)
             self.assertIsNone(app.llm_client)
             self.assertFalse(app.llm_required)
             harness = app.http_server.agent_harness
@@ -86,9 +76,9 @@ class GraphIntegrationTest(unittest.TestCase):
             self.assertIs(harness.qwen_tool_router_agent.llm_client, app.llm_client)
             self.assertIs(harness.control_process_agent.llm_client, app.llm_client)
 
-    def test_graph_captures_before_selection_and_preserves_dynamic_callback_and_identity(self):
+    def test_fixed_control_captures_before_selection_and_preserves_dynamic_callback_and_identity(self):
         raw = ([25] + [0] * 8 + [1], {"start": 3}, [1] * 8, {"exp": 1})
-        pipeline, hub, _graph = self.make_pipeline(Mock(side_effect=AssertionError("replaced")))
+        pipeline, hub = self.make_pipeline(Mock(side_effect=AssertionError("replaced")))
         captured = []
 
         def selector(request):
@@ -112,9 +102,9 @@ class GraphIntegrationTest(unittest.TestCase):
         self.assertEqual(captured[0].previous_coordinate, {"100": {"phase": [3]}})
         self.assertEqual(hub.latest("100"), captured[0])
 
-    def test_graph_preserves_missing_predictions_in_captured_snapshot(self):
+    def test_fixed_control_preserves_missing_predictions_in_captured_snapshot(self):
         selector = Mock(return_value=([25] + [0] * 8 + [1], {}, [], {}))
-        pipeline, hub, _graph = self.make_pipeline(selector)
+        pipeline, hub = self.make_pipeline(selector)
         pipeline.flow_predictor.get_current_flow_prediction = lambda: None
         pipeline.queue_predictor.get_current_queue_prediction = lambda: None
         with patch("time.time", return_value=FIXED_TIME):
@@ -132,7 +122,7 @@ class GraphIntegrationTest(unittest.TestCase):
 
     def test_invalid_prediction_shape_still_reports_capture_failure_without_rewriting_selector_input(self):
         selector = Mock(return_value=([25] + [0] * 8 + [1], {}, [], {}))
-        pipeline, hub, _graph = self.make_pipeline(selector)
+        pipeline, hub = self.make_pipeline(selector)
         pipeline.flow_predictor.get_current_flow_prediction = lambda: "invalid prediction mapping"
         with patch("time.time", return_value=FIXED_TIME):
             result = pipeline.run_once()
@@ -143,10 +133,10 @@ class GraphIntegrationTest(unittest.TestCase):
         self.assertTrue(any("snapshot_validation_failed" in issue
                             for issue in hub.query("100").quality_issues))
 
-    def test_graph_keeps_experience_failure_coordinate_and_does_not_repeat_selector(self):
+    def test_fixed_control_keeps_experience_failure_coordinate_and_does_not_repeat_selector(self):
         raw = ([30] + [0] * 9, {"start": 3}, [9] * 8, {"exp": 1})
         selector = Mock(return_value=raw)
-        pipeline, _hub, _graph = self.make_pipeline(selector)
+        pipeline, _hub = self.make_pipeline(selector)
         pipeline.writer.write_experience = Mock(side_effect=OSError("disk full"))
         result, _, _, _ = pipeline._process_data()
         selector.assert_called_once()
@@ -154,18 +144,18 @@ class GraphIntegrationTest(unittest.TestCase):
         self.assertIs(pipeline.last_coordinate_set["100"], raw[1])
         pipeline.writer.write_experience.assert_called_once_with(raw[3], "100")
 
-    def test_graph_preserves_selector_failure_default_result_without_retry(self):
-        selector = Mock(side_effect=TimeoutError("selector is not a read-only expert"))
-        pipeline, _hub, _graph = self.make_pipeline(selector)
+    def test_fixed_control_preserves_selector_failure_default_result_without_retry(self):
+        selector = Mock(side_effect=TimeoutError("selector failed"))
+        pipeline, _hub = self.make_pipeline(selector)
         result, _, _, _ = pipeline._process_data()
         selector.assert_called_once()
         self.assertEqual(result["100"], _Lambdas.intersection_result_lambda)
         self.assertEqual(pipeline.last_coordinate_set, {"100": {}})
         self.assertEqual(pipeline.writer.experience, [])
 
-    def test_graph_coordination_failure_preserves_previous_warehouse_batch(self):
+    def test_fixed_control_coordination_failure_preserves_previous_warehouse_batch(self):
         selector = Mock(return_value=([25] + [0] * 8 + [1], {}, [], {}))
-        pipeline, _hub, _graph = self.make_pipeline(selector)
+        pipeline, _hub = self.make_pipeline(selector)
         error = RuntimeError("coordination failed")
         pipeline.coordinate = Mock(side_effect=error)
         pipeline.result_warehouse.replace([{"id": "previous"}])
@@ -177,7 +167,7 @@ class GraphIntegrationTest(unittest.TestCase):
         self.assertEqual(pipeline.result_warehouse.snapshot(), [{"id": "previous"}])
         self.assertEqual(pipeline.writer.phase_reports, [])
 
-    def test_graph_keeps_final_validation_after_coordination_and_reserved_slot_rules(self):
+    def test_fixed_control_keeps_final_validation_after_coordination_and_reserved_slot_rules(self):
         raw = [10] * 8 + [9, 1]
         order = []
 
@@ -185,7 +175,7 @@ class GraphIntegrationTest(unittest.TestCase):
             order.append("selector")
             return raw, {}, [], {"exp": 1}
 
-        pipeline, _hub, _graph = self.make_pipeline(selector)
+        pipeline, _hub = self.make_pipeline(selector)
         original_writer = pipeline.writer.write_experience
 
         def write_experience(*args):
@@ -216,16 +206,11 @@ class GraphIntegrationTest(unittest.TestCase):
             "Phase 0: 30 -> 25", "Phase 8: 9 -> 6",
         ])
 
-    def test_graph_preserves_two_round_control_diagnostics_and_tcp_golden(self):
+    def test_fixed_control_preserves_two_round_control_diagnostics_and_tcp_golden(self):
         golden = json.loads(FIXTURE.read_text(encoding="utf-8"))
         hub = TrafficDataHub(lambdas_module=Lambdas, memory_window=2)
         controller = BaselineController()
-        graph = ControlGraph(
-            hub, primary_expert=VideoExpert(hub), fallback_expert=RadarExpert(hub),
-            control_policy=controller,
-        )
         round_times = set()
-        graph_calls = []
 
         def selector(request):
             if request.current_time not in round_times:
@@ -233,15 +218,10 @@ class GraphIntegrationTest(unittest.TestCase):
                 round_times.add(request.current_time)
             snapshot = hub.capture(request)
             self.assertIsNotNone(snapshot)
-            decision = graph.execute_legacy(request, snapshot=snapshot)
-            graph_calls.append((request.cross_id, decision.used_fallback))
-            return decision.selection
+            return controller.select_legacy(request)
 
         actual = full_replay(selector, controller.coordinate_legacy)
         self.assertEqual(actual, full_replay())
-        self.assertEqual(len(graph_calls), 470)
-        self.assertTrue(any(not fallback for _cross_id, fallback in graph_calls))
-        self.assertTrue(any(fallback for _cross_id, fallback in graph_calls))
         for index, result in enumerate(actual):
             with self.subTest(round=index):
                 self.assertEqual(compact_round(result), golden["rounds"][index])
