@@ -304,14 +304,15 @@ def _run_paths(source_date):
     }
 
 
-def _existing_terminal_manifest(path, source_paths=(), *, target_road_ids=()):
+def _existing_terminal_manifest(path, source_paths=(), *, target_road_ids=(), missing_crosses=None):
     manifest = _load_json(str(path), default={})
     if not isinstance(manifest, dict):
         return None
     status = str(manifest.get("status", ""))
     if status.startswith("completed"):
         completed_roads = manifest.get("pool_collection_road_ids", manifest.get("target_road_ids", []))
-        if completed_roads and set(target_road_ids).issubset(completed_roads):
+        if (completed_roads and set(target_road_ids).issubset(completed_roads)
+                and (missing_crosses is None or missing_crosses == manifest.get("missing_crosses", []))):
             return manifest
         # 同日其他路口仍可补入；池内继续按日期、路口和样本去重。
         return None
@@ -332,9 +333,20 @@ def _run_experience_pool_day_unlocked(source_date, *, release_settings=None, rec
 
     paths = _run_paths(source_date)
     target_roads = _configured_roads()
+    source_paths = (paths["flow"], paths["extend"])
+    missing_files = [str(path) for path in source_paths if not path.is_file()]
+    cross_info_path = _configured_path(
+        "AITC_EXPERIENCE_CROSS_INFO", LIB_DIR / "cross_info.json",
+    )
+    cross_info = _load_json(str(cross_info_path), default={}) if not missing_files else {}
+    missing_crosses = None
+    if not missing_files:
+        missing_crosses = sorted(set(target_roads) - cross_info.keys())
+        # 未配置的路口单独留痕，其余路口继续使用原学习和校验规则。
+        target_roads = [road for road in target_roads if road in cross_info]
     terminal = None if recheck else _existing_terminal_manifest(
-        paths["run_manifest"], (paths["flow"], paths["extend"]),
-        target_road_ids=target_roads,
+        paths["run_manifest"], source_paths, target_road_ids=target_roads,
+        missing_crosses=missing_crosses,
     )
     if terminal is not None:
         return terminal
@@ -346,19 +358,18 @@ def _run_experience_pool_day_unlocked(source_date, *, release_settings=None, rec
         "triggered_at": dt.datetime.now().astimezone().isoformat(),
         "source_day_delay": DEFAULT_SOURCE_DAY_DELAY,
     }
-    missing_files = [
-        str(paths[name])
-        for name in ("flow", "extend")
-        if not paths[name].is_file()
-    ]
-    if missing_files:
+    if missing_crosses:
+        base_report["missing_crosses"] = missing_crosses
+    if missing_files or not target_roads:
         report = {
             **base_report,
-            "status": "skipped_missing_source_data",
-            "missing_files": missing_files,
             "pool_committed": False,
             "table_updated": False,
         }
+        if missing_files:
+            report.update(status="skipped_missing_source_data", missing_files=missing_files)
+        else:
+            report["status"] = "skipped_missing_cross_configuration"
         _write_json_atomic(str(paths["run_manifest"]), report)
         return report
 
@@ -366,13 +377,8 @@ def _run_experience_pool_day_unlocked(source_date, *, release_settings=None, rec
         "AITC_EXPERIENCE_RUNTIME_TABLE",
         DEFAULT_STATE_DIR / "online_experience.json",
     )
-    cross_info_path = _configured_path(
-        "AITC_EXPERIENCE_CROSS_INFO",
-        LIB_DIR / "cross_info.json",
-    )
     active_table = _load_json(str(runtime_path), default={})
-    cross_info = _load_json(str(cross_info_path), default={})
-    update_roads = _configured_update_roads()
+    update_roads = _configured_update_roads().intersection(target_roads)
     active_validation = validate_experience_table(
         active_table,
         cross_info,
@@ -387,18 +393,6 @@ def _run_experience_pool_day_unlocked(source_date, *, release_settings=None, rec
             "status": "skipped_invalid_active_table",
             "active_table": str(runtime_path),
             "validation": active_validation,
-            "pool_committed": False,
-            "table_updated": False,
-        }
-        _write_json_atomic(str(paths["run_manifest"]), report)
-        return report
-
-    missing_crosses = sorted(set(target_roads) - set(cross_info))
-    if missing_crosses:
-        report = {
-            **base_report,
-            "status": "skipped_missing_cross_configuration",
-            "missing_crosses": missing_crosses,
             "pool_committed": False,
             "table_updated": False,
         }

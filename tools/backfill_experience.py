@@ -118,7 +118,10 @@ def main(argv=None) -> int:
             continue
         report = runtime.run_experience_pool_day(day, recheck=args.force)
         status = str(report.get("status", ""))
-        skipped |= status.startswith("skipped")
+        missing_crosses = report.get("missing_crosses", [])
+        skipped |= status.startswith("skipped") or bool(missing_crosses)
+        if missing_crosses:
+            print(f"  跳过缺配置路口: {','.join(missing_crosses)}")
         print(f"  status={status} candidates={report.get('candidate_count', 0)} "
               f"table_updated={report.get('table_updated', False)}")
         print(f"  报告: {paths['run_manifest']}")
