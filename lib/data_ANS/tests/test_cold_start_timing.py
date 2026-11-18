@@ -175,6 +175,26 @@ class ColdStartTimingTests(unittest.TestCase):
                 self.assertEqual(result["runtime_input"]["cold_start"]["status"], "insufficient_stable_stage_feedback")
                 self.assertNotEqual(result["times"]["U"], 96)
 
+    def test_rotated_cycle_aligns_the_program_bounds_by_phase(self):
+        programs = {ROAD: {"1": config(("LR", "UD"), (25, 40), (55, 75))}}
+        result = self.evaluate(programs=programs)
+        audit = result["runtime_input"]["cold_start"]
+        self.assertEqual(audit["status"], "observed_cycle_flow_budget")
+        self.assertEqual(audit["phase_names"], ["UD", "LR"])
+        self.assertEqual(audit["minimums"], [40, 25])
+        self.assertEqual(audit["maximums"], [75, 55])
+        self.assertEqual(audit["allocated_phase_times"], [75, 40])
+        self.assertEqual(audit["allocated_budget"], 115)
+
+    def test_rotated_program_does_not_override_an_exact_match(self):
+        programs = {ROAD: {
+            "1": config(),
+            "2": config(("LR", "UD"), (130, 130), (150, 150)),
+        }}
+        audit = self.evaluate(programs=programs)["runtime_input"]["cold_start"]
+        self.assertEqual(audit["matching_programs"], ["1"])
+        self.assertEqual(audit["allocated_phase_times"], [96, 24])
+
     def test_no_matching_program_does_not_invent_phase_bounds(self):
         result = self.evaluate(programs={ROAD: {"1": config(("U", "D"), (20, 20), (150, 150))}})
         self.assertEqual(result["runtime_input"]["cold_start"]["status"], "no_matching_program_bounds")

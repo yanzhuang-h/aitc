@@ -7,6 +7,30 @@ from lib.data_ANS.lane_policy import configured_movement_lane_policy
 from lib.data_ANS.phase_definitions import PHASE_DIRECTION_MAP
 
 
+def _matching_program_bounds(signature, road_programs):
+    exact, rotated = [], []
+    for program, config in road_programs.items():
+        phases = list(config.get("phase", [])[:8])
+        while phases and not phases[-1]:
+            phases.pop()
+        configured = [sorted(PHASE_DIRECTION_MAP.get(phase, ())) for phase in phases]
+        if configured == signature:
+            exact.append((str(program), config, 0))
+        elif len(configured) == len(signature):
+            rotated.extend(
+                (str(program), config, offset)
+                for offset in range(1, len(configured))
+                if configured[offset:] + configured[:offset] == signature
+            )
+
+    # 优先沿用同起点方案。循环起点不同时，时长上下限随对应阶段一起移动。
+    matches = []
+    for program, config, offset in exact or rotated:
+        _, lows, highs = phase_bounds(config)
+        matches.append((program, lows[offset:] + lows[:offset], highs[offset:] + highs[:offset]))
+    return matches
+
+
 def observed_cycle_fallback(cycles, cross_config, road_programs, flow, decisions, min_green_time=1, max_green_time=150):
     """只替换与可靠经验相互独立的缺经验阶段组，保留缺流量阶段的反馈预算。"""
     names = [str(cross_config["phase"][stage]).upper() for stage in cycles[0]["pattern"]]
@@ -14,14 +38,7 @@ def observed_cycle_fallback(cycles, cross_config, road_programs, flow, decisions
     if any(not directions for directions in movements):
         return {}, {"status": "non_vehicle_phase_requires_program_plan"}
     signature = [sorted(directions) for directions in movements]
-    matches = []
-    for program, config in road_programs.items():
-        configured = list(config.get("phase", [])[:8])
-        while configured and not configured[-1]:
-            configured.pop()
-        if [sorted(PHASE_DIRECTION_MAP.get(name, ())) for name in configured] == signature:
-            _phases, lows, highs = phase_bounds(config)
-            matches.append((str(program), lows, highs))
+    matches = _matching_program_bounds(signature, road_programs)
     if not matches:
         return {}, {"status": "no_matching_program_bounds"}
     lows = [max(item[1][i] for item in matches) for i in range(len(names))]
@@ -84,7 +101,7 @@ def observed_cycle_fallback(cycles, cross_config, road_programs, flow, decisions
         return {}, {"status": "direction_projection_changes_cycle_budget"}
     return updates, {
         "status": "observed_cycle_flow_budget", "reference_cycle_count": len(cycles),
-        "matching_programs": [item[0] for item in matches], "phase_names": names,
+        "matching_programs": list(dict.fromkeys(item[0] for item in matches)), "phase_names": names,
         "reference_phase_times": reference, "allocated_phase_times": times,
         "minimums": lows, "maximums": highs, "flow_weights": weights,
         "held_phase_indexes": held, "cold_phase_indexes": cold,
