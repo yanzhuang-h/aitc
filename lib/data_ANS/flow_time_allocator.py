@@ -698,6 +698,18 @@ def _select_complete_cycle_segment(stage_map, cross_config):
     return selected, audit
 
 
+def _full_window_stage_issue(stage_map, cycle_audit):
+    patterns = cycle_audit["configured_patterns"]
+    if not patterns or cycle_audit["complete_cycle_count"]:
+        return None
+    observed_stages = set(stage_map.values()) - {"-1"}
+    if len(observed_stages) == 1 and list(observed_stages) not in patterns:
+        return "stage_feedback_stuck_on_one_stage"
+    if observed_stages.difference(stage for pattern in patterns for stage in pattern):
+        return "stage_feedback_outside_configured_cycles"
+    return None
+
+
 def _phase_active_directions(cross_config, stages):
     active = set()
     phase_map = cross_config.get("phase", {})
@@ -761,7 +773,8 @@ def allocate_from_runtime_data(
     is.  During cache warm-up, the largest stable complete-cycle segment is
     used and its lane flows are projected to ten minutes.  If no complete
     configured cycle exists, raw partial flow is retained for comparison but
-    the result is explicitly marked as not quality-passed.
+    the result is explicitly marked as not quality-passed. Online intersections
+    also check a mature window for evidence of stuck or mismatched stages.
     """
     road_id = str(road_id)
     if experience_table is None:
@@ -795,9 +808,13 @@ def allocate_from_runtime_data(
     extend_span_seconds = int(extend_stats.get("span_seconds", 0))
     selected_bounds = None
     normalization_factor = 1.0
+    stage_feedback_issue = None
     if extend_span_seconds >= full_window_min_seconds:
         normalization_mode = "full_10min_window"
         quality_passed = extend_stats.get("coverage_ratio", 0.0) >= 0.90
+        if online_road and quality_passed:
+            stage_feedback_issue = _full_window_stage_issue(stage_map, cycle_audit)
+            quality_passed = stage_feedback_issue is None
         active_stage_map = stage_map
     elif selected_cycles:
         selected_start = int(selected_cycles[0]["start"])
@@ -828,13 +845,8 @@ def allocate_from_runtime_data(
         direction: scaled_vectors[direction]
         for direction in directions_seen
     }
-    active_directions = _phase_active_directions(
-        cross_config,
-        {
-            stage
-            for stage in active_stage_map.values()
-            if stage != "-1"
-        },
+    extend_directions = _phase_active_directions(
+        cross_config, set(active_stage_map.values()) - {"-1"},
     )
     flow_directions = _flow_directions(
         scaled_vectors,
@@ -843,14 +855,12 @@ def allocate_from_runtime_data(
     )
     # A bad or incomplete extend stream can remove stage evidence, but it
     # cannot remove a movement that has real controlled flow in this window.
-    active_directions.update(flow_directions)
-
     result = allocate_green_times(
         road_id,
         allocator_input,
         experience_table,
         cross_info,
-        active_directions=active_directions,
+        active_directions=extend_directions | flow_directions,
         saturation_ratio=saturation_ratio,
         left_turn_extra_seconds=left_turn_extra_seconds,
         safe_fallback_green_time=safe_fallback_green_time,
@@ -897,20 +907,13 @@ def allocate_from_runtime_data(
         "flow_selection": flow_selection_stats,
         "flow_aggregation": observed_stats,
         "flow_directions": sorted(flow_directions),
-        "extend_directions": sorted(
-            _phase_active_directions(
-                cross_config,
-                {
-                    stage
-                    for stage in active_stage_map.values()
-                    if stage != "-1"
-                },
-            )
-        ),
+        "extend_directions": sorted(extend_directions),
         "extend": extend_stats,
         "observed_stage_seconds": dict(Counter(stage_map.values())),
         "cycle": cycle_audit,
     }
+    if stage_feedback_issue:
+        result["runtime_input"]["stage_feedback_issue"] = stage_feedback_issue
     return result
 
 

@@ -227,7 +227,7 @@ def _new_schedule_rejection_reason(record, old_vector):
     # 依据在线配时策略校验输入，新登记路口与已上线批次使用同一门槛。
     if supports_online_experience_growth(record["road_id"]):
         if not record["quality_passed"]:
-            return "runtime_input_quality_not_passed"
+            return record.get("stage_feedback_issue") or "runtime_input_quality_not_passed"
         if not any(record["flow_input"]["base_direction_vehicle_counts"].values()):
             return "runtime_flow_data_empty"
     if record.get("positive_flow_zero_directions"):
@@ -316,6 +316,8 @@ def record_shadow_comparison(
         new_vector = _schedule_vector(result["time_vector"])
         decisions = _decision_summary(result)
         runtime = result.get("runtime_input", {})
+        if "stage_feedback_issue" in runtime:
+            record["stage_feedback_issue"] = runtime["stage_feedback_issue"]
         if road_group(road_id) in {"19", "49"}:
             road_table = experience_table.get(road_id, {})
             config = cross_info[road_id]

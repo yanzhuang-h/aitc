@@ -359,6 +359,43 @@ class FlowAllocatorShadowTests(unittest.TestCase):
                     saved = json.loads(Path(record["log_path"]).read_text())
                     self.assertEqual(saved["selected_schedule_source"], record["selected_schedule_source"])
 
+    def test_mature_window_uses_cycle_evidence_for_online_intersections(self):
+        legacy = [41, 42, 43, 44, 21, 22, 23, 24, 0, 0]
+        cases = [
+            ("1700125", [[1, 3]], [3], "stage_feedback_stuck_on_one_stage"),
+            ("2703491", [[1, 3]], [3], "stage_feedback_stuck_on_one_stage"),
+            ("2706152", [[1, 2, 8]], [1, 7, 8], "stage_feedback_outside_configured_cycles"),
+            ("2706537", [[1, 3]], [1, 3], None),
+            ("1700125", [[3]], [3], None),
+            ("1300069", [[1, 3]], [3], None),
+        ]
+        start = 1794971100
+        for road, patterns, stages, reason in cases:
+            config = {road: {
+                "phase": {"1": "UD", "2": "UDL", "3": "LR", "7": "D", "8": "L"},
+                "LaneNo": self.cross_info["1300069"]["LaneNo"],
+                "Cycle": patterns,
+            }}
+            feedback = {
+                t + 4: [{"curStageNo": str(stages[(t - start) // 20 % len(stages)]), "time": t * 1000}]
+                for t in range(start, start + 600)
+            }
+            with self.subTest(road=road, patterns=patterns), tempfile.TemporaryDirectory() as directory:
+                record = record_shadow_comparison(
+                    road, legacy, self.flow, feedback,
+                    experience_table={road: self.experience_table["1300069"]},
+                    cross_info=config, road_info={}, log_directory=directory, runtime_mode="new",
+                )
+                saved = json.loads(Path(record["log_path"]).read_text())
+            self.assertEqual(saved["normalization_mode"], "full_10min_window")
+            self.assertEqual(saved["extend_coverage_ratio"], 1.0)
+            self.assertEqual(saved["quality_passed"], reason is None)
+            self.assertEqual(saved.get("stage_feedback_issue"), reason)
+            self.assertEqual(saved.get("selection_fallback_reason"), reason)
+            self.assertEqual(saved["selected_schedule_source"], "legacy" if reason else "new")
+            if reason:
+                self.assertEqual(saved["selected_schedule"], legacy)
+
     def test_tongzhou_keeps_legacy_schedule_when_stage_quality_passes_without_flow(self):
         start = 1794971100
         for road in ("1700125", "1700062"):
