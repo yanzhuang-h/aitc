@@ -547,6 +547,23 @@ class ExperiencePool:
                         for records in lanes.values() for record in records)}
         return roads or None
 
+    def roads_requiring_chronological_rebuild(self, source_date, road_ids):
+        """找出该日尚未处理且已入池更晚记录的路口。"""
+        source_date = str(source_date)
+        pending = set(road_ids)
+        if source_date in self.get_processed_source_dates():
+            processed = self.get_processed_road_ids(source_date)
+            if processed is None:
+                return []
+            pending -= processed
+        return sorted(
+            road for road in pending
+            if any(record.get("date") and record["date"] > source_date
+                   for times in self._roads.get(road, {}).values()
+                   for lanes in times.values()
+                   for records in lanes.values() for record in records)
+        )
+
     def record_daily_run(self, source_date, run_report):
         source_date = str(source_date)
         processed = self.get_processed_source_dates()
@@ -1247,11 +1264,9 @@ def run_daily_pool_update(
                 continue
 
         # 已有路口不能把早日样本混入晚日结果；该情况需要从保留基表按日期重建。
-        late_roads = sorted(road for road in daily_candidates["roads"]
-                            if any(record.get("date") and record["date"] > data_day
-                                   for times in full_pool._roads.get(road, {}).values()
-                                   for lanes in times.values() for records in lanes.values()
-                                   for record in records))
+        late_roads = full_pool.roads_requiring_chronological_rebuild(
+            data_day, daily_candidates["roads"],
+        )
         if late_roads:
             raise ValueError(f"late road dates require chronological rebuild: {data_day}: {late_roads}")
         expected_samples = _candidate_sample_count(daily_candidates)

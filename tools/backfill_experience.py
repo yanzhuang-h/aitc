@@ -119,7 +119,10 @@ def main(argv=None) -> int:
         report = runtime.run_experience_pool_day(day, recheck=args.force)
         status = str(report.get("status", ""))
         missing_crosses = report.get("missing_crosses", [])
-        skipped |= status.startswith("skipped") or bool(missing_crosses)
+        rebuild_roads = report.get("rebuild_required_roads", [])
+        skipped |= status.startswith("skipped") or bool(missing_crosses or rebuild_roads)
+        if rebuild_roads:
+            print(f"  需要顺序重建的路口: {','.join(rebuild_roads)}")
         if missing_crosses:
             print(f"  跳过缺配置路口: {','.join(missing_crosses)}")
         print(f"  status={status} candidates={report.get('candidate_count', 0)} "

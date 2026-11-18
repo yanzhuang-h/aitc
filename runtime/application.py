@@ -321,7 +321,10 @@ def create_application(logger=None, settings: RuntimeSettings | None = None) -> 
     )
     prediction_scheduler = PredictionScheduler(flow_job=flow_predictor.daily_prediction_job, queue_job=queue_predictor.daily_queue_prediction, hour=settings.prediction_hour, minute=settings.prediction_minute, logger=logger)
     experience_pool_scheduler = (
-        ExperiencePoolScheduler(logger=logger, release_settings=settings.experience_release)
+        ExperiencePoolScheduler(
+            logger=logger, release_settings=settings.experience_release,
+            log_dir=settings.runtime_output_dir, production=settings.run_mode == "production",
+        )
         if settings.enable_experience_pool_scheduler
         else None
     )

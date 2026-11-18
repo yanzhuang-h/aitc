@@ -25,12 +25,12 @@ class ExperienceRuntimeTests(unittest.TestCase):
         from lib.road_groups import TONGZHOU_19
         self.assertTrue(TONGZHOU_19.issubset(update_roads))
 
-    def test_scheduler_uses_t_minus_two_without_startup_catchup(self):
+    def test_scheduler_latest_source_is_yesterday(self):
         self.assertEqual(
             ExperiencePoolScheduler.source_date_for_run(
-                dt.date(2026, 7, 26)
+                dt.date(2026, 11, 19)
             ),
-            dt.date(2026, 7, 24),
+            dt.date(2026, 11, 18),
         )
 
     def test_seconds_until_next_daily_noon(self):
@@ -48,21 +48,60 @@ class ExperienceRuntimeTests(unittest.TestCase):
             86370,
         )
 
-    def test_initial_test_run_is_opt_in_and_can_use_five_minutes(self):
+    def test_startup_catchup_defaults_to_five_minutes_in_production(self):
         with mock.patch.dict(os.environ, {}, clear=True):
-            self.assertEqual(
-                ExperiencePoolScheduler.initial_delay_seconds(),
-                0,
-            )
-        with mock.patch.dict(
-            os.environ,
-            {"AITC_EXPERIENCE_POOL_INITIAL_DELAY_SECONDS": "300"},
-            clear=True,
+            self.assertEqual(ExperiencePoolScheduler().initial_delay_seconds(), 300)
+            self.assertEqual(ExperiencePoolScheduler(production=False).initial_delay_seconds(), 0)
+        with mock.patch.dict(os.environ, {"AITC_EXPERIENCE_POOL_INITIAL_DELAY_SECONDS": "0"}):
+            self.assertEqual(ExperiencePoolScheduler().initial_delay_seconds(), 0)
+
+    def test_startup_and_noon_use_same_catchup(self):
+        scheduler = ExperiencePoolScheduler()
+        with (
+            mock.patch.dict(os.environ, {}, clear=True),
+            mock.patch.object(scheduler._stop_event, "wait", side_effect=(False, False, True)) as wait,
+            mock.patch.object(scheduler, "run_catchup") as catchup,
         ):
-            self.assertEqual(
-                ExperiencePoolScheduler.initial_delay_seconds(),
-                300,
-            )
+            scheduler._run_loop()
+        self.assertEqual(wait.call_args_list[0].args, (300,))
+        self.assertEqual(catchup.call_count, 2)
+
+    def test_catchup_pairs_the_last_ten_days_and_skips_partial_sources(self):
+        run_date = dt.date(2026, 11, 19)
+        with tempfile.TemporaryDirectory() as directory:
+            logs = Path(directory)
+            for kind in ("flow", "extend"):
+                (logs / kind).mkdir()
+            for day in (9, 10, 17, 18, 19):
+                source = dt.date(2026, 11, day)
+                _, end = RUNTIME._source_day_bounds(source)
+                for kind in ("flow", "extend"):
+                    if day == 10 and kind == "extend":
+                        continue
+                    timestamp = end - 18_000 if day == 17 else end - 2
+                    (logs / kind / f"{source}_{kind}.txt").write_text(
+                        json.dumps({"AITC_SYS_TS": timestamp}) + "\n", encoding="utf-8",
+                    )
+            scheduler = ExperiencePoolScheduler(log_dir=logs)
+            with mock.patch.object(scheduler, "run_for_date", return_value={"status": "completed"}) as run_day:
+                report = scheduler.run_catchup(run_date)
+            self.assertEqual(list(report), [f"2026-11-{day:02d}" for day in range(9, 19)])
+            self.assertEqual(run_day.call_args_list, [
+                mock.call(source_date=dt.date(2026, 11, 9)),
+                mock.call(source_date=dt.date(2026, 11, 18)),
+            ])
+            self.assertEqual(report["2026-11-10"]["missing"], ["extend"])
+            self.assertEqual(report["2026-11-17"]["incomplete"], ["flow", "extend"])
+
+    def test_catchup_stops_after_failed_ready_day(self):
+        scheduler = ExperiencePoolScheduler()
+        with (
+            mock.patch.object(RUNTIME, "_source_pair_status", return_value=None),
+            mock.patch.object(scheduler, "run_for_date", return_value=None) as run_day,
+        ):
+            report = scheduler.run_catchup(dt.date(2026, 11, 19))
+        run_day.assert_called_once_with(source_date=dt.date(2026, 11, 9))
+        self.assertEqual(report, {"2026-11-09": {"status": "run_failed_or_busy"}})
 
     def test_scheduler_can_run_an_explicit_source_date_for_testing(self):
         scheduler = ExperiencePoolScheduler()
@@ -73,7 +112,7 @@ class ExperienceRuntimeTests(unittest.TestCase):
         ) as run_day:
             scheduler.run_for_date(source_date="2026-07-17")
 
-        run_day.assert_called_once_with(dt.date(2026, 7, 17), release_settings=None)
+        run_day.assert_called_once_with(dt.date(2026, 7, 17), release_settings=None, log_dir=None)
 
     def test_missing_source_files_are_skipped_idempotently(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -436,6 +475,62 @@ class ExperienceRuntimeTests(unittest.TestCase):
                 pool = json.loads((root / "state" / "online_experience_samples.json").read_text())
                 self.assertEqual(pool["state"]["daily_runs"]["2026-11-12"]["processed_road_ids"],
                                  ["1700125", "1700240"])
+
+    def test_late_source_isolated_to_roads_with_newer_pool_records(self):
+        roadmap = ("1700125", "1700240")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            logs = root / "logs"
+            for kind in ("flow", "extend"):
+                folder = logs / kind
+                folder.mkdir(parents=True)
+                for day in ("2026-11-09", "2026-11-18"):
+                    (folder / f"{day}_{kind}.txt").touch()
+            active, cross = root / "active.json", root / "cross.json"
+            cross.write_text(json.dumps({
+                road: {"LaneNo": {"U": {"1": "1B"}}, "phase": {"1": "U"}, "Cycle": [[1]]}
+                for road in roadmap
+            }), encoding="utf-8")
+            environment = {
+                "AITC_EXPERIENCE_POOL_STATE_DIR": str(root / "state"),
+                "AITC_EXPERIENCE_POOL_ARTIFACT_DIR": str(root / "daily"),
+                "AITC_EXPERIENCE_RUNTIME_TABLE": str(active),
+                "AITC_EXPERIENCE_CROSS_INFO": str(cross),
+                "AITC_EXPERIENCE_VERSIONS_DIR": str(root / "versions"),
+                "AITC_EXPERIENCE_MANIFEST": str(root / "versions" / "active_manifest.json"),
+                "AITC_EXPERIENCE_POOL_MIN_SAMPLES": "1",
+            }
+            def observations(**kwargs):
+                return [{
+                    "CrossId": road, "direction": "U", "actual_green_time": 10,
+                    "source_date": kwargs["source_date"], "source_window_start": kwargs["start_time"],
+                    "quality_gate_passed": True, "capacity_lane_indexes": [1],
+                    "candidate_observed_flow": [0, 50] + [0] * 8,
+                } for road in kwargs["target_cross_ids"]], {}
+
+            with (
+                mock.patch.dict(os.environ, environment),
+                mock.patch.object(RUNTIME, "normalize_raw_feedback", side_effect=observations) as normalize,
+            ):
+                with mock.patch.dict(os.environ, {
+                    "AITC_EXPERIENCE_POOL_ROADS": roadmap[0],
+                    "AITC_EXPERIENCE_TABLE_UPDATE_ROADS": roadmap[0],
+                }):
+                    run_experience_pool_day("2026-11-18", log_dir=logs)
+                before = json.loads(active.read_text())[roadmap[0]]
+                with mock.patch.dict(os.environ, {
+                    "AITC_EXPERIENCE_POOL_ROADS": ",".join(roadmap),
+                    "AITC_EXPERIENCE_TABLE_UPDATE_ROADS": ",".join(roadmap),
+                }):
+                    first = run_experience_pool_day("2026-11-09", log_dir=logs)
+                    repeated = run_experience_pool_day("2026-11-09", log_dir=logs)
+            table = json.loads(active.read_text())
+            self.assertEqual(normalize.call_count, 2)
+            self.assertEqual(first, repeated)
+            self.assertEqual(first["rebuild_required_roads"], [roadmap[0]])
+            self.assertEqual(first["target_road_ids"], [roadmap[1]])
+            self.assertEqual(table[roadmap[0]], before)
+            self.assertEqual(table[roadmap[1]]["U"]["10"][1], 50)
 
     def test_invalid_nonempty_or_wrong_type_table_still_blocks_learning(self):
         for initial in ({"1": {}}, [], {"1": {"U": {"10": [-1] * 10}}}):
