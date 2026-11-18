@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from unittest import mock
 
+from lib import intersection_strategy
 from lib.data_ANS import flow_allocator_shadow as SHADOW
 from lib.data_ANS.flow_allocator_shadow import (
     record_shadow_comparison,
@@ -374,6 +375,32 @@ class FlowAllocatorShadowTests(unittest.TestCase):
                 self.assertTrue(any(record["new_schedule"][:8]))
                 self.assertEqual(record["selected_schedule"], legacy)
                 self.assertEqual(record["selection_fallback_reason"], "runtime_flow_data_empty")
+
+    def test_newly_registered_road_uses_quality_gate_without_batch_membership(self):
+        road = self.non_target_road_id
+        registered = SHADOW.PLATFORM_PHASE_ROAD_IDS | {road}
+        config = {road: {"phase": {"3": "U"}, "LaneNo": {"U": {"2": "1B"}}}}
+        stages = {timestamp: [{"curStageNo": "3"}] for timestamp in range(1000, 1600)}
+        legacy = [41, 42, 43, 44, 21, 22, 23, 24, 0, 0]
+        cases = (
+            (self.flow, {}, "runtime_input_quality_not_passed"),
+            ({}, stages, "runtime_flow_data_empty"),
+            (self.flow, stages, None),
+        )
+        with (
+            mock.patch.object(SHADOW, "PLATFORM_PHASE_ROAD_IDS", registered),
+            mock.patch.object(intersection_strategy, "PLATFORM_PHASE_ROAD_IDS", registered),
+            tempfile.TemporaryDirectory() as directory,
+        ):
+            for flow, feedback, reason in cases:
+                with self.subTest(reason=reason):
+                    record = record_shadow_comparison(
+                        road, legacy, flow, feedback, experience_table={}, cross_info=config,
+                        log_directory=directory, runtime_mode="new",
+                    )
+                    self.assertIsNone(record["road_group"])
+                    self.assertEqual(record.get("selection_fallback_reason"), reason)
+                    self.assertEqual(record["selected_schedule_source"], "legacy" if reason else "new")
 
     def test_new_mode_can_select_nonzero_result_when_quality_is_false(self):
         short_extend = {
