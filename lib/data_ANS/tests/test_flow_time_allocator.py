@@ -99,6 +99,28 @@ class FlowTimeAllocatorTests(unittest.TestCase):
         self.assertEqual(report["timebase"]["key_minus_payload_time_max_seconds"], 5)
         self.assertEqual(report["timebase"]["payload_scope"], "matching_road_with_valid_mapping_key")
 
+    def test_source_window_excludes_unusable_times_without_mixing_clocks(self):
+        start = 1794971100
+        packets = {
+            start + 4: [
+                {"curStageNo": "1", "time": start * 1000},
+                {"curStageNo": "2"},
+                {"curStageNo": "2", "time": (start + 30) * 1000},
+                {"curStageNo": "2", "time": (start - 700) * 1000},
+                {"curStageNo": "2", "time": "bad"},
+            ],
+            start + 5: [{"curStageNo": "2", "time": (start + 1) * 1000}],
+        }
+        stages, report = normalize_runtime_extend("1700240", packets, prefer_source_time=True)
+        self.assertEqual(stages, {start: "1", start + 1: "2"})
+        self.assertEqual(report["timebase"]["payload_time_excluded_records"], 4)
+        stages, report = normalize_runtime_extend(
+            "1700240", {start: {"curStageNo": "1", "time": "bad"}}, prefer_source_time=True,
+        )
+        self.assertEqual(stages, {})
+        self.assertEqual(report["timebase"]["timestamp_basis"], "payload.time")
+        self.assertEqual(report["coverage_ratio"], 0.0)
+
     def test_unconfigured_stage_cannot_pass_full_window_quality(self):
         for stage in (0, 99):
             with self.subTest(stage=stage):

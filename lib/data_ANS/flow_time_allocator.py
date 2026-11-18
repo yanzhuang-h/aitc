@@ -50,6 +50,8 @@ DEFAULT_MAX_GREEN_TIME = 150
 DEFAULT_TARGET_FLOW_SECONDS = 600
 DEFAULT_FULL_WINDOW_MIN_SECONDS = 570
 DEFAULT_MAX_STAGE_GAP_SECONDS = 3
+# 秒级窗口容许阶段观测时钟领先入库时钟一秒。
+MAX_EXTEND_CLOCK_LEAD_SECONDS = 1
 DEFAULT_SAFE_FALLBACK_GREEN_TIME = 30
 # 运行参考用两个相邻稳定周期比较；学习入池仍要求三个完整稳定周期。
 MIN_COLD_START_REFERENCE_CYCLES = 2
@@ -454,6 +456,7 @@ def normalize_runtime_extend(
     *,
     max_stage_gap_seconds=DEFAULT_MAX_STAGE_GAP_SECONDS,
     valid_stages=None,
+    prefer_source_time=False,
 ):
     """Convert Server ``extend`` records to one cleaned stage per second."""
     if not isinstance(extend_map_single_intersection, dict):
@@ -464,11 +467,12 @@ def normalize_runtime_extend(
     stage_candidates = {}
     invalid_stage_seconds = set()
     stats = Counter()
-    # time尚未被EXTEND契约定义为事件时间；仅记录其数值，不据此改阶段时钟。
+    observations = []
     event_seconds = set()
     timebase = {"timestamp_basis": "mapping_key",
                 "comparison_time_field": "payload.time",
-                "comparison_time_semantics": "unverified_payload_timestamp",
+                "comparison_time_semantics": ("stage_observed_at" if prefer_source_time
+                                              else "unverified_payload_timestamp"),
                 "payload_scope": "matching_road_with_valid_mapping_key",
                 "payload_time_valid_records": 0,
                 "payload_time_missing_records": 0, "payload_time_invalid_records": 0,
@@ -490,6 +494,7 @@ def normalize_runtime_extend(
                 continue
             # 时间诊断覆盖本路口字典记录，不能因阶段字段损坏而隐去时间证据。
             event_time = payload.get("time")
+            event_second = None
             if event_time is None:
                 timebase["payload_time_missing_records"] += 1
             else:
@@ -507,17 +512,33 @@ def normalize_runtime_extend(
                                          ("key_minus_payload_time_max_seconds", max)):
                         previous = timebase[key]
                         timebase[key] = difference if previous is None else combine(previous, difference)
-            stage = _normalized_stage(payload.get("curStageNo"))
-            unconfigured = (stage is not None and stage != "-1"
-                            and configured_stages is not None and stage not in configured_stages)
-            if stage is None or unconfigured:
-                if unconfigured:
-                    stats["unconfigured_stage_records"] += 1
-                stats["invalid_stage_records"] += 1
-                invalid_stage_seconds.add(timestamp)
+            observations.append((timestamp, event_second, payload.get("curStageNo")))
+
+    # 无源时间的旧报文沿用缓存键。有源时间时整窗使用同一时钟，缺失或超窗记录排除。
+    use_source_time = prefer_source_time and bool(event_seconds or timebase["payload_time_invalid_records"])
+    if use_source_time:
+        timebase["timestamp_basis"] = "payload.time"
+        timebase["payload_time_excluded_records"] = 0
+        earliest_second = max(received for received, _, _ in observations) - DEFAULT_TARGET_FLOW_SECONDS
+    for received_second, event_second, raw_stage in observations:
+        timestamp = received_second
+        if use_source_time:
+            if (event_second is None or event_second < earliest_second
+                    or event_second > received_second + MAX_EXTEND_CLOCK_LEAD_SECONDS):
+                timebase["payload_time_excluded_records"] += 1
                 continue
-            stage_candidates.setdefault(timestamp, set()).add(stage)
-            stats["accepted_payload_records"] += 1
+            timestamp = event_second
+        stage = _normalized_stage(raw_stage)
+        unconfigured = (stage is not None and stage != "-1"
+                        and configured_stages is not None and stage not in configured_stages)
+        if stage is None or unconfigured:
+            if unconfigured:
+                stats["unconfigured_stage_records"] += 1
+            stats["invalid_stage_records"] += 1
+            invalid_stage_seconds.add(timestamp)
+            continue
+        stage_candidates.setdefault(timestamp, set()).add(stage)
+        stats["accepted_payload_records"] += 1
 
     timebase["payload_time_observed_seconds"] = len(event_seconds)
     timebase["payload_time_span_seconds"] = max(event_seconds) - min(event_seconds) + 1 if event_seconds else 0
@@ -756,11 +777,13 @@ def allocate_from_runtime_data(
         experience_table = {road_id: {}}
 
     cross_config = cross_info[road_id]
+    online_road = supports_online_experience_growth(road_id)
     stage_map, extend_stats = normalize_runtime_extend(
         road_id,
         extend_map_single_intersection,
         max_stage_gap_seconds=max_stage_gap_seconds,
         valid_stages=cross_config.get("phase", {}),
+        prefer_source_time=online_road,
     )
     selected_cycles, cycle_audit = _select_complete_cycle_segment(
         stage_map,
@@ -841,7 +864,7 @@ def allocate_from_runtime_data(
         and not decision.get("experience_profile", {}).get("positive_capacity_points", 0)
         for decision in result["decisions"].values()
     )
-    if supports_online_experience_growth(road_id) and needs_capacity:
+    if online_road and needs_capacity:
         if not quality_passed or len(selected_cycles) < MIN_COLD_START_REFERENCE_CYCLES:
             cold_start = {"status": "insufficient_stable_stage_feedback"}
         else:

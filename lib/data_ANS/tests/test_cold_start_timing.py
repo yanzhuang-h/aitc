@@ -57,6 +57,40 @@ class ColdStartTimingTests(unittest.TestCase):
                 self.assertEqual(plan[:2], expected)
                 self.assertEqual(plan[8:], [0, 1])
 
+    def test_tongzhou_uses_stage_observation_time_when_packets_arrive_in_batches(self):
+        start = 1794971100
+        for road, expected_basis in ((ROAD, "payload.time"), ("1700125", "payload.time"),
+                                     ("1300069", "mapping_key")):
+            with self.subTest(road=road):
+                feedback = {}
+                for offset, records in enumerate(self.extend.values()):
+                    received = start + (offset // 7 + 1) * 7
+                    feedback.setdefault(received, []).append({
+                        **records[0], "CrossId": road, "time": (start + offset) * 1000,
+                    })
+                # 迟到的记录仍按观测时间进入其原来的位置。
+                delayed = feedback[start + 7].pop(0)
+                feedback[start + 14].append(delayed)
+                flow = {
+                    start + 100: {"pass": {
+                        direction: [0, value] + [0] * 8
+                        for direction, value in zip(("U", "D", "L", "R"), (40, 20, 10, 5))
+                    }},
+                }
+                result = allocate_from_runtime_data(
+                    road, flow, feedback, experience_table={},
+                    cross_info={road: self.cross[ROAD]}, road_info={road: self.programs[ROAD]},
+                )
+                runtime = result["runtime_input"]
+                self.assertEqual(runtime["extend"]["timebase"]["timestamp_basis"], expected_basis)
+                if road == "1300069":
+                    self.assertFalse(runtime["quality_passed"])
+                    self.assertEqual(runtime["cold_start"]["status"], "not_needed")
+                else:
+                    self.assertTrue(runtime["quality_passed"])
+                    self.assertEqual(runtime["cycle"]["selected_cycle_count"], 3)
+                    self.assertEqual(runtime["cold_start"]["allocated_phase_times"], [96, 24])
+
     def test_minimum_only_reference_reports_no_budget_to_reallocate(self):
         extend = {1000 + offset: [{"CrossId": ROAD,
                                   "curStageNo": "1" if offset % 60 < 30 else "2"}]

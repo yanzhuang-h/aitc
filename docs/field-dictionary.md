@@ -12,7 +12,7 @@
 | 字段 | 含义 | 示例 | 出现位置 |
 | --- | --- | --- | --- |
 | `ts` | 事件发生时刻，毫秒 epoch | `1785255292677` | flow / overflow_warning / radar / boyan |
-| `time` | 事件发生时刻，毫秒 epoch | 同上 | stage |
+| `time` | 阶段状态观测时刻，毫秒 epoch | 同上 | stage / extend |
 | `start_time` | 排队开始时刻，毫秒 epoch | 同上 | queue |
 | `createTime` | 事件创建时刻：雷达事件为 `%Y-%m-%d %H:%M:%S` 字符串；溢出合并后为秒级字符串 | `2026-09-24 10:00:00` | radar_event / 溢出结果 |
 | `received_at` | 服务端接收时刻（UTC ISO） | `2026-09-24T14:23:43+00:00` | 仓库补充，非上游字段 |
@@ -25,9 +25,12 @@
 | `jtll_ddbh` | 交通流量·地点编号 | 检测器（点位）编号，靠 `location_to_intersection_lambda` 挂到路口 + 方向 | 代码注释证实 |
 | `ycsb_cdbh` | 车道编号 | 该记录累加到哪个车道 | 代码注释证实 |
 | `ycsb_xsfx` | 行驶方向 | 方向/流向代码（如 `"1A"`） | 具体编码待补 |
-| `ycsb_xssd` | 行驶速度 | 单车速度 | |
+| `ycsb_xssd` | 行驶速度 | 单车速度（km/h） | 已与运维确认 |
 | `ycsb_cthphm` | 车头牌号码 | 车牌号，追溯用 | |
-| `ycsb_cpzxd` | 车平均速度 | 值形如 `0.88` | ⚠️ |
+| `ycsb_cpzxd` | 号牌号码置信度 | 号牌识别置信度 | 爱笔数据协议 |
+| `localTime` | 甲方接收时间 | 甲方服务器接收这条报文的时刻，毫秒 epoch | 用于延迟排查 |
+
+配时聚合与补训用 `ts`（车辆经过停止线或指定检测区域的时刻）。`(localTime - ts) / 1000` 是过车至甲方服务器接收的耗时，单位为秒。
 
 ## 3. queue（排队数据，TCP）
 
@@ -45,7 +48,8 @@
 | `CrossId` | 路口编号 | |
 | `curStageNo` | 当前阶段号 | |
 | `curStageLen` | 当前阶段时长（已放行） | |
-| `curStageRemainLen` | 当前阶段剩余时长 | extend 无时间字段，窗口用到达时间 |
+| `curStageRemainLen` | 当前阶段剩余时长 | extend 的记录类型识别字段 |
+| `time` | 阶段状态观测时刻 | 19/49 组新配时窗口按此字段对齐 FLOW 的 `ts`，整窗缺源时间的旧报文沿用缓存键 |
 
 ## 5. online / latest（互联网与最新数据，TCP）
 
@@ -80,4 +84,4 @@
 
 - 内部时间归一化：落库时补统一 `event_ts` 字段，收敛 `ts` / `time` / `start_time` / `createTime` 的差异（2026-09-27 讨论决定：先不做，记录于此）。
 - `radar_event` 四类事件中仅 `OverFlow` 进入决策，`QueueOverrun` / `Parking` / `Speeding` 暂无消费者（2026-09-27 观察记录，后续再议）。
-- ⚠️ 字段含义待核实项：`ycsb_cpzxd`、`rid`、`distance`、`carNums`、`car_nums[].queue/all`。
+- ⚠️ 字段含义待核实项：`rid`、`distance`、`carNums`、`car_nums[].queue/all`。
