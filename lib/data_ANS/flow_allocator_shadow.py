@@ -6,7 +6,9 @@ configured pilot roads. Every error falls back to the legacy schedule.
 """
 
 from lib.road_groups import road_group
-from lib.intersection_strategy import PLATFORM_PHASE_ROAD_IDS, uses_platform_phase_timing
+from lib.intersection_strategy import (
+    PLATFORM_PHASE_ROAD_IDS, supports_online_experience_growth, uses_platform_phase_timing,
+)
 
 from datetime import datetime
 import json
@@ -222,8 +224,8 @@ def _new_schedule_rejection_reason(record, old_vector):
         for value in new_vector
     ):
         return "invalid_new_schedule_value"
-    # 阶段窗口正常且有过车记录时，通州 19/49 组才采用新配时候选。
-    if record.get("road_group") in {"19", "49"}:
+    # 依据在线配时策略校验输入，新登记路口与已上线批次使用同一门槛。
+    if supports_online_experience_growth(record["road_id"]):
         if not record["quality_passed"]:
             return "runtime_input_quality_not_passed"
         if not any(record["flow_input"]["base_direction_vehicle_counts"].values()):
