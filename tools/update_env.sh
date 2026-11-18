@@ -32,8 +32,8 @@ echo "== 3/3 验证导入 =="
 "$PYTHON" - <<'PY'
 import apscheduler
 import chinese_calendar
-import langgraph
-import mcp
+from agentscope.agent import Agent
+from mcp.server.mcpserver import MCPServer
 import numpy
 import pydantic
 

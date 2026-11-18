@@ -58,29 +58,22 @@ class TestMcpServerOverStdio(unittest.TestCase):
 
     def test_list_and_call_tools(self) -> None:
         async def run() -> None:
-            from mcp import ClientSession, StdioServerParameters
-            from mcp.client.stdio import stdio_client
+            from mcp import Client, StdioServerParameters
 
             params = StdioServerParameters(
                 command=PYTHON,
                 args=[str(ROOT / "agents" / "mcp_server.py")],
                 cwd=str(ROOT),
             )
-            async with stdio_client(params) as (read, write):
-                async with ClientSession(read, write) as session:
-                    await session.initialize()
-                    tools = await session.list_tools()
-                    names = [tool.name for tool in tools.tools]
-                    for expected in EXPECTED_TOOLS:
-                        self.assertIn(expected, names)
-
-                    # 调用一个无必填参数的工具，验证链路
-                    result = await session.call_tool("query_latest_results", {"limit": 3})
-                    self.assertIsNotNone(result)
-                    text = "".join(
-                        c.text for c in result.content if getattr(c, "type", "") == "text"
-                    )
-                    self.assertIn("最新决策结果", text)
+            async with Client(params) as client:
+                tools = await client.list_tools()
+                self.assertCountEqual([tool.name for tool in tools.tools], EXPECTED_TOOLS)
+                query = next(tool for tool in tools.tools if tool.name == "query_latest_results")
+                self.assertIn("limit", query.input_schema["properties"])
+                result = await client.call_tool("query_latest_results", {"limit": 3})
+                self.assertFalse(result.is_error)
+                text = "".join(item.text for item in result.content if item.type == "text")
+                self.assertIn("最新决策结果", text)
 
         asyncio.run(run())
 

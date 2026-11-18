@@ -23,7 +23,7 @@ AITC 交通信号控制系统，正在进行企业级重构：**Qwen 大模型�
 Server_AITC.py        纯启动入口（日志/信号/application.run()）
 runtime/              运行编排：application / tcp_server / http_server / decision_pipeline / prediction_*
 datahub/              数据底座：memory/(短/长/查询) + 接收/分类/契约/质量/仓库/聚合/输出/配置/同步
-agents/               LangGraph 图 + QwenAgent（符号路由 + Qwen 编排）+ 领域专家 experts/ + HTTP harness
+agents/               HTTP Agent、MCP 工具服务、领域专家 experts/
 control/              控制契约、Baseline 策略、协调/单点/异常/下发骨架
 models/               统一模型网关（Qwen / DeepSeek / Mock / Disabled，OpenAI-compatible 客户端）
 safety/               确定性安全门（协调后结构、上下界、fallback 校验）

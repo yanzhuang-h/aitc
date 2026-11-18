@@ -411,29 +411,29 @@ def write_env_file(root: Path, run_mode: str, bind_host: str,
 def bundle_wheels(root: Path, wheels_dir: Path, download: bool) -> dict:
     """把离线依赖 wheel 一并打进发布包，目标机器可 --no-index 直接安装。"""
     step("4b/8 打包离线依赖")
+    requirements = REPO / "requirements.txt"
+    pip_download = [
+        sys.executable, "-m", "pip", "download", "-r", str(requirements),
+        "--only-binary=:all:", "--platform", "manylinux2014_x86_64",
+        "--python-version", "311", "--implementation", "cp", "--abi", "cp311",
+    ]
+    wheels_dir = wheels_dir.resolve()
     if download:
         wheels_dir.mkdir(parents=True, exist_ok=True)
-        run([
-            sys.executable, "-m", "pip", "download",
-            "-r", str(REPO / "requirements.txt"), "-d", str(wheels_dir),
-            "--only-binary=:all:", "--platform", "manylinux2014_x86_64",
-            "--python-version", "311", "--implementation", "cp", "--abi", "cp311",
-        ], cwd=REPO)
+        run(pip_download + ["-d", str(wheels_dir)], cwd=REPO)
     if not wheels_dir.is_dir():
         raise ReleaseError(
             "找不到离线依赖目录 %s；先执行 tools/release.py --download-wheels，"
             "或把 wheel 放进该目录" % wheels_dir
         )
-    wheels = sorted(wheels_dir.glob("*.whl"))
-    if not wheels:
-        raise ReleaseError("离线依赖目录没有 .whl：%s" % wheels_dir)
     dest = root / "offline_wheels"
     if dest.exists():
         shutil.rmtree(dest)
     dest.mkdir(parents=True)
-    for wheel in wheels:
-        shutil.copy2(wheel, dest / wheel.name)
-    shutil.copy2(REPO / "requirements.txt", dest / "requirements.txt")
+    # 从缓存解析当前清单，只打入目标环境实际依赖的 wheel。
+    run(pip_download + ["--no-index", "--find-links", str(wheels_dir), "-d", str(dest)], cwd=REPO)
+    shutil.copy2(requirements, dest / "requirements.txt")
+    wheels = list(dest.glob("*.whl"))
     size = sum(item.stat().st_size for item in dest.iterdir())
     log("  %d 个 wheel，%.1f MB" % (len(wheels), size / 1024 / 1024))
     return {"dir": "offline_wheels", "wheels": len(wheels), "bytes": size}
