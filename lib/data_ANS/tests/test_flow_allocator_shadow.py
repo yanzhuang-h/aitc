@@ -358,6 +358,23 @@ class FlowAllocatorShadowTests(unittest.TestCase):
                     saved = json.loads(Path(record["log_path"]).read_text())
                     self.assertEqual(saved["selected_schedule_source"], record["selected_schedule_source"])
 
+    def test_tongzhou_keeps_legacy_schedule_when_stage_quality_passes_without_flow(self):
+        start = 1794971100
+        for road in ("1700125", "1700062"):
+            config = {road: {"phase": {"3": "LR"}, "LaneNo": {"L": {"1": "1B"}}}}
+            stages = {t + 4: [{"CrossId": road, "curStageNo": "3", "time": t * 1000}]
+                      for t in range(start, start + 600)}
+            legacy = [41, 42, 43, 44, 21, 22, 23, 24, 0, 0]
+            with self.subTest(road=road), tempfile.TemporaryDirectory() as directory:
+                record = record_shadow_comparison(
+                    road, legacy, {}, stages, experience_table={}, cross_info=config,
+                    log_directory=directory, runtime_mode="new",
+                )
+                self.assertTrue(record["quality_passed"])
+                self.assertTrue(any(record["new_schedule"][:8]))
+                self.assertEqual(record["selected_schedule"], legacy)
+                self.assertEqual(record["selection_fallback_reason"], "runtime_flow_data_empty")
+
     def test_new_mode_can_select_nonzero_result_when_quality_is_false(self):
         short_extend = {
             float(timestamp): [{

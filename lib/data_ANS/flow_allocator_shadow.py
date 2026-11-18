@@ -222,9 +222,12 @@ def _new_schedule_rejection_reason(record, old_vector):
         for value in new_vector
     ):
         return "invalid_new_schedule_value"
-    # 通州19/49组只采用通过输入质量检查的候选；其他历史路口暂不迁移此规则。
-    if record.get("road_group") in {"19", "49"} and not record.get("quality_passed"):
-        return "runtime_input_quality_not_passed"
+    # 阶段窗口正常且有过车记录时，通州 19/49 组才采用新配时候选。
+    if record.get("road_group") in {"19", "49"}:
+        if not record["quality_passed"]:
+            return "runtime_input_quality_not_passed"
+        if not any(record["flow_input"]["base_direction_vehicle_counts"].values()):
+            return "runtime_flow_data_empty"
     if record.get("positive_flow_zero_directions"):
         return "positive_flow_direction_has_zero_time"
     if any(value > 0 for value in old_vector[:8]) and not any(
