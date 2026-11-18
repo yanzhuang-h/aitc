@@ -1,4 +1,6 @@
 import ast
+from contextlib import redirect_stderr
+from io import StringIO
 import importlib.util
 import json
 import shutil
@@ -73,19 +75,26 @@ class OnboardIntersectionTest(unittest.TestCase):
             self.root / "lib" / "data_ANS" / "experience_runtime.py",
         )
         self.cross_info = self.root / "cross_info.json"
-        self.cross_info.write_text(
-            json.dumps({"999999": {"jtll_ddbh": {"100009": "U", "100010": "D"}}}),
-            encoding="utf-8",
-        )
+        self.cross_info.write_text(json.dumps({"999999": {
+            "jtll_ddbh": {"100009": "U", "100010": "D"},
+            "phase": {"1": "UD"},
+            "LaneNo": {"U": {"1": "1B"}, "D": {"1": "1B"}},
+            "Cycle": [[1]],
+        }}), encoding="utf-8")
+        self.road_info = self.root / "lib" / "road_info.json"
+        self.program = {"phase": ["UD"], "min_pass_time": [15], "max_pass_time": [90]}
+        self.road_info.write_text(json.dumps({"999999": {"1": self.program, "3": self.program}}),
+                                  encoding="utf-8")
         self.addCleanup(self.tmp.cleanup)
         self.tool = _load_tool()
 
-    def _apply(self):
-        self.tool.main([
+    def _apply(self, *args):
+        return self.tool.main([
             "--root", str(self.root),
             "--cross-info", str(self.cross_info),
             "--cross", "999999",
             "--apply",
+            *args,
         ])
 
     def test_onboard_adds_all_registries(self):
@@ -138,6 +147,53 @@ class OnboardIntersectionTest(unittest.TestCase):
         self._apply()
         second = (self.root / "Lambdas.py").read_text(encoding="utf-8-sig")
         self.assertEqual(first, second)
+
+
+    def test_invalid_config_fails_before_writing_any_registrations(self):
+        cases = [
+            ({}, (), "road_info.json"),
+            ({"999999": {"1": dict(self.program, min_pass_time=[95])}}, (), "conflicting phase bounds"),
+            ({"999999": {"1": self.program}}, ("--program-id", "2"), "默认方案 2"),
+        ]
+        for programs, flags, message in cases:
+            self.road_info.write_text(json.dumps(programs), encoding="utf-8")
+            before = {path: path.read_bytes() for path in self.root.rglob("*") if path.is_file()}
+            with self.subTest(message=message), redirect_stderr(StringIO()) as stderr:
+                with self.assertRaises(SystemExit) as failure:
+                    self._apply(*flags)
+            self.assertEqual(failure.exception.code, 2)
+            self.assertIn(message, stderr.getvalue())
+            self.assertEqual(before, {path: path.read_bytes() for path in self.root.rglob("*") if path.is_file()})
+
+    def test_rejects_cycle_with_undefined_stage(self):
+        crosses = json.loads(self.cross_info.read_text(encoding="utf-8"))
+        crosses["999999"]["Cycle"] = [[1, 2]]
+        self.cross_info.write_text(json.dumps(crosses), encoding="utf-8")
+        before = (self.root / "Lambdas.py").read_bytes()
+        with redirect_stderr(StringIO()) as stderr, self.assertRaises(SystemExit) as failure:
+            self._apply()
+        self.assertEqual(failure.exception.code, 2)
+        self.assertIn("未定义的阶段", stderr.getvalue())
+        self.assertEqual((self.root / "Lambdas.py").read_bytes(), before)
+
+    def test_rejects_conflicting_detector_before_writes(self):
+        mapping = _literal_of(self.root / "Lambdas.py", "location_to_intersection_lambda")
+        detector = next(iter(mapping))
+        cross_data = json.loads(self.cross_info.read_text(encoding="utf-8"))
+        cross_data["999999"]["jtll_ddbh"] = {str(detector): "U"}
+        self.cross_info.write_text(json.dumps(cross_data), encoding="utf-8")
+        before = {path: path.read_bytes() for path in self.root.rglob("*") if path.is_file()}
+        with redirect_stderr(StringIO()) as stderr, self.assertRaises(SystemExit) as failure:
+            self._apply()
+        self.assertEqual(failure.exception.code, 2)
+        self.assertIn(f"检测器 {detector}", stderr.getvalue())
+        self.assertEqual(before, {path: path.read_bytes() for path in self.root.rglob("*") if path.is_file()})
+
+    def test_reapply_preserves_the_selected_existing_default(self):
+        self.assertEqual(self._apply("--program-id", "3"), 0)
+        self.assertEqual(self._apply(), 0)
+        overrides = json.loads((self.root / "lib" / "plan_id_overrides.json").read_text(encoding="utf-8"))
+        self.assertEqual(overrides["999999"], 3)
 
 
 if __name__ == "__main__":
