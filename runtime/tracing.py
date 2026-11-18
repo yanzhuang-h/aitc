@@ -70,12 +70,15 @@ def emit_trace_record(logger, record, *, identity: str) -> None:
         sys.stderr.write(f"Decision trace logging failed trace_id={identity} type={type(error).__name__}\n")
 
 
-def emit_batch_input(logger, batch_id: str, **shared_input) -> None:
+def emit_batch_input(logger, batch_id: str, *, input_timebase=None, **shared_input) -> None:
     """在 worker 启动前记录一次全局上下文，路口记录通过 batch_id 关联。"""
-    emit_trace_record(logger, {
+    record = {
         "event": "aitc.decision_batch", "schema_version": 1,
         "batch_id": batch_id, "shared_input": shared_input,
-    }, identity=batch_id)
+    }
+    if input_timebase is not None:
+        record["input_timebase"] = input_timebase
+    emit_trace_record(logger, record, identity=batch_id)
 
 
 class TraceError(BaseModel):

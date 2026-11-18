@@ -24,6 +24,7 @@ from infra.logging import LoggingMixin, decision_batch_id, plan_fingerprint
 from lib.control_functions.types import IntersectionControlRequest
 from lib.road_groups import road_group
 from .tracing import DecisionTrace, emit_batch_input, trace_stage, trace_value
+from .input_diagnostics import summarize_input_timebases
 
 
 class PeriodicDecisionPipeline(LoggingMixin):
@@ -220,6 +221,10 @@ class PeriodicDecisionPipeline(LoggingMixin):
             logger = self.logger if self.logger is not None else logging.getLogger("aitc.decision.trace")
             batch_id = next(iter(traces.values())).batch_id
             emit_batch_input(logger, batch_id,
+                             input_timebase=summarize_input_timebases(
+                                 recent_data.get("flow_received"), recent_extend_data,
+                                 getattr(self.lambdas, "location_to_intersection_lambda", {}),
+                             ),
                              previous_coordinate=self.last_coordinate_set,
                              predicted_flow=current_flow_prediction,
                              predicted_queue=current_queue_prediction)

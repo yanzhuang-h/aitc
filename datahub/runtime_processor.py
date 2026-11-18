@@ -71,8 +71,10 @@ class RuntimeDataProcessor:
 
     def snapshot(self) -> dict[str, Any]:
         """按当前决策管线期望的形态返回运行窗口快照。"""
+        flow_records = self.cache.recent_legacy_tuples(DataKind.FLOW)
         return {
-            "flow": self.cache.recent_data(DataKind.FLOW),
+            "flow": [payload for _timestamp, payload in flow_records],
+            "flow_received": flow_records,
             "queue": self.cache.recent_data(DataKind.QUEUE),
             "stage": self.cache.recent_data(DataKind.STAGE),
             "extend": self.cache.recent_legacy_tuples(DataKind.EXTEND),
