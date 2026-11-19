@@ -244,7 +244,7 @@ class DecisionTracingIntegrationTest(unittest.TestCase):
             ):
                 pipeline.run_once()
             seen = records(pipeline.logger)
-            self.assertEqual(len(seen), 235)
+            self.assertEqual(len(seen), len(Lambdas.intersection_list))
             self.assertEqual({item["intersection_id"] for item in seen}, set(Lambdas.intersection_list))
             self.assertTrue(all(item["status"] == "published" for item in seen))
             batches = [json.loads(call.args[1]) for call in pipeline.logger.info.call_args_list

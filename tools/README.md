@@ -65,7 +65,7 @@
 .venv/bin/python tools/onboard_intersection.py --cross 999999 --apply
 ~~~
 
-- 保留本地登记步骤。脚本只更新数据源、设备映射、控制类别、平台相位策略和默认方案号，不再克隆路口配时函数。
+- 新路口只写入 `lib/plan_id_overrides.json` 的本地登记，服务启动时从 `cross_info` 和 `road_info` 推导数据源、设备映射和配时入口。
 - 新路口自动进入默认在线候选和经验积累范围；如部署显式限定了 AITC_FLOW_ALLOCATOR_PILOT_ROADS、AITC_EXPERIENCE_POOL_ROADS、AITC_EXPERIENCE_TABLE_UPDATE_ROADS，仍按现场白名单执行，需同步追加。
 - 不要求预先制作离线经验。上线起运行并积累经验；两周左右是业务预期，不是定时启用条件，经验发布仍遵守现有质量与样本门槛。
 - 检测器归属冲突、默认方案无效、阶段未定义或时长边界冲突会在写入前报错。周期与方案顺序待核对时，预览会明确提示。

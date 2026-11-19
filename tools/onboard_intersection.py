@@ -1,26 +1,8 @@
-"""新增路口自动配置工具。
-
-校验 cross_info、road_info 后，把新路口写入：
-  1. Lambdas.config_lambda 的所有数据源列表
-  2. Lambdas.intersection_list
-  3. Lambdas.location_to_intersection_lambda（摄像头/设备号 -> (路口, 方向)）
-  4. lib/DQN_Select.py 的 Cross_Video 字典
-  5. lib/intersection_strategy.py 的平台相位策略清单
-  6. lib/Global_intersection_coordinate.py 的 video_flow_road 集合
-  7. lib/plan_id_overrides.json 的平台默认方案号
-
-新增路口共用配时入口，试点和学习范围从策略清单自动包含，不克隆业务函数。
-
-用法：
-  python tools/onboard_intersection.py --cross 999999
-  python tools/onboard_intersection.py --cross 999999 --apply
-"""
+"""校验 cross_info 和 road_info，为新路口写入一条平台方案登记。"""
 
 from __future__ import annotations
 
 import argparse
-import ast
-import difflib
 import sys
 from pathlib import Path
 
@@ -32,7 +14,9 @@ from lib._local_json_store import read_json_object, write_json_object
 from lib.control_functions.global_processors.phase_adapter import phase_bounds
 from lib.cross_info_functions import _normalize_cross_info
 from lib.data_ANS.phase_definitions import PHASE_DIRECTION_MAP
-from tools.control_config_audit import _cycle_equal
+from lib.intersection_strategy import PLATFORM_PHASE_ROAD_IDS
+from lib.platform_registration import platform_additions, registered_platform_programs
+from tools.control_config_audit import _cycle_equal, bindings
 
 
 def _load_cross_entries(path: Path, cross_ids: list[str]) -> dict[str, dict]:
@@ -61,7 +45,10 @@ def _validate_programs(cross_entries, road_info, overrides, program_id):
         programs = road_info.get(cross_id)
         if not isinstance(programs, dict) or not programs:
             raise ValueError(f"road_info.json 中缺少路口 {cross_id} 的方案")
-        default = program_id if program_id is not None else overrides.get(cross_id, min(programs))
+        existing = overrides.get(cross_id, min(programs))
+        if isinstance(existing, dict):
+            existing = existing["program_id"]
+        default = program_id if program_id is not None else existing
         try:
             default = int(default)
         except (TypeError, ValueError) as error:
@@ -93,178 +80,6 @@ def _validate_programs(cross_entries, road_info, overrides, program_id):
     return selected, warnings
 
 
-def _find_assign(tree: ast.Module, name: str) -> ast.Assign:
-    for node in tree.body:
-        if isinstance(node, ast.Assign):
-            for target in node.targets:
-                if isinstance(target, ast.Name) and target.id == name:
-                    return node
-    raise ValueError(f"未找到赋值: {name}")
-
-
-def _container(assign: ast.Assign) -> ast.AST:
-    value = assign.value
-    if isinstance(value, ast.Call):
-        if isinstance(value.func, ast.Attribute):
-            return value.func.value
-        if isinstance(value.func, ast.Name) and value.args:
-            inner = value.args[0]
-            if isinstance(inner, (ast.Set, ast.List, ast.Tuple, ast.Dict)):
-                return inner
-    return value
-
-
-def _leading_indent(lines: list[str], lineno: int) -> str:
-    line = lines[lineno - 1]
-    return line[: len(line) - len(line.lstrip())]
-
-
-def _insert_lines(text: str, node: ast.AST, new_lines: list[str]) -> str:
-    lines = text.splitlines()
-    closing_index = node.end_lineno - 1
-    indent = _leading_indent(lines, closing_index)
-    if getattr(node, "elts", None):
-        indent = _leading_indent(lines, node.elts[0].lineno)
-    elif getattr(node, "keys", None):
-        indent = _leading_indent(lines, node.keys[0].lineno)
-    lines[closing_index:closing_index] = [indent + item for item in new_lines]
-    return "\n".join(lines) + ("\n" if text.endswith("\n") else "")
-
-
-def _literal(node: ast.AST):
-    return ast.literal_eval(node)
-
-
-def _insert_config_lambda(text: str, cross_ids: list[str]) -> tuple[str, list[str]]:
-    changes = []
-    for cross_id in cross_ids:
-        tree = ast.parse(text)
-        assign = _find_assign(tree, "config_lambda")
-        keys = [key.value for key in _container(assign).keys]
-        for index, key in enumerate(keys):
-            # 每次插入后行号会变化，重新解析再定位
-            tree = ast.parse(text)
-            assign = _find_assign(tree, "config_lambda")
-            list_node = _container(assign).values[index]
-            current = {str(_literal(item)) for item in list_node.elts}
-            if cross_id in current:
-                continue
-            text = _insert_lines(text, list_node, [f"'{cross_id}',"])
-            changes.append(f"config_lambda[{key}] += {cross_id}")
-    return text, changes
-
-
-def _insert_intersection_list(text: str, cross_ids: list[str]) -> tuple[str, list[str]]:
-    changes = []
-    for cross_id in cross_ids:
-        tree = ast.parse(text)
-        assign = _find_assign(tree, "intersection_list")
-        node = _container(assign)
-        current = {str(_literal(item)) for item in node.elts}
-        if cross_id in current:
-            continue
-        text = _insert_lines(text, node, [f"'{cross_id}',"])
-        changes.append(f"intersection_list += {cross_id}")
-    return text, changes
-
-
-def _insert_location_map(text: str, entries: dict[str, dict]) -> tuple[str, list[str]]:
-    tree = ast.parse(text)
-    assign = _find_assign(tree, "location_to_intersection_lambda")
-    existing = ast.literal_eval(_container(assign))
-    aliases = ast.literal_eval(_container(_find_assign(tree, "aibi_to_xinkongji")))
-    changes = []
-    for cross_id, entry in entries.items():
-        lines = []
-        for location_id, direction in sorted(entry["jtll_ddbh"].items()):
-            detector_id = int(location_id)
-            if detector_id in existing:
-                owner, mapped_direction = existing[detector_id]
-                if (str(aliases.get(str(owner), owner)), mapped_direction) != (cross_id, direction):
-                    raise ValueError(f"检测器 {detector_id} 已映射至 {owner}/{mapped_direction}，"
-                                     f"与路口 {cross_id}/{direction} 冲突")
-                continue
-            existing[detector_id] = (cross_id, direction)
-            lines.append(f"{detector_id}: ('{cross_id}', '{direction}'),")
-        if not lines:
-            continue
-        text = _insert_lines(text, _container(assign), lines)
-        changes.append(f"location_to_intersection_lambda += {cross_id}")
-    return text, changes
-
-
-def _insert_cross_video(text: str, cross_ids: list[str]) -> tuple[str, list[str]]:
-    changes = []
-    for cross_id in cross_ids:
-        tree = ast.parse(text)
-        assign = _find_assign(tree, "Cross_Video")
-        node = _container(assign)
-        existing = {str(_literal(key)) for key in node.keys}
-        if cross_id in existing:
-            continue
-        text = _insert_lines(
-            text, node, [f"'{cross_id}': {{\"Cross_type\": \"Video\"}},"]
-        )
-        changes.append(f"Cross_Video += {cross_id}")
-    return text, changes
-
-
-def _insert_set(text: str, var_name: str, cross_ids: list[str]) -> tuple[str, list[str]]:
-    changes = []
-    for cross_id in cross_ids:
-        tree = ast.parse(text)
-        assign = _find_assign(tree, var_name)
-        node = _container(assign)
-        existing = {str(_literal(item)) for item in node.elts}
-        if cross_id in existing:
-            continue
-        text = _insert_lines(text, node, [f"{cross_id},"])
-        changes.append(f"{var_name} += {cross_id}")
-    return text, changes
-
-
-def _insert_str_set(text: str, var_name: str, cross_ids: list[str]) -> tuple[str, list[str]]:
-    changes = []
-    for cross_id in cross_ids:
-        tree = ast.parse(text)
-        assign = _find_assign(tree, var_name)
-        node = _container(assign)
-        existing = {str(_literal(item)) for item in node.elts}
-        if cross_id in existing:
-            continue
-        text = _insert_lines(text, node, [f"'{cross_id}',"])
-        changes.append(f"{var_name} += {cross_id}")
-    return text, changes
-
-
-def plan_edits(root: Path, cross_entries: dict[str, dict]) -> dict[str, tuple[str, list[str]]]:
-    cross_ids = sorted(cross_entries)
-
-    lambdas_path = root / "Lambdas.py"
-    lambdas_text = lambdas_path.read_text(encoding="utf-8-sig")
-    lambdas_text, c1 = _insert_config_lambda(lambdas_text, cross_ids)
-    lambdas_text, c2 = _insert_intersection_list(lambdas_text, cross_ids)
-    lambdas_text, c3 = _insert_location_map(lambdas_text, cross_entries)
-
-    dqn_path = root / "lib/DQN_Select.py"
-    dqn_text = dqn_path.read_text(encoding="utf-8-sig")
-    dqn_text, c4 = _insert_cross_video(dqn_text, cross_ids)
-    strategy_path = root / "lib/intersection_strategy.py"
-    strategy_text = strategy_path.read_text(encoding="utf-8-sig")
-    strategy_text, c5 = _insert_str_set(strategy_text, "PLATFORM_PHASE_ROAD_IDS", cross_ids)
-
-    coord_path = root / "lib/Global_intersection_coordinate.py"
-    coord_text = coord_path.read_text(encoding="utf-8-sig")
-    coord_text, c7 = _insert_set(coord_text, "video_flow_road", cross_ids)
-
-    return {
-        str(lambdas_path): (lambdas_text, c1 + c2 + c3),
-        str(dqn_path): (dqn_text, c4),
-        str(strategy_path): (strategy_text, c5),
-        str(coord_path): (coord_text, c7),
-    }
-
-
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="新增路口自动配置")
     parser.add_argument("--cross", action="append", required=True, help="新增路口 ID，可重复")
@@ -284,47 +99,46 @@ def main(argv=None) -> int:
     overrides_path = root / "lib" / "plan_id_overrides.json"
     try:
         cross_entries = _load_cross_entries(root / args.cross_info, args.cross)
+        crosses = read_json_object(root / "lib" / "cross_info.json")
+        road_info = read_json_object(root / "lib" / "road_info.json")
         overrides = read_json_object(overrides_path)
-        program_ids, warnings = _validate_programs(
-            cross_entries, read_json_object(root / "lib" / "road_info.json"), overrides, args.program_id,
+        program_ids, warnings = _validate_programs(cross_entries, road_info, overrides, args.program_id)
+        runtime = bindings(
+            root / "Lambdas.py",
+            {"intersection_list", "location_to_intersection_lambda", "aibi_to_xinkongji"},
         )
-        edits = plan_edits(root, cross_entries)
+        legacy_roads = set(runtime["intersection_list"]) - PLATFORM_PHASE_ROAD_IDS
+        if legacy_roads & program_ids.keys():
+            raise ValueError(f"已上线的旧路口应单独迁移配时策略: {sorted(legacy_roads & program_ids.keys())}")
+
+        if args.apply:
+            active = _load_cross_entries(root / "lib" / "cross_info.json", args.cross)
+            if active != cross_entries:
+                raise ValueError("--cross-info 与实际运行的 lib/cross_info.json 不一致，请先同步")
+        prospective = {**registered_platform_programs(overrides), **program_ids}
+        _, issues = platform_additions(
+            prospective, runtime["intersection_list"], {**crosses, **cross_entries},
+            road_info, runtime["location_to_intersection_lambda"], runtime["aibi_to_xinkongji"],
+        )
+        if issues:
+            raise ValueError("；".join(f"路口 {road} {problem}" for road, problem in issues.items()))
     except (OSError, ValueError) as error:
         parser.error(str(error))
+
     for warning in warnings:
         print(f"[核对] {warning}")
-    print(f"默认方案号：{program_ids}")
-
-    changed_files = 0
-    for path, (new_text, changes) in edits.items():
-        old_text = Path(path).read_text(encoding="utf-8-sig")
-        if not changes:
-            print(f"[skip] {path}: 无变化")
-            continue
-        changed_files += 1
-        print(f"[plan] {path}")
-        for item in changes:
-            print("  -", item)
-        if args.apply:
-            Path(path).write_text(new_text, encoding="utf-8")
-        else:
-            diff = difflib.unified_diff(
-                old_text.splitlines(), new_text.splitlines(),
-                fromfile=path, tofile=path + " (new)", lineterm="",
-            )
-            print("\n".join(list(diff)[:80]))
-
-    if args.apply and any(overrides.get(road) != state for road, state in program_ids.items()):
-        overrides.update(program_ids)
-        write_json_object(overrides_path, overrides)
-        print(f"方案号已写入 {overrides_path}")
-
-    if args.apply and changed_files:
-        print("已写入；请完成编译与回归后按 PR 流程提交。打包另行决定。")
-        print(
-            "提示：如目标部署设置了 AITC_FLOW_ALLOCATOR_PILOT_ROADS，"
-            "需要把新路口追加进该环境变量，否则在线学习分配器不会接管。"
-        )
+    updated = dict(overrides)
+    for road, program in sorted(program_ids.items()):
+        # 已上线的数字型配置只更新默认方案，新增路口使用显式接入登记。
+        updated[road] = program if road in runtime["intersection_list"] else {"program_id": program}
+        print(f"[登记] {road} 默认方案 {program}")
+    if updated == overrides:
+        print("登记无变化")
+    elif args.apply:
+        write_json_object(overrides_path, updated)
+        print(f"已写入 {overrides_path}，请按 PR 流程提交，登记在服务启动时读取。")
+    else:
+        print(f"预览 {overrides_path}，使用 --apply 写入")
     return 0
 
 

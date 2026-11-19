@@ -1,6 +1,8 @@
 
 import copy
 
+from lib.intersection_strategy import PLATFORM_ROAD_PROGRAMS
+
 config_lambda={
 	'flow': [
 	'1300069',
@@ -1786,15 +1788,6 @@ extend_map_lambda={
     "stageStartTime":0,
 }.copy()
 
-max_lengths_lambda = {
-    key:{
-        "L": [0, 0, 0, 0, 0, 0, 0],  
-        "R": [0, 0, 0, 0, 0, 0, 0],
-        "U": [0, 0, 0, 0, 0, 0, 0],
-        "D": [0, 0, 0, 0, 0, 0, 0]
-    } for key in intersection_list
-}.copy()
-
 location_to_intersection_lambda = {
 1: ('1300068', "L"), 2: ('1300068', "R"), 3: ('1300068', "D"), 4: ('1300068', "U"),  
 5: ('1300106', "D"), 6: ('1300106', "U"), 7: ('1300106', "L"),          
@@ -2067,17 +2060,51 @@ location_to_intersection_lambda = {
 
 
 
-map_lambda={
-    key:{} for key in intersection_list
-}.copy()
-
-
-
 aibi_to_xinkongji={
     '15':'1300782',
     '100001':'1300451',
     '100002':'1300454'
 }
+
+platform_added_roads = ()
+
+if PLATFORM_ROAD_PROGRAMS:
+    import logging
+    from app.paths import ROAD_INFO_PATH
+    from lib._local_json_store import read_json_object
+    from lib.cross_info_functions import CROSS_INFO_PATH
+    from lib.platform_registration import platform_additions
+
+    try:
+        additions, issues = platform_additions(
+            PLATFORM_ROAD_PROGRAMS, intersection_list, read_json_object(CROSS_INFO_PATH),
+            read_json_object(ROAD_INFO_PATH), location_to_intersection_lambda, aibi_to_xinkongji,
+        )
+    except (OSError, ValueError) as error:
+        logging.getLogger(__name__).warning("加载新路口配置失败: %s", error)
+    else:
+        for road, issue in issues.items():
+            logging.getLogger(__name__).warning("暂不接入平台路口 %s: %s", road, issue)
+        platform_added_roads = tuple(additions)
+        intersection_list.extend(platform_added_roads)
+        for roads in config_lambda.values():
+            roads.extend(road for road in platform_added_roads if road not in roads)
+        for mapping in additions.values():
+            location_to_intersection_lambda.update(mapping)
+
+max_lengths_lambda = {
+    key:{
+        "L": [0, 0, 0, 0, 0, 0, 0],
+        "R": [0, 0, 0, 0, 0, 0, 0],
+        "U": [0, 0, 0, 0, 0, 0, 0],
+        "D": [0, 0, 0, 0, 0, 0, 0]
+    } for key in intersection_list
+}.copy()
+
+map_lambda={
+    key:{} for key in intersection_list
+}.copy()
+
 intersection_flow_lambda={
     key:[0]*4 for key in intersection_list
 }.copy()
