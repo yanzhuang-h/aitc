@@ -1,4 +1,3 @@
-import copy
 import json
 import tempfile
 import unittest
@@ -118,15 +117,58 @@ class FloatingValueRulesTest(unittest.TestCase):
                 self.assertEqual(result["status"], "invalid")
                 self.assertIn(reason, result["reason"])
 
-    def test_invalid_record_keeps_previous_file_unchanged(self):
+    def test_invalid_batch_reports_each_record_and_keeps_previous_file(self):
         before = self.seed_existing_record()
-        invalid = copy.deepcopy(self.payload)
-        invalid["Change_id"] = "0"
-        with self.assertRaisesRegex(ValueError, "record at index 1"):
-            floating_value.replace_floating_value_records(
-                [self.payload, invalid], path=str(self.path),
-            )
+        plan = self.road_info["1700240"]["1"]
+        self.road_info["2706149"] = {"1": plan}
+        self.road_info["2703320"] = {"1": plan, "2": plan}
+        records = [
+            self.payload,
+            dict(self.payload, Cross_id="2706149", Change_id="0"),
+            {"Cross_id": "2706149"},
+            dict(self.payload, Cross_id="2703320", Change_id="0"),
+        ]
+        with self.assertRaises(ValueError) as captured:
+            floating_value.replace_floating_value_records(records, path=str(self.path))
+        reason = str(captured.exception)
+        self.assertIn("index 1: No phase rules for Cross_id 2706149, Change_id 0", reason)
+        self.assertIn("configured Change_id values: 1)", reason)
+        self.assertIn("index 2: missing required payload field: Change_id", reason)
+        self.assertIn("index 3: No phase rules for Cross_id 2703320, Change_id 0", reason)
+        self.assertIn("configured Change_id values: 1, 2)", reason)
         self.assertEqual(self.path.read_bytes(), before)
+
+    def test_round_normalizes_each_rule_once_and_preserves_last_matching_range(self):
+        records = [
+            self.payload,
+            dict(self.payload, time_during_start="17:20", phase_offsets=[10]),
+            dict(self.payload, Change_id="2", phase_offsets=[99]),
+            dict(self.payload, IS_work_day="no", phase_offsets=[99]),
+            dict(self.payload, Cross_id="2706149", phase_offsets=[-20, 10]),
+            {"Cross_id": "1700240"},
+        ]
+        self.path.write_text(json.dumps(records), encoding="utf-8")
+        action = [50, 50, 50] + [0] * 6 + [1]
+        actions = {"1700240": action, "2706149": action, "2703320": action}
+        with (
+            mock.patch.object(floating_value, "_workday_key", return_value="yes"),
+            mock.patch.object(floating_value, "_time_slot_key", return_value="17:30"),
+            mock.patch.object(floating_value, "_normalize_floating_update_payload",
+                              wraps=floating_value._normalize_floating_update_payload) as normalize,
+            self.assertLogs("lib.floating_value", level="INFO") as logs,
+        ):
+            adjusted, report = floating_value.apply_floating_value(
+                actions, current_time=0, path=str(self.path), return_report=True,
+            )
+        self.assertEqual(normalize.call_count, len(records))
+        self.assertEqual(adjusted["1700240"][:3], [60, 50, 50])
+        self.assertEqual(adjusted["2706149"][:3], [30, 60, 50])
+        self.assertEqual(adjusted["2703320"], action)
+        self.assertEqual(action[:3], [50, 50, 50])
+        self.assertEqual([change["intersection_id"] for change in report["modifications"]],
+                         ["1700240", "2706149"])
+        self.assertIn("matches={'road': 4, 'day': 3, 'program': 2, 'time': 2}",
+                      next(line for line in logs.output if "cross_id=1700240" in line))
 
     def test_nacos_repeats_same_error_periodically_and_recovers_when_plan_is_fixed(self):
         before = self.seed_existing_record()

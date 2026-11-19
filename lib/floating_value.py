@@ -282,10 +282,11 @@ def _check_floating_update_rules(normalized):
     plan_rules = intersection_rules.get(change_id)
     if not plan_rules:
         # 与正常配时保持一致：显式相位规则优先，缺失时读取当前方案的 road_info。
-        from phase_check import _road_info_plan_rules
+        from phase_check import _load_road_info_config, _road_info_plan_rules
 
         try:
-            plan_rules = _road_info_plan_rules(cross_id, change_id)
+            road_info = _load_road_info_config()
+            plan_rules = _road_info_plan_rules(cross_id, change_id, road_info=road_info)
         except (TypeError, ValueError) as error:
             issues.append(
                 f"Invalid road_info rules for Cross_id {cross_id}, "
@@ -293,12 +294,17 @@ def _check_floating_update_rules(normalized):
             )
             return {"passed": False, "issues": issues, "plan_rules": None}
 
-    if not plan_rules:
-        issues.append(
-            f"No phase rules for Cross_id {cross_id}, Change_id {change_id} "
-            "in phase rule config or road_info"
-        )
-        return {"passed": False, "issues": issues, "plan_rules": None}
+        if not plan_rules:
+            configured_plans = set(intersection_rules)
+            road_plans = road_info.get(cross_id)
+            if isinstance(road_plans, dict):
+                configured_plans.update(road_plans)
+            plan_ids = ", ".join(sorted(configured_plans)) or "none"
+            issues.append(
+                f"No phase rules for Cross_id {cross_id}, Change_id {change_id} "
+                f"in phase rule config or road_info (configured Change_id values: {plan_ids})"
+            )
+            return {"passed": False, "issues": issues, "plan_rules": None}
 
     for phase_index, offset in enumerate(offsets):
         if offset == 0:
@@ -342,23 +348,31 @@ def _check_floating_update_rules(normalized):
 
 
 def _validate_stored_records(data, check_rules=True):
-    """Reject malformed existing records before an update can rewrite the file."""
+    """Report the invalid records before an update can rewrite the file."""
     if not isinstance(data, list):
         raise ValueError("floating value file must contain an array of records")
 
+    issues = []
     for index, record in enumerate(data):
         try:
             normalized = _normalize_floating_update_payload(record)
         except (TypeError, ValueError) as error:
-            raise ValueError(f"invalid floating value record at index {index}: {error}")
+            issues.append(f"invalid floating value record at index {index}: {error}")
+            continue
 
         if check_rules:
             rule_check = _check_floating_update_rules(normalized)
             if not rule_check["passed"]:
-                raise ValueError(
+                issues.append(
                     f"invalid floating value record at index {index}: "
                     f"{'; '.join(rule_check['issues'])}"
                 )
+
+    if issues:
+        summary = " | ".join(issues[:10])
+        if len(issues) > 10:
+            summary += f" | {len(issues) - 10} more invalid records"
+        raise ValueError(summary)
 
 
 def validate_floating_value_update(
@@ -618,10 +632,15 @@ def apply_floating_value(action_map, current_time=None, path=FLOATING_VALUE_PATH
     if not floating_data:
         return (action_map, report) if return_report else action_map
 
-    workday_key = _workday_key(current_time)
-    time_slot_key = _time_slot_key(current_time)
-    report["workday"] = workday_key
-    report["time_slot"] = time_slot_key
+    workday_key = report["workday"]
+    time_slot_key = report["time_slot"]
+    records_by_road = {}
+    for record in floating_data:
+        try:
+            normalized = _normalize_floating_update_payload(record)
+        except (TypeError, ValueError):
+            continue
+        records_by_road.setdefault(normalized["cross_id"], []).append(normalized)
 
     adjusted_map = copy.deepcopy(action_map)
 
@@ -632,15 +651,9 @@ def apply_floating_value(action_map, current_time=None, path=FLOATING_VALUE_PATH
             continue
 
         offsets = None
-        matches = {"road": 0, "day": 0, "program": 0, "time": 0}
-        for record in floating_data:
-            try:
-                normalized = _normalize_floating_update_payload(record)
-            except (TypeError, ValueError):
-                continue
-            if normalized["cross_id"] != _normalize_key(intersection_id):
-                continue
-            matches["road"] += 1
+        road_records = records_by_road.get(_normalize_key(intersection_id), ())
+        matches = {"road": len(road_records), "day": 0, "program": 0, "time": 0}
+        for normalized in road_records:
             if normalized["day_key"] != workday_key:
                 continue
             matches["day"] += 1
