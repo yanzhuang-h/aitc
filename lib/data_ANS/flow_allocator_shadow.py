@@ -134,6 +134,10 @@ def _shadow_enabled():
     return str(value).strip().lower() not in {"0", "false", "no", "off"}
 
 
+def _road_ids(value):
+    return frozenset(road.strip() for road in value.split(",") if road.strip())
+
+
 def _configured_road_ids():
     configured = os.environ.get("AITC_FLOW_ALLOCATOR_PILOT_ROADS", "").strip()
     if not configured:
@@ -143,11 +147,7 @@ def _configured_road_ids():
         ).strip()
     if not configured:
         return None
-    return frozenset(
-        item.strip()
-        for item in configured.split(",")
-        if item.strip()
-    )
+    return _road_ids(configured)
 
 
 def _target_road_ids():
@@ -168,10 +168,10 @@ def _pilot_mode(road_id=None):
             mode,
         )
         return "legacy"
-    # 新接入的19组先记录对照，原有已接线路口继续使用其默认模式。
     if (mode == "new" and road_id in TONGZHOU_19
             and road_id not in DEFAULT_TARGET_ROAD_IDS and not uses_platform_phase_timing(road_id)):
-        return "shadow"
+        approved = _road_ids(os.environ.get("AITC_FLOW_ALLOCATOR_19_NEW_ROADS", ""))
+        return "new" if road_id in approved else "shadow"
     return mode
 
 
