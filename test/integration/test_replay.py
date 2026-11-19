@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 
+import Lambdas
 from test.fixtures.v2_acceptance import source_payloads
 from test.fixtures.v2_baseline_controller import FIXED_TIME
 
@@ -28,9 +29,10 @@ class ReplayIntegrationTest(unittest.TestCase):
             root = Path(directory)
             report = self.run_replay(root)
             self.assertTrue(report['outputs_equal'])
-            self.assertEqual(report['v2']['published_traces'], 470)
+            roads = len(Lambdas.intersection_list)
+            self.assertEqual(report['v2']['published_traces'], 2 * roads)
             self.assertEqual(report['v2']['model_metrics']['attempts'], 0)
-            self.assertTrue(all(round['result_count'] == 235 for round in report['v2']['rounds']))
+            self.assertTrue(all(round['result_count'] == roads for round in report['v2']['rounds']))
             self.assertTrue(all(round['window_counts']['flow'] == 0 for round in report['v2']['rounds']))
             self.assertFalse(report['v2']['servers_started'])
             self.assertEqual(report['v2']['ingested_records'], 2)

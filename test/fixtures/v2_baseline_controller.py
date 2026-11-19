@@ -86,15 +86,20 @@ def config_sources():
     )
     sources = {path: hashlib.sha256((ROOT / path).read_bytes()).hexdigest()
                for path in paths}
+    added = set(Lambdas.platform_added_roads)
+    original_roads = [road for road in Lambdas.intersection_list if road not in added]
+    for name in ("lib/cross_info.json", "lib/road_info.json"):
+        config = json.loads((ROOT / name).read_text(encoding="utf-8-sig"))
+        sources[name] = digest({road: row for road, row in config.items() if road not in added})
     schedules = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
-                 for cross_id in Lambdas.intersection_list
+                 for cross_id in original_roads
                  if (path := ROOT / f"time_schedule/schedule_json/Time_schedule_{cross_id}.json").exists()}
     sources["workday_schedules"] = {"count": len(schedules), "sha256": digest(schedules)}
     sources["intersection_order_and_groups"] = digest({
-        "order": Lambdas.intersection_list,
+        "order": original_roads,
         "internet": sorted(global_control.intern_road_id),
         "mixed": sorted(global_control.video_road),
-        "flow": sorted(global_control.video_flow_road),
+        "flow": sorted(global_control.video_flow_road - set(map(int, added))),
     })
     return sources
 
@@ -124,6 +129,15 @@ def isolated_runtime(now=FIXED_TIME, *, mode="legacy", fallback=False):
             module._cache_mtime = None
         shadow._JSON_CACHE.clear()
         with TemporaryDirectory(prefix="aitc-baseline-") as directory, ExitStack() as stack:
+            # Keep the frozen baseline scoped to its original intersections.
+            added = set(Lambdas.platform_added_roads)
+            stack.enter_context(patch.object(Lambdas, "intersection_list",
+                                             [road for road in Lambdas.intersection_list if road not in added]))
+            stack.enter_context(patch.object(global_control, "video_flow_road",
+                                             global_control.video_flow_road - set(map(int, added))))
+            stack.enter_context(patch.object(Lambdas, "map_lambda",
+                                             {road: value for road, value in Lambdas.map_lambda.items()
+                                              if road not in added}))
             environment = {
                 "AITC_FLOW_ALLOCATOR_PILOT_MODE": mode,
                 "AITC_FLOW_ALLOCATOR_PILOT_ROADS": "1300068",

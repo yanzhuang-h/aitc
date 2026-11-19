@@ -1,6 +1,7 @@
 from datetime import date
 import logging
 from functools import partial
+from Lambdas import platform_added_roads
 from lib.intersection_strategy import supports_online_experience_growth, uses_platform_phase_timing
 from lib.road_groups import TONGZHOU_19
 
@@ -129,6 +130,8 @@ Cross_Video = {
     '2706152': {"Cross_type": "Video"},
 }
 
+
+Cross_Video.update({road: {"Cross_type": "Video"} for road in platform_added_roads})
 
 Cross_Radar = {}
 

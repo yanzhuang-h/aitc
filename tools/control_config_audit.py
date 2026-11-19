@@ -7,9 +7,15 @@ import hashlib
 import json
 import math
 import os
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from lib.platform_registration import platform_additions, registered_platform_programs
+
 ENV_KEYS = {"AITC_FLOW_ALLOCATOR_PILOT_MODE", "AITC_FLOW_ALLOCATOR_PILOT_ROADS",
             "AITC_FLOW_ALLOCATOR_19_NEW_ROADS",
             "AITC_FLOW_ALLOCATOR_SHADOW_ROADS", "AITC_FLOW_ALLOCATOR_SHADOW_ENABLED",
@@ -217,6 +223,19 @@ def audit(root=ROOT, *, roads=None, group="all", environ=None):
     forced = _read_json(root/"lib/road_state.json", snapshot["lib/road_state.json"])
     overrides = _read_json(root/"lib/plan_id_overrides.json", snapshot["lib/plan_id_overrides.json"])
     video_registry = static("lib/DQN_Select.py", {"Cross_Video"})["Cross_Video"]
+    new_programs = registered_platform_programs(overrides)
+    platform_roads.update(new_programs)
+    additions, registration_issues = platform_additions(
+        new_programs, registered, cross_info, road_info,
+        runtime["location_to_intersection_lambda"], runtime["aibi_to_xinkongji"],
+    )
+    registry.extend(additions)
+    registered.update(additions)
+    for road, detectors in additions.items():
+        runtime["location_to_intersection_lambda"].update(detectors)
+        video_registry[road] = {"Cross_type": "Video"}
+    coordination["video_flow_road"].update(map(int, additions))
+    overrides.update(new_programs)
     functions, routes = _selectors(
         snapshot["lib/DQN_Select.py"], platform_roads, (old | platform_roads) & set(video_registry),
     )
@@ -242,6 +261,9 @@ def audit(root=ROOT, *, roads=None, group="all", environ=None):
     def issue(rid, code, message, *, severity="warning", state=None):
         findings.append({"road_id": rid, "group": batch(rid), "severity": severity,
                          "code": code, "state": state, "message": message})
+    for road, problem in registration_issues.items():
+        if road in selected_roads:
+            issue(road, "platform_registration_invalid", problem, severity="error")
     detector_owners = defaultdict(set)
     for rid, cross in cross_info.items():
         if rid in registered | old | new | platform_roads and isinstance(cross, dict):

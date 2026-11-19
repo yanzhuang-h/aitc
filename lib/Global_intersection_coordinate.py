@@ -1,3 +1,4 @@
+from Lambdas import platform_added_roads
 from lib.road_groups import road_group
 from infra.logging import decision_batch_id
 import logging
@@ -474,6 +475,7 @@ video_flow_road={
     2706150,
     2706152,
 }
+video_flow_road.update(map(int, platform_added_roads))
 
 ceshi_road={
 

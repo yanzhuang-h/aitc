@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 
+from lib.platform_registration import registered_platform_programs
 from lib.road_groups import TONGZHOU_19
 
 PLATFORM_PHASE_ROAD_IDS = frozenset({
@@ -70,12 +71,11 @@ def supports_online_experience_growth(road_id):
     return str(road_id) in TONGZHOU_19 or uses_platform_phase_timing(road_id)
 
 
-def program_id_override(road_id, default=None):
-    """选择器与发送器读取同一本地方案号配置。"""
+def _load_plan_overrides():
     try:
         stat = _PLAN_OVERRIDES_PATH.stat()
     except OSError:
-        return default
+        return {}
     signature = (str(_PLAN_OVERRIDES_PATH), stat.st_mtime_ns, stat.st_size)
     if signature != _PLAN_OVERRIDES_CACHE["signature"]:
         try:
@@ -84,7 +84,17 @@ def program_id_override(road_id, default=None):
             data = {}
         _PLAN_OVERRIDES_CACHE["data"] = data if isinstance(data, dict) else {}
         _PLAN_OVERRIDES_CACHE["signature"] = signature
-    return _PLAN_OVERRIDES_CACHE["data"].get(str(road_id), default)
+    return _PLAN_OVERRIDES_CACHE["data"]
+
+
+PLATFORM_ROAD_PROGRAMS = registered_platform_programs(_load_plan_overrides())
+PLATFORM_PHASE_ROAD_IDS |= frozenset(PLATFORM_ROAD_PROGRAMS)
+
+
+def program_id_override(road_id, default=None):
+    """读取现有方案号覆盖或单文件登记中的默认方案号。"""
+    entry = _load_plan_overrides().get(str(road_id), default)
+    return entry.get("program_id", default) if isinstance(entry, dict) else entry
 
 
 def resolve_output_program_id(road_id, program_id):

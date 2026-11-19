@@ -4,9 +4,10 @@ from io import StringIO
 import importlib.util
 import json
 import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
-from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,42 +40,13 @@ def _literal_of(path, name):
     raise AssertionError(f"{name} not found in {path}")
 
 
-SOURCE_FILES = (
-    "Lambdas.py",
-    "lib/DQN_Select.py",
-    "lib/intersection_strategy.py",
-    "lib/Global_intersection_coordinate.py",
-    "lib/data_ANS/flow_allocator_shadow.py",
-    "lib/data_ANS/experience_runtime.py",
-)
-SOURCE_AVAILABLE = all((ROOT / name).is_file() for name in SOURCE_FILES)
-
-
-@unittest.skipUnless(
-    SOURCE_AVAILABLE,
-    "源码已被 Cython 编译为 .so（发布包回归阶段跳过本测试）",
-)
 class OnboardIntersectionTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
-        (self.root / "lib" / "data_ANS").mkdir(parents=True)
+        (self.root / "lib").mkdir()
         shutil.copy(ROOT / "Lambdas.py", self.root / "Lambdas.py")
-        shutil.copy(ROOT / "lib" / "DQN_Select.py", self.root / "lib" / "DQN_Select.py")
-        shutil.copy(ROOT / "lib" / "intersection_strategy.py", self.root / "lib" / "intersection_strategy.py")
-        shutil.copy(
-            ROOT / "lib" / "Global_intersection_coordinate.py",
-            self.root / "lib" / "Global_intersection_coordinate.py",
-        )
-        shutil.copy(
-            ROOT / "lib" / "data_ANS" / "flow_allocator_shadow.py",
-            self.root / "lib" / "data_ANS" / "flow_allocator_shadow.py",
-        )
-        shutil.copy(
-            ROOT / "lib" / "data_ANS" / "experience_runtime.py",
-            self.root / "lib" / "data_ANS" / "experience_runtime.py",
-        )
-        self.cross_info = self.root / "cross_info.json"
+        self.cross_info = self.root / "lib" / "cross_info.json"
         self.cross_info.write_text(json.dumps({"999999": {
             "jtll_ddbh": {"100009": "U", "100010": "D"},
             "phase": {"1": "UD"},
@@ -97,57 +69,55 @@ class OnboardIntersectionTest(unittest.TestCase):
             *args,
         ])
 
-    def test_onboard_adds_all_registries(self):
-        self._apply()
+    def test_onboard_writes_one_registry_and_runtime_derives_all_mappings(self):
+        existing = {path: path.read_bytes() for path in self.root.rglob("*") if path.is_file()}
+        self.assertEqual(self._apply(), 0)
+        self.assertEqual(existing, {path: path.read_bytes() for path in existing})
+        registry = self.root / "lib" / "plan_id_overrides.json"
+        self.assertEqual(json.loads(registry.read_text()), {"999999": {"program_id": 1}})
 
-        config_lambda = _literal_of(self.root / "Lambdas.py", "config_lambda")
-        for key, values in config_lambda.items():
-            self.assertIn("999999", {str(item) for item in values}, key)
-            self.assertEqual(list(map(str, values)).count("999999"), 1, key)
+        probe = """
+from pathlib import Path
+import sys
+from unittest.mock import patch
+from app import paths
+from lib import cross_info_functions, intersection_strategy
+from lib._local_json_store import read_json_object
+from lib.platform_registration import registered_platform_programs
 
-        intersections = _literal_of(self.root / "Lambdas.py", "intersection_list")
-        self.assertIn("999999", {str(item) for item in intersections})
-
-        locations = _literal_of(
-            self.root / "Lambdas.py", "location_to_intersection_lambda"
-        )
-        self.assertEqual(locations[100009], ("999999", "U"))
-
-        cross_video = _literal_of(self.root / "lib" / "DQN_Select.py", "Cross_Video")
-        self.assertIn("999999", cross_video)
-
-        video_flow = _literal_of(
-            self.root / "lib" / "Global_intersection_coordinate.py", "video_flow_road"
-        )
-        self.assertIn(999999, video_flow)
-
-        strategy = _literal_of(self.root / "lib/intersection_strategy.py", "PLATFORM_PHASE_ROAD_IDS")
-        self.assertIn("999999", strategy)
-        from lib.data_ANS import flow_allocator_shadow as shadow
-        from lib.data_ANS import experience_runtime as runtime
-        with mock.patch.dict("os.environ", {}, clear=True), \
-                mock.patch.object(shadow, "PLATFORM_PHASE_ROAD_IDS", strategy), \
-                mock.patch.object(runtime, "PLATFORM_PHASE_ROAD_IDS", strategy):
-            self.assertIn("999999", shadow._target_road_ids())
-            self.assertIn("999999", runtime._configured_collection_roads())
-            self.assertIn("999999", runtime._configured_update_roads())
-        dqn_text = (self.root / "lib" / "DQN_Select.py").read_text(encoding="utf-8-sig")
-        self.assertNotIn("def DQN_select_999999(", dqn_text)
-        self.assertNotIn("cross_id == '999999'", dqn_text)
-        self.assertIn("return DQN_select_online(", dqn_text)
-
-        overrides = json.loads(
-            (self.root / "lib" / "plan_id_overrides.json").read_text(encoding="utf-8")
-        )
-        self.assertEqual(overrides["999999"], 1)
+directory = Path(sys.argv[1])
+registry = directory / "plan_id_overrides.json"
+programs = registered_platform_programs(read_json_object(registry))
+programs["888888"] = 1
+with patch.object(paths, "ROAD_INFO_PATH", directory / "road_info.json"), \\
+        patch.object(cross_info_functions, "CROSS_INFO_PATH", directory / "cross_info.json"), \\
+        patch.object(intersection_strategy, "_PLAN_OVERRIDES_PATH", registry), \\
+        patch.object(intersection_strategy, "PLATFORM_ROAD_PROGRAMS", programs), \\
+        patch.object(intersection_strategy, "PLATFORM_PHASE_ROAD_IDS", frozenset(programs)):
+    import Lambdas
+    from lib import DQN_Select, Global_intersection_coordinate
+    from lib.data_ANS import flow_allocator_shadow as shadow, experience_runtime as runtime
+    assert "999999" in Lambdas.intersection_list and "888888" not in Lambdas.intersection_list
+    assert all("999999" in values for values in Lambdas.config_lambda.values())
+    assert Lambdas.location_to_intersection_lambda[100009] == ("999999", "U")
+    assert "999999" in Lambdas.map_lambda and "999999" in Lambdas.max_lengths_lambda
+    assert "999999" in DQN_Select.Cross_Video and "888888" not in DQN_Select.Cross_Video
+    assert 999999 in Global_intersection_coordinate.video_flow_road
+    assert 888888 not in Global_intersection_coordinate.video_flow_road
+    assert intersection_strategy.program_id_override("999999") == 1
+    with patch.dict("os.environ", {}, clear=True):
+        assert "999999" in shadow._target_road_ids()
+        assert "999999" in runtime._configured_collection_roads()
+        assert "999999" in runtime._configured_update_roads()
+"""
+        subprocess.run([sys.executable, "-c", probe, str(self.root / "lib")], cwd=ROOT, check=True, timeout=30)
 
     def test_onboard_is_idempotent(self):
         self._apply()
-        first = (self.root / "Lambdas.py").read_text(encoding="utf-8-sig")
+        registry = self.root / "lib" / "plan_id_overrides.json"
+        first = registry.stat().st_mtime_ns
         self._apply()
-        second = (self.root / "Lambdas.py").read_text(encoding="utf-8-sig")
-        self.assertEqual(first, second)
-
+        self.assertEqual(first, registry.stat().st_mtime_ns)
 
     def test_invalid_config_fails_before_writing_any_registrations(self):
         cases = [
@@ -193,7 +163,7 @@ class OnboardIntersectionTest(unittest.TestCase):
         self.assertEqual(self._apply("--program-id", "3"), 0)
         self.assertEqual(self._apply(), 0)
         overrides = json.loads((self.root / "lib" / "plan_id_overrides.json").read_text(encoding="utf-8"))
-        self.assertEqual(overrides["999999"], 3)
+        self.assertEqual(overrides["999999"], {"program_id": 3})
 
 
 if __name__ == "__main__":
