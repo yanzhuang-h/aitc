@@ -11,6 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ENV_KEYS = {"AITC_FLOW_ALLOCATOR_PILOT_MODE", "AITC_FLOW_ALLOCATOR_PILOT_ROADS",
+            "AITC_FLOW_ALLOCATOR_19_NEW_ROADS",
             "AITC_FLOW_ALLOCATOR_SHADOW_ROADS", "AITC_FLOW_ALLOCATOR_SHADOW_ENABLED",
             "AITC_FLOW_ALLOCATOR_SHADOW_TABLE", "AITC_FLOW_ALLOCATOR_SHADOW_CROSS_INFO",
             "AITC_DATA_ROOT", "AITC_EXPERIENCE_RUNTIME_TABLE"}
@@ -230,6 +231,7 @@ def audit(root=ROOT, *, roads=None, group="all", environ=None):
         mode = "legacy"
     selected = env.get("AITC_FLOW_ALLOCATOR_PILOT_ROADS", "").strip() or env.get("AITC_FLOW_ALLOCATOR_SHADOW_ROADS", "").strip()
     default_pilots = set(pilot["DEFAULT_TARGET_ROAD_IDS"]) | platform_roads
+    approved_19 = old & {rid.strip() for rid in env.get("AITC_FLOW_ALLOCATOR_19_NEW_ROADS", "").split(",")}
     pilot_roads = {x.strip() for x in selected.split(",") if x.strip()} if selected else default_pilots | old
     enabled = env.get("AITC_FLOW_ALLOCATOR_SHADOW_ENABLED", "1").strip().lower() not in {"0", "false", "no", "off"}
     def batch(rid):
@@ -255,7 +257,7 @@ def audit(root=ROOT, *, roads=None, group="all", environ=None):
             _pilot_call_roads(functions[name], route.get("bound_cross_id"))
             for name in targets if name in functions))
         wired = rid in pilot_call_roads
-        road_mode = "shadow" if mode == "new" and rid in old - default_pilots else mode
+        road_mode = "shadow" if mode == "new" and rid in old - default_pilots - approved_19 else mode
         online_eligible = wired and rid in registered and rid in video_registry and rid in pilot_roads and enabled and road_mode == "new"
         legacy_lookup = bool({"chuli_shuju", "chuli_shuju3"} & set(calls))
         if route.get("shared_route"):

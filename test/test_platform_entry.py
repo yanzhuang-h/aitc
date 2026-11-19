@@ -110,6 +110,30 @@ class PlatformEntryTests(unittest.TestCase):
                 self.assertEqual(plan[9], 3)
                 self.assertEqual(plan[:2], [30,30])
 
+    def test_19_adoption_is_explicit_and_respects_global_mode_and_scope(self):
+        from lib.data_ANS import flow_allocator_shadow as shadow
+
+        road = "1700124"
+        with patch.dict("os.environ", {}, clear=True):
+            self.assertEqual(shadow._pilot_mode(road), "shadow")
+            self.assertEqual(shadow._pilot_mode("1700452"), "new")
+
+        enabled = {"AITC_FLOW_ALLOCATOR_19_NEW_ROADS": road}
+        with patch.dict("os.environ", enabled, clear=True):
+            self.assertEqual(shadow._pilot_mode(road), "new")
+            self.assertEqual(shadow._pilot_mode("1700067"), "shadow")
+
+        for mode in ("shadow", "legacy"):
+            with self.subTest(mode=mode), patch.dict(
+                "os.environ", {**enabled, "AITC_FLOW_ALLOCATOR_PILOT_MODE": mode}, clear=True,
+            ):
+                self.assertEqual(shadow._pilot_mode(road), mode)
+
+        with patch.dict("os.environ", {**enabled, "AITC_FLOW_ALLOCATOR_PILOT_ROADS": "1700452"}, clear=True):
+            with patch.object(shadow, "record_shadow_comparison") as compare:
+                self.assertEqual(shadow.select_pilot_schedule(road, [30] * 10, {}, {}), [30] * 10)
+                compare.assert_not_called()
+
     def test_explicit_pilot_and_learning_scopes_remain_authoritative(self):
         from lib.data_ANS import flow_allocator_shadow as shadow, experience_runtime as runtime
         env = {"AITC_FLOW_ALLOCATOR_PILOT_ROADS": "190",

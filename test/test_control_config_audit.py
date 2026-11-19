@@ -116,6 +116,8 @@ def DQN_select(cross_id):
         self.assertEqual(rows["190"]["selector_entry"], "shared_online_function")
         self.assertEqual(rows["190"]["configured_pilot_mode"], "shadow")
         self.assertTrue(rows["190"]["pilot_wired"])
+        approved = audit(self.root, roads={"190"}, environ={"AITC_FLOW_ALLOCATOR_19_NEW_ROADS": "190"})
+        self.assertEqual(approved["inventory"][0]["configured_pilot_mode"], "new")
         self.assertFalse(rows["190"]["online_candidate_eligible"])
         self.assertTrue(rows["190"]["legacy_experience_lookup"])
         self.assertFalse(rows["191"]["pilot_wired"])
