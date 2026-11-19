@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import threading
+from time import monotonic
 from urllib import error, parse, request
 
 from lib.floating_value import FLOATING_VALUE_PATH, replace_floating_value_records
@@ -26,6 +27,7 @@ from time_schedule.nacos_schedule_config import (
 
 
 LOGGER = logging.getLogger(__name__)
+REPEAT_ERROR_LOG_SECONDS = 300
 
 
 class NacosConfigSync:
@@ -118,15 +120,26 @@ class NacosConfigSync:
         return True
 
     def _run(self):
+        last_failure = None
+        last_logged = 0.0
         while not self._stop_event.is_set():
             try:
                 self.sync_once()
             except Exception as exc:
-                LOGGER.error(
-                    "Failed to synchronize %s configuration from Nacos: %s",
-                    self.config_name,
-                    exc,
-                )
+                failure = str(exc)
+                now = monotonic()
+                if failure != last_failure or now - last_logged >= REPEAT_ERROR_LOG_SECONDS:
+                    LOGGER.error(
+                        "Failed to synchronize %s configuration from Nacos: %s",
+                        self.config_name,
+                        failure,
+                    )
+                    last_failure = failure
+                    last_logged = now
+            else:
+                if last_failure is not None:
+                    LOGGER.info("Nacos %s configuration sync recovered", self.config_name)
+                    last_failure = None
             self._stop_event.wait(self.poll_interval)
 
     def _login(self):

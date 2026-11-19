@@ -8,7 +8,7 @@
 
 | 文件 | 内容 |
 | --- | --- |
-| AITC.log | 包含启动段、配置同步、配时和学习任务日志；若启动输出实际写入server.log，提供该运行日志 |
+| 版本目录下的 server.log | 包含启动、配置同步、完整配时决策和学习任务日志 |
 | 当天的 YYYY-MM-DD_send.txt | 实际发送日志 |
 | shadow/flow_time_allocator_YYYY-MM-DD.jsonl | 分配器诊断 |
 

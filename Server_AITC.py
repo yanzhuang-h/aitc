@@ -20,8 +20,10 @@ def setup_logging():
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
     formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s")
+    console = logging.StreamHandler()
+    console.addFilter(lambda record: not getattr(record, "aitc_decision_trace", False))
     handlers = (
-        logging.StreamHandler(),               # 控制台实时查看
+        console,
         logging.handlers.TimedRotatingFileHandler(  # 每日轮转文件
             "server.log", when="midnight", backupCount=7
         ),

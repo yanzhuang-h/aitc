@@ -36,7 +36,7 @@ last trace；每条记录在批次发布成功或失败后写出一次。
 2026-11-17起，生产管线将全局字段 previous_coordinate、predicted_flow 和 predicted_queue
 在 worker 启动前通过一条 event=aitc.decision_batch、schema_version=1 记录于 shared_input。
 每条路口记录用 input_context_batch_id 关联该批次，不再复制全局映射。批次记录与路口记录
-都在原 server.log 中，runtime.replay 的 decisions.jsonl 也同时保留两类事件；统计决策数量时仅筛选 aitc.decision。
+都写入 server.log，控制台仍输出运行状态、错误和回退提示。runtime.replay 的 decisions.jsonl 同时保留两类事件；统计决策数量时仅筛选 aitc.decision。
 当前路口记录 schema_version=2，历史完整内联记录为1。
 
 【19组及49组】input_detail=full，每轮完整保留路口窗口，可用批次 shared_input 与

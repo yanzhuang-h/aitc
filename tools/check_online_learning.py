@@ -65,7 +65,7 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="只读检查在线经验积累、发布与候选使用")
     parser.add_argument("--root", default=".", help="版本目录")
     parser.add_argument("--cross", action="append", help="指定路口，可重复")
-    parser.add_argument("--log", help="运行日志路径，默认查找AITC.log或server.log")
+    parser.add_argument("--log", help="运行日志路径，优先查找server.log，兼容旧版AITC.log")
     args = parser.parse_args(argv)
     root = Path(args.root).resolve()
     os.chdir(root)
@@ -142,7 +142,7 @@ def main(argv=None) -> int:
               f"flow={Path(paths['flow']).is_file()} extend={Path(paths['extend']).is_file()}"
               + (f" 未覆盖={','.join(uncovered)}" if uncovered else ""))
 
-    candidates = [root / "AITC.log", LOGS_DIR / "AITC.log", root / "server.log", LOGS_DIR / "server.log"]
+    candidates = [root / "server.log", LOGS_DIR / "server.log", root / "AITC.log", LOGS_DIR / "AITC.log"]
     log_path = root / args.log if args.log else next((path for path in candidates if path.is_file()), candidates[0])
     fallback = _fallback_stats(log_path)
     print(f"\n运行日志: {log_path}")

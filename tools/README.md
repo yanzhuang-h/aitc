@@ -43,7 +43,7 @@
 
 沿用原部署方式正常运行20—30分钟，本次不手动补训。打包回传运行当天：
 
-- 实际运行日志：AITC.log或server.log（按实际启动输出文件）。
+- 版本目录下的 server.log。
 - logs_data/send/日期_send.txt。
 - logs_data/shadow/flow_time_allocator_日期.jsonl。
 - logs_data/flow/日期_flow.txt。

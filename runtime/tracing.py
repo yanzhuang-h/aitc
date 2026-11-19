@@ -65,7 +65,7 @@ def emit_trace_record(logger, record, *, identity: str) -> None:
     """诊断写入失败只报告日志故障，不改变已计算的控制结果。"""
     try:
         content = json.dumps(trace_value(record), ensure_ascii=True, allow_nan=False, separators=(",", ":"))
-        logger.info("%s", content)
+        logger.info("%s", content, extra={"aitc_decision_trace": True})
     except Exception as error:
         sys.stderr.write(f"Decision trace logging failed trace_id={identity} type={type(error).__name__}\n")
 

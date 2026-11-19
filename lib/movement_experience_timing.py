@@ -72,14 +72,12 @@ def   chuli_shuju(road_id, flow_map_single_intersection, extend_map_single_inter
     zhuangtai_set=set()
 
     for x in extend_map_single_intersection:
-        print(extend_map_single_intersection[x],x,"asdsad",extend_map_single_intersection[x][0]['time'])
         zhuangtai_set.add(extend_map_single_intersection[x][0]['curStageNo'])
 
 
 
 
     for x in flow_map_single_intersection:
-        print(flow_map_single_intersection[x]['pass'],"asdsad")
         for d in ['U','D','L','R']:
             for i in range(len(flow_map_single_intersection[x]['pass'][d])):
                 liu[d][i]+= flow_map_single_intersection[x]['pass'][d][i]
@@ -198,7 +196,6 @@ def   chuli_shuju3(road_id, flow_map_single_intersection):
 
 
     for x in flow_map_single_intersection:
-        print(flow_map_single_intersection[x]['pass'],"asdsad")
         for d in ['U','D','L','R']:
             for i in range(len(flow_map_single_intersection[x]['pass'][d])):
                 liu[d][i]+= flow_map_single_intersection[x]['pass'][d][i]
