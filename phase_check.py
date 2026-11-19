@@ -144,9 +144,11 @@ def _load_road_info_config():
     return _ROAD_INFO_CACHE["data"]
 
 
-def _road_info_plan_rules(inter_id, plan_id):
+def _road_info_plan_rules(inter_id, plan_id, *, road_info=None):
     """用 road_info 的 min/max 兜底生成安全规则（Nacos 配置优先）。"""
-    states = _load_road_info_config().get(str(inter_id))
+    if road_info is None:
+        road_info = _load_road_info_config()
+    states = road_info.get(str(inter_id))
     if not isinstance(states, dict):
         return None
     state = states.get(str(plan_id))
