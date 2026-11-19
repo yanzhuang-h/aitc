@@ -125,8 +125,9 @@ def main(argv=None) -> int:
             print(f"  需要顺序重建的路口: {','.join(rebuild_roads)}")
         if missing_crosses:
             print(f"  跳过缺配置路口: {','.join(missing_crosses)}")
-        print(f"  status={status} candidates={report.get('candidate_count', 0)} "
-              f"table_updated={report.get('table_updated', False)}")
+        outcome = runtime._run_execution_summary(report)
+        print(f"  status={outcome.get('status', status)} candidates={report.get('candidate_count', 0)} "
+              f"table_updated={outcome.get('table_updated', False)}")
         print(f"  报告: {paths['run_manifest']}")
 
     if args.apply:

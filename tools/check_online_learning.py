@@ -115,9 +115,12 @@ def main(argv=None) -> int:
         group = road_group(cross_id) or "历史/其他"
         item = by_road.get(cross_id, {})
         last = item.get("last") or {}
+        flow_input = last.get("flow_input")
+        flow_points = flow_input.get("selected_timestamp_records", "-") if isinstance(flow_input, dict) else "-"
         print(f"【{group}组】{cross_id} 记录={item.get('count', 0)} "
               f"来源={last.get('selected_schedule_source', '-')} "
-              f"质量={last.get('quality_passed', '-')} "
+              f"阶段反馈达标={last.get('quality_passed', '-')} "
+              f"窗口内FLOW时间点数={flow_points} "
               f"原因={last.get('selection_fallback_reason') or '-'}")
         print(f"  范围: 候选={cross_id in target} 积累={cross_id in collection} 发布={cross_id in updates}；"
               f"读取表方向点数: { {direction: len(points) for direction, points in read_table.get(cross_id, {}).items()} }")

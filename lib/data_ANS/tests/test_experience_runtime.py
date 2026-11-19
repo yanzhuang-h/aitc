@@ -83,7 +83,10 @@ class ExperienceRuntimeTests(unittest.TestCase):
                         json.dumps({"AITC_SYS_TS": timestamp}) + "\n", encoding="utf-8",
                     )
             scheduler = ExperiencePoolScheduler(log_dir=logs)
-            with mock.patch.object(scheduler, "run_for_date", return_value={"status": "completed"}) as run_day:
+            with mock.patch.object(scheduler, "run_for_date", side_effect=(
+                {"status": "completed"},
+                {"status": "completed_table_updated", "table_updated": True, "report_reused": True},
+            )) as run_day:
                 report = scheduler.run_catchup(run_date)
             self.assertEqual(list(report), [f"2026-11-{day:02d}" for day in range(9, 19)])
             self.assertEqual(run_day.call_args_list, [
@@ -92,6 +95,12 @@ class ExperienceRuntimeTests(unittest.TestCase):
             ])
             self.assertEqual(report["2026-11-10"]["missing"], ["extend"])
             self.assertEqual(report["2026-11-17"]["incomplete"], ["flow", "extend"])
+            self.assertEqual(report["2026-11-18"], {
+                "status": "reused_existing_report",
+                "previous_status": "completed_table_updated",
+                "pool_committed": False,
+                "table_updated": False,
+            })
 
     def test_catchup_stops_after_failed_ready_day(self):
         scheduler = ExperiencePoolScheduler()
@@ -123,7 +132,7 @@ class ExperienceRuntimeTests(unittest.TestCase):
                 first = run_experience_pool_day("2099-01-01")
                 second = run_experience_pool_day("2099-01-01")
 
-            self.assertEqual(first, second)
+            self.assertEqual(second, {**first, "report_reused": True})
             self.assertEqual(first["status"], "skipped_missing_source_data")
             manifest = Path(directory) / "runs" / "2099-01-01.json"
             self.assertTrue(manifest.exists())
@@ -263,7 +272,18 @@ class ExperienceRuntimeTests(unittest.TestCase):
                     table_bytes = runtime_path.read_bytes()
                     pool_path = state_dir / "online_experience_samples.json"
                     pool_bytes = pool_path.read_bytes()
-                    self.assertEqual(run_experience_pool_day(source_date), report)
+                    day_report = state_dir / "runs" / f"{source_date}.json"
+                    report_bytes = day_report.read_bytes()
+                    logger = mock.Mock()
+                    reused = ExperiencePoolScheduler(logger=logger).run_for_date(source_date=source_date)
+                    self.assertEqual(reused, {**report, "report_reused": True})
+                    summary = json.loads(logger.info.call_args.args[1])
+                    self.assertEqual(summary["status"], "reused_existing_report")
+                    self.assertEqual(summary["previous_status"], report["status"])
+                    self.assertFalse(summary["pool_committed"])
+                    self.assertFalse(summary["table_updated"])
+                    self.assertEqual(summary["accumulation"], {})
+                    self.assertEqual(day_report.read_bytes(), report_bytes)
                     self.assertEqual(runtime_path.read_bytes(), table_bytes)
                     self.assertEqual(pool_path.read_bytes(), pool_bytes)
                 if missing_road:
@@ -532,14 +552,15 @@ class ExperienceRuntimeTests(unittest.TestCase):
                     self.assertEqual(old_table[road_already_ahead], before)
                     self.assertEqual(old_table[road_with_old_samples]["U"]["10"][1], 50)
                     self.assertNotIn(road_without_old_samples, old_table)
-                    self.assertEqual(run_experience_pool_day("2026-11-09", log_dir=logs), first)
+                    self.assertEqual(run_experience_pool_day("2026-11-09", log_dir=logs),
+                                     {**first, "report_reused": True})
                     self.assertEqual(normalize.call_count, 2)
 
                     run_experience_pool_day("2026-11-18", log_dir=logs)
                     self.assertIn(road_without_old_samples, json.loads(active.read_text()))
                     repeated = run_experience_pool_day("2026-11-09", log_dir=logs)
             self.assertEqual(normalize.call_count, 3)
-            self.assertEqual(first, repeated)
+            self.assertEqual(repeated, {**first, "report_reused": True})
 
     def test_invalid_nonempty_or_wrong_type_table_still_blocks_learning(self):
         for initial in ({"1": {}}, [], {"1": {"U": {"10": [-1] * 10}}}):
