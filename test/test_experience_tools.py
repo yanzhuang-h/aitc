@@ -165,12 +165,15 @@ class ExperienceToolsTests(unittest.TestCase):
         self.assertEqual(fallback["timetable"], 2)
 
     def test_diagnostic_checks_release_and_task_holes_even_without_shadow_log(self):
+        (self.root / "AITC.log").touch()
+        (self.root / "server.log").write_text('prefix {"fallback_source":"timetable"}\n')
         record = self.root / "state" / "runs" / "2026-11-16.json"
         record.parent.mkdir(parents=True)
         record.write_text('{"status":"completed_no_qualified_samples","target_road_ids":["1700240"]}')
         with patch.object(runtime, "run_experience_pool_day") as run:
             code, output = self.invoke(check, "--cross", "1700125")
         run.assert_not_called()
+        self.assertIn("fallback_source: timetable=1", output)
         self.assertEqual(code, 0)
         self.assertIn("pilot mode: legacy，目标路口数: 1", output)
         self.assertIn("最新文件: 未找到", output)

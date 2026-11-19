@@ -162,7 +162,7 @@ class DecisionTracingIntegrationTest(unittest.TestCase):
         selector = Mock(return_value=(list(PLAN), {}, [], {}))
         pipeline, logger = self.pipeline(selector=selector)
 
-        def log(template, *_args):
+        def log(template, *_args, **_kwargs):
             if template == "%s":
                 raise OSError("trace sink unavailable")
 

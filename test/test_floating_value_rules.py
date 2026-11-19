@@ -7,6 +7,7 @@ from unittest import mock
 
 import phase_check
 from lib import floating_value
+from lib.nacos_config_sync import NacosConfigSync
 
 
 class FloatingValueRulesTest(unittest.TestCase):
@@ -126,6 +127,37 @@ class FloatingValueRulesTest(unittest.TestCase):
                 [self.payload, invalid], path=str(self.path),
             )
         self.assertEqual(self.path.read_bytes(), before)
+
+    def test_nacos_repeats_same_error_periodically_and_recovers_when_plan_is_fixed(self):
+        before = self.seed_existing_record()
+        payload = dict(self.payload, Change_id="0")
+        sync = NacosConfigSync(path=str(self.path))
+        sync.password = "test"
+        poll_count = 0
+
+        def wait(_interval):
+            nonlocal poll_count
+            poll_count += 1
+            if poll_count == 3:
+                self.assertEqual(self.path.read_bytes(), before)
+                self.road_info["1700240"]["0"] = self.road_info["1700240"]["1"]
+            elif poll_count == 4:
+                sync._stop_event.set()
+
+        with (
+            mock.patch.object(sync, "_get_config", return_value={"content": json.dumps([payload])}) as load,
+            mock.patch.object(sync._stop_event, "wait", side_effect=wait),
+            mock.patch("lib.nacos_config_sync.monotonic", side_effect=[100, 105, 400]),
+            self.assertLogs("lib.nacos_config_sync", level="INFO") as captured,
+        ):
+            sync._run()
+
+        self.assertEqual(load.call_count, 4)
+        errors = [record for record in captured.records if record.levelname == "ERROR"]
+        self.assertEqual(len(errors), 2)
+        self.assertIn("Change_id 0", errors[0].getMessage())
+        self.assertIn("sync recovered", captured.output[-1])
+        self.assertEqual(json.loads(self.path.read_text()), [payload])
 
     def test_malformed_road_info_is_rejected_without_replacing_existing_records(self):
         before = self.seed_existing_record()
