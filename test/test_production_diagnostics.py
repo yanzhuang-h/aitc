@@ -29,29 +29,31 @@ def emitted(logger):
 
 
 class ProductionDiagnosticsTests(unittest.TestCase):
-    def test_server_keeps_full_decision_events_in_file_only(self):
-        logger = logging.Logger("server-test")
-        console = io.StringIO()
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "server.log"
-            handler = logging.handlers.TimedRotatingFileHandler(path, encoding="utf-8")
-            with (
-                closing(handler),
-                patch("Server_AITC.logging.getLogger", return_value=logger),
-                patch("Server_AITC.logging.handlers.TimedRotatingFileHandler", return_value=handler),
-                redirect_stderr(console),
-            ):
-                setup_logging()
-                emit_batch_input(logger, "batch", input_timebase={"flow": {"records": 14}})
-                DecisionTrace(batch_id="batch", intersection_id="1700125", control_policy="test").emit(logger)
-                logger.warning("runtime warning")
-            saved = path.read_text(encoding="utf-8")
-        self.assertIn('"event":"aitc.decision_batch"', saved)
-        self.assertIn('"event":"aitc.decision"', saved)
-        self.assertIn('"records":14', saved)
-        self.assertIn("runtime warning", saved)
-        self.assertNotIn('"event":"aitc.decision', console.getvalue())
-        self.assertIn("runtime warning", console.getvalue())
+    def test_server_writes_full_log_and_only_echoes_to_a_terminal(self):
+        for interactive in (False, True):
+            with self.subTest(interactive=interactive), tempfile.TemporaryDirectory() as directory:
+                logger = logging.Logger("server-test")
+                console = io.StringIO()
+                path = Path(directory) / "server.log"
+                handler = logging.handlers.TimedRotatingFileHandler(path, encoding="utf-8")
+                with (
+                    closing(handler),
+                    patch("Server_AITC.logging.getLogger", return_value=logger),
+                    patch("Server_AITC.logging.handlers.TimedRotatingFileHandler", return_value=handler),
+                    redirect_stderr(console),
+                    patch.object(console, "isatty", return_value=interactive),
+                ):
+                    setup_logging()
+                    emit_batch_input(logger, "batch", input_timebase={"flow": {"records": 14}})
+                    DecisionTrace(batch_id="batch", intersection_id="1700125", control_policy="test").emit(logger)
+                    logger.warning("runtime warning")
+                saved = path.read_text(encoding="utf-8")
+                self.assertIn('"event":"aitc.decision_batch"', saved)
+                self.assertIn('"event":"aitc.decision"', saved)
+                self.assertIn('"records":14', saved)
+                self.assertEqual(saved.count("runtime warning"), 1)
+                self.assertNotIn('"event":"aitc.decision', console.getvalue())
+                self.assertEqual("runtime warning" in console.getvalue(), interactive)
 
     def test_batch_context_reaches_workers_and_is_isolated_between_runs(self):
         def run(_):
