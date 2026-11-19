@@ -121,10 +121,10 @@ class TongzhouFlowTests(unittest.TestCase):
         self.assertEqual(plan[:3], [20,20,20])
         self.assertEqual(report["fallback"], "forced_program_minimums")
 
-    def test_formatter_preserves_selected_platform_program(self):
-        from runtime.result_formatter import _plan_id_for
-        self.assertEqual(_plan_id_for("1700267", 2), 2)
-        self.assertEqual(_plan_id_for("1700267", 0), 1)
+    def test_output_program_resolution_preserves_selected_platform_program(self):
+        from lib.intersection_strategy import resolve_output_program_id
+        self.assertEqual(resolve_output_program_id("1700267", 2), 2)
+        self.assertEqual(resolve_output_program_id("1700267", 0), 1)
 
     def test_forced_program_layout_survives_actual_payload_formatting(self):
         import Lambdas

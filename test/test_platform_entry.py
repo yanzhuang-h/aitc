@@ -10,7 +10,6 @@ from lib import intersection_strategy as strategy
 from lib.road_groups import TONGZHOU_19, TONGZHOU_49, road_group
 from lib.control_functions.global_processors.flow_control import process_flow_intersection
 from lib.control_functions.global_processors.finalization import finalize_plan_values
-from runtime.result_formatter import _plan_id_for
 
 
 def config(phases):
@@ -103,8 +102,8 @@ class PlatformEntryTests(unittest.TestCase):
                     with patch("lib.control_functions.global_processors.finalization.apply_floating_value",
                                return_value=(plans, {})):
                         plans, _ = finalize_plan_values(plans, road_info={road: states})
-                    self.assertEqual(_plan_id_for(road, plans[road][9]), int(forced))
-                self.assertEqual(_plan_id_for(road, 0), 3)
+                    self.assertEqual(strategy.resolve_output_program_id(road, plans[road][9]), int(forced))
+                self.assertEqual(strategy.resolve_output_program_id(road, 0), 3)
                 plan, report = process_flow_intersection(
                     road, [0]*10, states, 17, lambda rid, state: "9", lambda rid: {})
                 self.assertTrue(report["success"], report)

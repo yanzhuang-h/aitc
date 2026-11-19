@@ -85,3 +85,10 @@ def program_id_override(road_id, default=None):
         _PLAN_OVERRIDES_CACHE["data"] = data if isinstance(data, dict) else {}
         _PLAN_OVERRIDES_CACHE["signature"] = signature
     return _PLAN_OVERRIDES_CACHE["data"].get(str(road_id), default)
+
+
+def resolve_output_program_id(road_id, program_id):
+    """平台已选中的非零方案优先，其余沿用本地方案号映射。"""
+    if uses_platform_phase_timing(road_id) and type(program_id) is int and program_id > 0:
+        return program_id
+    return program_id_override(road_id, program_id)

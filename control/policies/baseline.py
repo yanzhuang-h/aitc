@@ -9,6 +9,7 @@ from control.schemas import SignalPlan
 from datahub.traffic_adapters import snapshot_to_legacy
 from datahub.traffic_schemas import TrafficSnapshot
 from lib.control_functions.types import IntersectionControlRequest
+from lib.intersection_strategy import program_id_override
 
 
 LegacySelection = tuple[Any, Any, Any, Any]
@@ -52,7 +53,12 @@ class BaselineController:
         from lib.AITC_tool import Get_time_map
 
         schedule = Get_time_map(intersection_id)
-        return copy.deepcopy(schedule.get(str(time.localtime(current_time).tm_hour))) if schedule else None
+        if not isinstance(schedule, dict):
+            return None
+        plan = schedule.get(str(time.localtime(current_time).tm_hour))
+        if not plan and program_id_override(intersection_id) is not None:
+            plan = next(iter(schedule.values()), None)
+        return copy.deepcopy(plan)
 
     def coordinate_legacy(
         self,

@@ -7,41 +7,6 @@ import random
 from typing import Any
 
 from app.core.models import DecisionResult
-from lib.intersection_strategy import uses_platform_phase_timing, program_id_override
-
-def _plan_id_for(intersection_id: str, default: Any) -> Any:
-    """真实平台方案号优先；零候选仍沿用本地对外方案号配置。"""
-    if uses_platform_phase_timing(intersection_id) and type(default) is int and default > 0:
-        return default
-    return program_id_override(intersection_id, default)
-
-
-def _empty_plan_timetable_fallback(intersection_id: str, result_to_send: list[Any]) -> list[Any]:
-    """已配置平台方案号的新路口，如果相位全零，用时刻表填充后再下发。"""
-    if any(value != 0 for value in result_to_send[:8]):
-        return result_to_send
-    if _plan_id_for(intersection_id, None) is None:
-        return result_to_send
-    try:
-        from datetime import datetime
-
-        from lib.AITC_tool import Get_time_map
-
-        schedule = Get_time_map(intersection_id)
-        if not isinstance(schedule, dict):
-            return result_to_send
-        vector = schedule.get(str(datetime.now().hour)) or next(iter(schedule.values()), None)
-        if vector is None:
-            return result_to_send
-        fallback = [int(value) for value in list(vector)[:10]]
-        while len(fallback) < 10:
-            fallback.append(0)
-        if any(fallback[:8]):
-            fallback[9] = result_to_send[9]
-            return fallback
-    except Exception:
-        return result_to_send
-    return result_to_send
 
 
 def format_result(
@@ -52,14 +17,13 @@ def format_result(
     *,
     lambdas_module: Any,
 ) -> dict[str, Any]:
-    """保持既有报文结构，将单路口决策格式化为发送结果。"""
-    result_to_send = _empty_plan_timetable_fallback(intersection_id, result_to_send)
+    """将已确认的方案号及阶段绿时转换为既有报文。"""
     payload = {
         "additional": {
             "tlLogic": {
                 "id": intersection_id,
                 "type": "NoType",
-                "programID": _plan_id_for(intersection_id, result_to_send[9]),
+                "programID": result_to_send[9],
                 "phase": build_phase(result_to_send),
             }
         },
