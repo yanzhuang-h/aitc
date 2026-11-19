@@ -104,6 +104,20 @@ class ExperienceToolsTests(unittest.TestCase):
         self.assertEqual(record.read_bytes(), original)
         self.assertIn("1700125", os.environ["AITC_EXPERIENCE_POOL_ROADS"].split(","))
 
+    def test_backfill_reports_reused_day_without_claiming_a_publication(self):
+        for previous_status, expected_exit in [("completed_table_updated", 0), ("skipped_missing_source_data", 1)]:
+            with self.subTest(previous_status=previous_status), patch.object(
+                runtime, "run_experience_pool_day", return_value={
+                    "status": previous_status,
+                    "report_reused": True,
+                    "table_updated": previous_status == "completed_table_updated",
+                },
+            ):
+                code, output = self.invoke(backfill, "--days", "1", "--roads", "19", "--apply")
+            self.assertEqual(code, expected_exit)
+            self.assertIn("status=reused_existing_report", output)
+            self.assertIn("table_updated=False", output)
+
     def test_existing_environment_overrides_dotenv_and_reports_different_read_table(self):
         os.environ["AITC_EXPERIENCE_RUNTIME_TABLE"] = "explicit.json"
         os.environ["AITC_FLOW_ALLOCATOR_SHADOW_TABLE"] = "comparison.json"
@@ -190,10 +204,14 @@ class ExperienceToolsTests(unittest.TestCase):
         folder.mkdir()
         folder.joinpath("flow_time_allocator_2026-11-16.jsonl").write_text(json.dumps({
             "road_id": "1700125", "experience_road_sha256": _canonical_hash(comparison["1700125"]),
+            "quality_passed": True, "flow_input": {"selected_timestamp_records": 0},
+            "selection_fallback_reason": "runtime_flow_data_empty",
         }))
         _code, output = self.invoke(check, "--cross", "1700125")
         self.assertIn("发布表与分配器读取路径不同", output)
         self.assertIn("最新日志经验指纹与当前读取文件一致: True", output)
+        self.assertIn("阶段反馈达标=True 窗口内FLOW时间点数=0", output)
+        self.assertIn("原因=runtime_flow_data_empty", output)
 
 
 if __name__ == "__main__":

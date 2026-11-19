@@ -387,7 +387,7 @@ def _run_experience_pool_day_unlocked(source_date, paths, *, release_settings=No
         missing_crosses=missing_crosses,
     )
     if terminal is not None:
-        return terminal
+        return {**terminal, "report_reused": True}
 
     rebuild_required_roads = []
     if target_roads and paths["full_pool"].is_file():
@@ -403,7 +403,7 @@ def _run_experience_pool_day_unlocked(source_date, paths, *, release_settings=No
                     missing_crosses=missing_crosses, rebuild_required_roads=rebuild_required_roads,
                 )
                 if terminal is not None:
-                    return terminal
+                    return {**terminal, "report_reused": True}
 
     source_date_text = source_date.isoformat()
     base_report = {
@@ -615,6 +615,18 @@ def run_experience_pool_day(source_date, *, release_settings=None, recheck=False
         )
 
 
+def _run_execution_summary(report):
+    """描述本次执行，历史报告只提供来源日的处理状态。"""
+    if report.get("report_reused"):
+        return {
+            "status": "reused_existing_report",
+            "previous_status": report["status"],
+            "pool_committed": False,
+            "table_updated": False,
+        }
+    return {key: report[key] for key in ("status", "pool_committed", "table_updated") if key in report}
+
+
 class ExperiencePoolScheduler:
     """Server-owned scheduler with an optional initial run and noon runs."""
 
@@ -695,8 +707,9 @@ class ExperiencePoolScheduler:
                 days[source_date.isoformat()] = {"status": "run_failed_or_busy"}
                 break
             days[source_date.isoformat()] = {
-                key: report[key] for key in ("status", "candidate_count", "rebuild_required_roads")
-                if key in report
+                **_run_execution_summary(report),
+                **{key: report[key] for key in ("candidate_count", "rebuild_required_roads")
+                   if key in report},
             }
         self.logger.info("experience_pool_catchup %s", json.dumps(days, separators=(",", ":")))
         return days
@@ -714,13 +727,13 @@ class ExperiencePoolScheduler:
             report = run_experience_pool_day(
                 source_date, release_settings=self.release_settings, log_dir=self.log_dir,
             )
-            pool = report.get("pool_summary", {})
+            pool = {} if report.get("report_reused") else report.get("pool_summary", {})
             self.logger.info("experience_pool_run %s", json.dumps({
+                **_run_execution_summary(report),
                 **{key: report[key] for key in (
-                    "source_date", "status", "missing_files", "missing_crosses",
+                    "source_date", "missing_files", "missing_crosses",
                     "triggered_at", "rebuild_required_roads", "observation_count",
-                    "candidate_count", "minimum_sample_count",
-                    "pool_committed", "table_updated", "artifacts") if key in report},
+                    "candidate_count", "minimum_sample_count", "artifacts") if key in report},
                 "accumulation": pool.get("accumulation", {}),
                 "blend": pool.get("blend", {}),
                 "days": {day: {
