@@ -10,6 +10,8 @@ from pathlib import Path
 # -*- coding: utf-8 -*-
 
 from app.paths import INTERSECTION_RESULT_CONFIG_PATH as INTERSECTION_CONFIG_PATH
+from lib.control_functions.global_processors.phase_adapter import phase_bounds
+from lib.intersection_strategy import uses_platform_phase_timing
 from lib.road_groups import road_group
 _config_lock = threading.RLock()
 LOGGER = logging.getLogger(__name__)
@@ -154,6 +156,10 @@ def _road_info_plan_rules(inter_id, plan_id, *, road_info=None):
     state = states.get(str(plan_id))
     if not isinstance(state, dict):
         return None
+    if uses_platform_phase_timing(inter_id):
+        _, minimums, maximums = phase_bounds(state)
+        return {str(i): [low, high] for i, (low, high) in enumerate(zip(minimums, maximums))}
+
     phases = state.get("phase") or []
     minimums = state.get("min_pass_time") or []
     maximums = state.get("max_pass_time") or []
@@ -207,12 +213,34 @@ def phase_check(current_result, *, config_snapshot=None):
         plan_rules = None
         if inter_id in config_snapshot:
             plan_rules = config_snapshot[inter_id].get(plan_id)
+        platform = uses_platform_phase_timing(inter_id)
+        try:
+            road_rules = _road_info_plan_rules(inter_id, plan_id) if platform or not plan_rules else None
+        except (KeyError, TypeError, ValueError):
+            if not platform:
+                raise
+            road_rules = None
+        if platform:
+            phase_count = len(road_rules or ())
+            if not phase_count:
+                res.update(check_status=2, msg="Missing or invalid platform program",
+                           issues=["invalid_platform_program_config"])
+            elif not all(phase_list[:phase_count]) or any(phase_list[phase_count:8]):
+                res.update(check_status=2, msg="Phase count differs from platform program",
+                           issues=["platform_phase_count_mismatch"])
+            if res["check_status"] == 2:
+                report[inter_id] = res
+                continue
+
         bounds_source = "intersection_result_config"
         if not plan_rules:
-            plan_rules = _road_info_plan_rules(inter_id, plan_id)
+            plan_rules = road_rules
             bounds_source = "road_info" if plan_rules else "missing"
             if plan_rules:
                 res["msg"] = "OK (road_info fallback)"
+        elif platform:
+            # 未单独配置的阶段沿用平台规则，Nacos 边界仍优先。
+            plan_rules = {**road_rules, **plan_rules}
 
         if road_group(inter_id) is not None:
             LOGGER.info(

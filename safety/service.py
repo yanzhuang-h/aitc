@@ -12,6 +12,7 @@ from typing import Any, Callable
 from pydantic import ValidationError
 
 from control.adapters import signal_plan_from_legacy, signal_plan_to_legacy
+from lib.intersection_strategy import resolve_output_program_id
 from .schemas import PlanSafetyResult
 
 
@@ -105,16 +106,22 @@ class ControlSafetyEngine:
         for road, raw_plan in plans.items():
             result, legacy_report, corrections = self._prepare(road, raw_plan, config)
             source, reason = None, None
-            if result.status == "invalid":
-                reason = list(result.issues)
-                fallback, report, changes = self._prepare(road, (fallback_plans or {}).get(road), config)
-                # 缺规则沿用已确认的兼容策略：保留旧候选并明确标记 partial。
-                if fallback.status in {"valid", "partial"}:
-                    result, legacy_report, corrections, source = fallback, report, changes, "baseline_candidate"
+            invalid = result.status == "invalid"
+            empty_with_program = result.status == "no_action" and resolve_output_program_id(road, None) is not None
+            if invalid or empty_with_program:
+                reason = list(result.issues) or ["empty_phase_plan"]
+                if invalid:
+                    fallback, report, changes = self._prepare(road, (fallback_plans or {}).get(road), config)
+                    # 沿用旧候选可回退到 partial 的兼容策略。
+                    if fallback.status in {"valid", "partial"}:
+                        result, legacy_report, corrections, source = fallback, report, changes, "baseline_candidate"
                 if source is None and self.fallback_loader is not None:
-                    fallback, report, changes = self._prepare(road, self.fallback_loader(road, now), config)
+                    timetable = self.fallback_loader(road, now)
+                    fallback, report, changes = self._prepare(road, timetable, config)
                     if fallback.status in {"valid", "partial"}:
                         result, legacy_report, corrections, source = fallback, report, changes, "timetable"
+                    elif timetable is not None:
+                        reason.extend(f"timetable:{issue}" for issue in fallback.issues)
                 if source is None:
                     # 复用旧 selector 的无动作标记；不是新造的全红或绿灯方案。
                     result = self.check(road, [0] * 10, config=config)
@@ -133,10 +140,21 @@ class ControlSafetyEngine:
 
     def _prepare(self, road: str, raw_plan: Any, config: dict):
         original = self.check(road, raw_plan, config=config)
+        if original.plan is not None and any(original.plan.phase_times) and "invalid_program_id" not in original.issues:
+            selected = original.plan.program_id
+            program = resolve_output_program_id(road, selected)
+            if type(program) is not type(selected) or program != selected:
+                plan = signal_plan_to_legacy(original.plan)
+                plan[9] = program
+                original = self.check(road, plan, config=config)
         # 只有单纯越界才允许沿用旧 phase_check 的确定性边界修正。
         correctable = original.status != "invalid" or all(issue.endswith("_out_of_bounds") for issue in original.issues)
         if not correctable:
             return original, {"check_status": 2, "msg": "Invalid signal plan", "modifications": []}, []
         checked, report = self.phase_check({road: signal_plan_to_legacy(original.plan)}, config_snapshot=config)
         result = self.check(road, checked.get(road), config=config)
-        return result, report[road], report[road]["modifications"]
+        phase_report = report[road]
+        if phase_report.get("issues"):
+            result = PlanSafetyResult(intersection_id=road, status="invalid", plan=result.plan,
+                                      issues=phase_report["issues"])
+        return result, phase_report, phase_report["modifications"]

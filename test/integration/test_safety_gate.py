@@ -3,11 +3,14 @@
 import copy
 import json
 import unittest
+from functools import partial
 from unittest.mock import Mock, patch
 
+import Lambdas
 from control.policies import BaselineController
 from safety.service import ControlSafetyEngine
 from phase_check import get_intersection_result_config, phase_check
+from runtime.result_formatter import format_result
 from test.fixtures.v2_baseline_controller import FIXTURE, compact_round, full_replay, isolated_runtime, sensor_request
 import test.test_decision_pipeline as pipeline_tests
 from test.test_model_gateway_integration import model_application
@@ -104,6 +107,39 @@ class SafetyGateIntegrationTest(unittest.TestCase):
             self.assertEqual(reports[request.cross_id]["fallback_source"], "timetable")
             self.assertTrue(reports[request.cross_id]["safe"])
             self.assertEqual(gate.check(request.cross_id, final[request.cross_id]).status, "valid")
+
+    def test_payload_uses_the_program_and_timings_checked_by_the_gate(self):
+        config = {ROAD: {"2": {"0": [50, 60], "1": [30, 45]}}}
+        candidate = [80, 10] + [0] * 8
+        invalid_timetable = [55, 0, 30] + [0] * 7
+        for selected, timetable, expected, source in (
+            (candidate, None, {"programID": 2, "phase": [{"duration": 60}, {"duration": 30}]}, None),
+            ([0] * 10, candidate, {"programID": 2, "phase": [{"duration": 60}, {"duration": 30}]}, "timetable"),
+            ([0] * 10, invalid_timetable, {"programID": 0, "phase": []}, "no_action"),
+        ):
+            with self.subTest(source=source):
+                loader = Mock(return_value=timetable)
+                gate = engine(config, fallback_loader=loader)
+                pipeline = self.pipeline(selector=lambda _: (selected, {}, [], {}), gate=gate)
+                pipeline.select_data_to_send = partial(format_result, lambdas_module=Lambdas)
+                with patch("lib.intersection_strategy.program_id_override", return_value=2):
+                    payload = pipeline.run_once()[0]["additional"]["tlLogic"]
+                self.assertEqual({key: payload[key] for key in expected}, expected)
+                report = pipeline.writer.phase_reports[0][ROAD]
+                self.assertEqual(report["fallback_source"], source)
+                self.assertEqual(report["safety_status"], "no_action" if source == "no_action" else "valid")
+                self.assertEqual(loader.call_count, int(source is not None))
+
+    def test_platform_fallback_requires_all_configured_phases(self):
+        road = "2703314"
+        controller = BaselineController()
+        gate = ControlSafetyEngine(config_supplier=get_intersection_result_config, phase_check=phase_check,
+                                   fallback_loader=controller.fallback_legacy, logger=Mock())
+        with isolated_runtime():
+            final, reports = gate.finalize({road: [0] * 10})
+        self.assertEqual(final[road], [0] * 10)
+        self.assertEqual(reports[road]["fallback_source"], "no_action")
+        self.assertIn("timetable:platform_phase_count_mismatch", reports[road]["fallback_reason"])
 
     def test_post_coordinate_bounds_are_clamped_before_publication(self):
         def coordinate(action, *_args):
