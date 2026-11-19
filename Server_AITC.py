@@ -7,12 +7,11 @@ main() 内完成三件事：配置日志、装配应用、接住 SIGINT 优雅�
 import logging
 import logging.handlers
 import signal
-
-from runtime import create_application
+import sys
 
 
 def setup_logging():
-    """根日志器：控制台输出 + server.log 每日轮转（保留 7 天）。
+    """运行日志写入每日轮转的 server.log，前台终端显示简要日志。
 
     挂在 root 上：其余模块的命名 logger 会把日志冒泡到 root，
     因此这里一次配置即全局生效。
@@ -20,14 +19,13 @@ def setup_logging():
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
     formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s")
-    console = logging.StreamHandler()
-    console.addFilter(lambda record: not getattr(record, "aitc_decision_trace", False))
-    handlers = (
-        console,
-        logging.handlers.TimedRotatingFileHandler(  # 每日轮转文件
-            "server.log", when="midnight", backupCount=7
-        ),
-    )
+    handlers = [logging.handlers.TimedRotatingFileHandler(
+        "server.log", when="midnight", backupCount=7, encoding="utf-8",
+    )]
+    if sys.stderr.isatty():
+        console = logging.StreamHandler()
+        console.addFilter(lambda record: not getattr(record, "aitc_decision_trace", False))
+        handlers.append(console)
     for handler in handlers:
         handler.setLevel(logging.INFO)
         handler.setFormatter(formatter)
@@ -38,6 +36,8 @@ def setup_logging():
 def main():
     """配置日志、装配应用并进入服务循环（由 TCP 监听阻塞）。"""
     logger = setup_logging()
+    from runtime import create_application
+
     # 装配完整应用（数据底座 + 决策管线 + Agent + 协议服务）
     application = create_application(logger)
 
@@ -52,4 +52,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        logging.getLogger(__name__).exception("AITC 服务异常退出")
+        raise SystemExit(1) from None
