@@ -349,12 +349,14 @@ def _existing_terminal_manifest(path, source_paths=(), *, target_road_ids=(),
         return None
     status = str(manifest.get("status", ""))
     if status.startswith("completed") or status == "skipped_chronological_rebuild":
-        completed_roads = manifest.get("pool_collection_road_ids", manifest.get("target_road_ids", []))
+        completed_roads = set(manifest.get("pool_collection_road_ids", manifest.get("target_road_ids", [])))
+        # 当时已完成采集的路口没有合格样本，后来日期入池后不应触发旧日重读。
         if ((completed_roads or status == "skipped_chronological_rebuild")
-                and set(target_road_ids).issubset(completed_roads)
+                and completed_roads.issuperset(target_road_ids)
                 and (missing_crosses is None or missing_crosses == manifest.get("missing_crosses", []))
                 and (rebuild_required_roads is None
-                     or rebuild_required_roads == manifest.get("rebuild_required_roads", []))):
+                     or set(rebuild_required_roads) - completed_roads
+                     == set(manifest.get("rebuild_required_roads", [])))):
             return manifest
         # 同日其他路口仍可补入；池内继续按日期、路口和样本去重。
         return None
