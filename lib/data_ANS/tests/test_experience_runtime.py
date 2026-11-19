@@ -477,7 +477,9 @@ class ExperienceRuntimeTests(unittest.TestCase):
                                  ["1700125", "1700240"])
 
     def test_late_source_isolated_to_roads_with_newer_pool_records(self):
-        roadmap = ("1700125", "1700240")
+        road_already_ahead, road_with_old_samples, road_without_old_samples = roads = (
+            "1700125", "1700240", "2703320",
+        )
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             logs = root / "logs"
@@ -489,7 +491,7 @@ class ExperienceRuntimeTests(unittest.TestCase):
             active, cross = root / "active.json", root / "cross.json"
             cross.write_text(json.dumps({
                 road: {"LaneNo": {"U": {"1": "1B"}}, "phase": {"1": "U"}, "Cycle": [[1]]}
-                for road in roadmap
+                for road in roads
             }), encoding="utf-8")
             environment = {
                 "AITC_EXPERIENCE_POOL_STATE_DIR": str(root / "state"),
@@ -506,31 +508,38 @@ class ExperienceRuntimeTests(unittest.TestCase):
                     "source_date": kwargs["source_date"], "source_window_start": kwargs["start_time"],
                     "quality_gate_passed": True, "capacity_lane_indexes": [1],
                     "candidate_observed_flow": [0, 50] + [0] * 8,
-                } for road in kwargs["target_cross_ids"]], {}
+                } for road in kwargs["target_cross_ids"]
+                    if kwargs["source_date"] != "2026-11-09" or road != road_without_old_samples], {}
 
             with (
                 mock.patch.dict(os.environ, environment),
                 mock.patch.object(RUNTIME, "normalize_raw_feedback", side_effect=observations) as normalize,
             ):
                 with mock.patch.dict(os.environ, {
-                    "AITC_EXPERIENCE_POOL_ROADS": roadmap[0],
-                    "AITC_EXPERIENCE_TABLE_UPDATE_ROADS": roadmap[0],
+                    "AITC_EXPERIENCE_POOL_ROADS": road_already_ahead,
+                    "AITC_EXPERIENCE_TABLE_UPDATE_ROADS": road_already_ahead,
                 }):
                     run_experience_pool_day("2026-11-18", log_dir=logs)
-                before = json.loads(active.read_text())[roadmap[0]]
+                before = json.loads(active.read_text())[road_already_ahead]
                 with mock.patch.dict(os.environ, {
-                    "AITC_EXPERIENCE_POOL_ROADS": ",".join(roadmap),
-                    "AITC_EXPERIENCE_TABLE_UPDATE_ROADS": ",".join(roadmap),
+                    "AITC_EXPERIENCE_POOL_ROADS": ",".join(roads),
+                    "AITC_EXPERIENCE_TABLE_UPDATE_ROADS": ",".join(roads),
                 }):
                     first = run_experience_pool_day("2026-11-09", log_dir=logs)
+                    self.assertEqual(first["rebuild_required_roads"], [road_already_ahead])
+                    self.assertEqual(first["target_road_ids"], [road_with_old_samples, road_without_old_samples])
+                    old_table = json.loads(active.read_text())
+                    self.assertEqual(old_table[road_already_ahead], before)
+                    self.assertEqual(old_table[road_with_old_samples]["U"]["10"][1], 50)
+                    self.assertNotIn(road_without_old_samples, old_table)
+                    self.assertEqual(run_experience_pool_day("2026-11-09", log_dir=logs), first)
+                    self.assertEqual(normalize.call_count, 2)
+
+                    run_experience_pool_day("2026-11-18", log_dir=logs)
+                    self.assertIn(road_without_old_samples, json.loads(active.read_text()))
                     repeated = run_experience_pool_day("2026-11-09", log_dir=logs)
-            table = json.loads(active.read_text())
-            self.assertEqual(normalize.call_count, 2)
+            self.assertEqual(normalize.call_count, 3)
             self.assertEqual(first, repeated)
-            self.assertEqual(first["rebuild_required_roads"], [roadmap[0]])
-            self.assertEqual(first["target_road_ids"], [roadmap[1]])
-            self.assertEqual(table[roadmap[0]], before)
-            self.assertEqual(table[roadmap[1]]["U"]["10"][1], 50)
 
     def test_invalid_nonempty_or_wrong_type_table_still_blocks_learning(self):
         for initial in ({"1": {}}, [], {"1": {"U": {"10": [-1] * 10}}}):
