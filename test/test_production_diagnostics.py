@@ -124,6 +124,29 @@ class ProductionDiagnosticsTests(unittest.TestCase):
         self.assertEqual(len(saved["experience_road_sha256"]), 64)
         self.assertEqual((cross, table, flow, extend), originals)
 
+    def test_registered_platform_road_records_batch_and_experience_in_summary(self):
+        road = "1700344"
+        cross = {road: {"phase": {"1": "U"}, "LaneNo": {"U": {"0": "1B"}},
+                        "jtll_ddbh": {"42": "U"}, "Cycle": [[1]]}}
+        table = {road: {"U": {"20": [25] + [0] * 9}}}
+        flow = {1000: {"pass": {"U": [12] + [0] * 6}}}
+        extend = {t: [{"CrossId": road, "curStageNo": "1"}] for t in range(1000, 1600)}
+        token = decision_batch_id.set("platform-batch")
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                record = record_shadow_comparison(
+                    road, [30] * 8 + [0, 0], flow, extend, experience_table=table,
+                    cross_info=cross, runtime_mode="new", log_directory=directory,
+                )
+                saved = json.loads(Path(record["log_path"]).read_text(encoding="utf-8"))
+        finally:
+            decision_batch_id.reset(token)
+        self.assertEqual(saved["status"], "ok")
+        self.assertEqual(saved["batch_id"], "platform-batch")
+        self.assertEqual(saved["raw_experience_point_counts"], {"U": 1})
+        self.assertEqual(len(saved["experience_road_sha256"]), 64)
+        self.assertNotIn("runtime_input", saved)
+
     def test_invalid_program_is_reported_without_diagnostic_code_raising(self):
         from lib.control_functions.global_processors.flow_control import process_flow_intersection
         result, report = process_flow_intersection(

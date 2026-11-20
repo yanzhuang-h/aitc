@@ -111,10 +111,26 @@ def _uses_changed_experience(candidate, current, previous):
     return False
 
 
-def _daily_evidence(day, roads, runtime, log_dir):
+def _daily_paths(day, runtime, log_dir, *, copied):
     paths = runtime._run_paths(day, log_dir=log_dir)
+    if copied:
+        for kind in ("flow", "extend"):
+            paths[kind] = _first_file(paths[kind], log_dir / f"{day}_{kind}.txt")
+        paths["run_manifest"] = _first_file(
+            log_dir / "experience_pool" / "runs" / f"{day}.json",
+            log_dir / "runs" / f"{day}.json",
+            log_dir / f"{day}.json",
+        )
+        paths["candidates"] = log_dir / "experience_pool" / "daily" / str(day) / "near_capacity_candidates.json"
+    return paths
+
+
+def _daily_evidence(day, roads, runtime, log_dir, *, copied=False):
+    paths = _daily_paths(day, runtime, log_dir, copied=copied)
     report = _read_json(paths["run_manifest"])
-    candidate_path = Path(report.get("artifacts", {}).get("candidates", paths["candidates"]))
+    candidate_path = paths["candidates"]
+    if not copied:
+        candidate_path = Path(report.get("artifacts", {}).get("candidates", candidate_path))
     candidates = _read_json(candidate_path).get("roads")
     covered = set(report.get("pool_collection_road_ids", report.get("target_road_ids", [])))
     return {
@@ -136,7 +152,9 @@ def _daily_evidence(day, roads, runtime, log_dir):
     }
 
 
-def _export_evidence(args, log_dir, directory, log_path, runtime, shadow, release, road_group):
+def _export_evidence(
+    args, log_dir, directory, log_path, runtime, shadow, release, road_group, *, copied=False,
+):
     from lib.data_ANS.experience_reader import runtime_experience_path
     from lib.data_ANS.experience_release import _canonical_hash
 
@@ -277,8 +295,10 @@ def _export_evidence(args, log_dir, directory, log_path, runtime, shadow, releas
         "sources": sources, "active_release_id": active.get("release_id"),
         "active_source_date": active.get("source_metadata", {}).get("source_date"),
         "active_manifest_matches_read_table": consistent,
-        "source_days": [_daily_evidence(last_day - dt.timedelta(days=offset), roads, runtime, log_dir)
-                        for offset in range(runtime.DEFAULT_CATCHUP_DAYS, 0, -1)],
+        "source_days": [
+            _daily_evidence(last_day - dt.timedelta(days=offset), roads, runtime, log_dir, copied=copied)
+            for offset in range(runtime.DEFAULT_CATCHUP_DAYS, 0, -1)
+        ],
         "roads": road_reports,
         "send_matching": "带批次号的记录按路口、批次和方案指纹关联，旧日志仅比较方案内容指纹",
         "signal_controller_execution": "需要现场执行记录",
@@ -314,13 +334,21 @@ def main(argv=None) -> int:
     from lib.road_groups import road_group
 
     log_dir = args.log_dir or Path(os.environ.get("AITC_RUNTIME_OUTPUT_DIR") or LOGS_DIR)
-    directory = (log_dir / "shadow" if args.log_dir else
-                 Path(os.environ.get("AITC_FLOW_ALLOCATOR_SHADOW_LOG_DIR") or LOGS_DIR / "shadow"))
-    candidates = [root / "server.log", log_dir / "server.log", root / "AITC.log", log_dir / "AITC.log"]
+    copied = args.log_dir is not None
+    if copied:
+        directory = log_dir / "shadow"
+        if not any(directory.glob("flow_time_allocator_*.jsonl")):
+            directory = log_dir
+        candidates = [log_dir / "server.log", log_dir / "AITC.log"]
+    else:
+        directory = Path(os.environ.get("AITC_FLOW_ALLOCATOR_SHADOW_LOG_DIR") or LOGS_DIR / "shadow")
+        candidates = [root / "server.log", log_dir / "server.log", root / "AITC.log", log_dir / "AITC.log"]
     log_path = root / args.log if args.log else _first_file(*candidates)
     release = ExperienceReleaseSettings()
     if export_path is not None:
-        report = _export_evidence(args, log_dir, directory, log_path, runtime, shadow, release, road_group)
+        report = _export_evidence(
+            args, log_dir, directory, log_path, runtime, shadow, release, road_group, copied=copied,
+        )
         with export_path.open("x", encoding="utf-8") as stream:
             json.dump(report, stream, ensure_ascii=False, indent=2)
             stream.write("\n")
@@ -377,8 +405,8 @@ def main(argv=None) -> int:
     print("\n最近7个完整日的积累记录（无日记录不等于未入池，不自动补跑）:")
     for offset in range(7, 0, -1):
         day = today - dt.timedelta(days=offset)
-        paths = runtime._run_paths(day, log_dir=log_dir)
-        report = _read_json(Path(paths["run_manifest"]))
+        paths = _daily_paths(day, runtime, log_dir, copied=copied)
+        report = _read_json(paths["run_manifest"])
         default_status = "未到日更源日期" if day > due_date else "无日任务记录"
         status = report.get("status", default_status)
         covered = set(report.get("pool_collection_road_ids", report.get("target_road_ids", [])))
