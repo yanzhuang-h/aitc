@@ -164,45 +164,9 @@ def _export_evidence(args, log_dir, directory, log_path, runtime, shadow, releas
         "current_release_row_seen_rounds": 0, "used_changed_experience_rounds": 0,
         "current_release_changed_road": (previous.get(road) != table.get(road)) if consistent and previous_known else None,
         "rejections": Counter(), "send_records": 0,
+        "sent_program_counts": Counter(), "empty_phase_send_records": 0,
     } for road in roads}
-    selected_batches = set()
     sources = {"decision_log_found": log_path.is_file(), "shadow_dates_found": [], "send_dates_found": []}
-    for day in days:
-        path = _first_file(directory / f"flow_time_allocator_{day}.jsonl",
-                           log_dir / f"flow_time_allocator_{day}.jsonl")
-        if path.is_file():
-            sources["shadow_dates_found"].append(str(day))
-        for item in _records(path, "road_id", roads):
-            stamp = _in_window(item.get("observed_at"), start, end)
-            if stamp is None:
-                continue
-            road = item["road_id"]
-            entry = road_reports[road]
-            entry["candidate_rounds"] += 1
-            rejected = item.get("selection_fallback_reason") or item.get("candidate_rejection_reason")
-            if rejected:
-                entry["rejections"][rejected] += 1
-            elif (item.get("runtime_mode") == "shadow" and item.get("status") == "ok"
-                  and item.get("quality_passed") is True and item.get("flow_input", {}).get("selected_timestamp_records", 0) > 0):
-                entry["shadow_passed_rounds"] += 1
-            selected = item.get("selected_schedule_source") == "new"
-            if selected:
-                entry["new_selected_rounds"] += 1
-                if item.get("batch_id"):
-                    selected_batches.add((road, item["batch_id"]))
-            if (consistent and created_at is not None and stamp >= created_at and road in fingerprints
-                    and item.get("experience_road_sha256") == fingerprints[road]):
-                entry["current_release_row_seen_rounds"] += 1
-                if (selected and entry["current_release_changed_road"]
-                        and _uses_changed_experience(item, table[road], previous.get(road, {}))):
-                    entry["used_changed_experience_rounds"] += 1
-
-    final_fingerprints = {
-        (item["intersection_id"], item["plan_sha256"])
-        for item in _records(log_path, "intersection_id", roads, marker=b'"aitc.decision"')
-        if (item.get("intersection_id"), item.get("batch_id")) in selected_batches
-        and item.get("status") == "published" and item.get("plan_sha256")
-    } if selected_batches else set()
     sent = {road: set() for road in roads}
     for day in days:
         path = _first_file(log_dir / "send" / f"{day}_send.txt", log_dir / f"{day}_send.txt")
@@ -215,21 +179,99 @@ def _export_evidence(args, log_dir, directory, log_path, runtime, shadow, releas
             if stamp is None or road not in road_reports:
                 continue
             fingerprint = item.get("AITC_PLAN_SHA256") or _canonical_hash(plan)
-            sent[road].add(fingerprint)
+            batch_id = item.get("AITC_DECISION_BATCH_ID")
+            sent[road].add((batch_id, fingerprint))
             entry = road_reports[road]
             entry["send_records"] += 1
+            program_id = plan.get("programID")
+            green_seconds = [phase.get("duration") for phase in plan.get("phase", [])]
+            if not green_seconds:
+                entry["empty_phase_send_records"] += 1
+            elif program_id is not None:
+                entry["sent_program_counts"][str(program_id)] += 1
             local_time = stamp.astimezone(_LOCAL_ZONE).isoformat()
             if "latest_send" not in entry or local_time >= entry["latest_send"]["at"]:
                 entry["latest_send"] = {
-                    "at": local_time, "program_id": plan.get("programID"),
-                    "green_seconds": [phase.get("duration") for phase in plan.get("phase", [])],
+                    "at": local_time, "program_id": program_id, "green_seconds": green_seconds,
+                    "batch_id": batch_id, "plan_sha256": fingerprint, "decision": None,
                     "logged_release_id": item.get("AITC_EXPERIENCE_PROVENANCE", {}).get("release_id"),
                 }
-    for road, hashes in sent.items():
-        road_reports[road]["distinct_sent_plans"] = len(hashes)
-        road_reports[road]["distinct_sent_plans_matching_final"] = sum(
-            (road, fingerprint) in final_fingerprints for fingerprint in hashes
-        )
+
+    latest_by_batch = {
+        (road, latest["batch_id"]): latest
+        for road, entry in road_reports.items()
+        if (latest := entry.get("latest_send")) and latest["batch_id"]
+    }
+    selected_batches = set()
+    latest_candidates = {}
+    for day in days:
+        path = _first_file(directory / f"flow_time_allocator_{day}.jsonl",
+                           log_dir / f"flow_time_allocator_{day}.jsonl")
+        if path.is_file():
+            sources["shadow_dates_found"].append(str(day))
+        for item in _records(path, "road_id", roads):
+            road = item["road_id"]
+            batch_key = (road, item.get("batch_id"))
+            rejected = item.get("selection_fallback_reason") or item.get("candidate_rejection_reason")
+            if batch_key in latest_by_batch:
+                latest_candidates[batch_key] = {
+                    "candidate_source": item.get("selected_schedule_source"),
+                    "candidate_rejection_reason": rejected,
+                }
+            stamp = _in_window(item.get("observed_at"), start, end)
+            if stamp is None:
+                continue
+            entry = road_reports[road]
+            entry["candidate_rounds"] += 1
+            if rejected:
+                entry["rejections"][rejected] += 1
+            elif (item.get("runtime_mode") == "shadow" and item.get("status") == "ok"
+                  and item.get("quality_passed") is True and item.get("flow_input", {}).get("selected_timestamp_records", 0) > 0):
+                entry["shadow_passed_rounds"] += 1
+            selected = item.get("selected_schedule_source") == "new"
+            if selected:
+                entry["new_selected_rounds"] += 1
+                if item.get("batch_id"):
+                    selected_batches.add(batch_key)
+            if (consistent and created_at is not None and stamp >= created_at and road in fingerprints
+                    and item.get("experience_road_sha256") == fingerprints[road]):
+                entry["current_release_row_seen_rounds"] += 1
+                if (selected and entry["current_release_changed_road"]
+                        and _uses_changed_experience(item, table[road], previous.get(road, {}))):
+                    entry["used_changed_experience_rounds"] += 1
+
+    matched = {road: set() for road in roads}
+    if selected_batches or latest_by_batch:
+        for item in _records(log_path, "intersection_id", roads, marker=b'"aitc.decision"'):
+            fingerprint = item.get("plan_sha256")
+            if item.get("status") != "published" or not fingerprint:
+                continue
+            road, batch_id = item["intersection_id"], item.get("batch_id")
+            batch_key = (road, batch_id)
+            if batch_key in selected_batches and (
+                (batch_id, fingerprint) in sent[road] or (None, fingerprint) in sent[road]
+            ):
+                matched[road].add(fingerprint)
+            latest = latest_by_batch.get(batch_key)
+            if latest is not None and latest["plan_sha256"] == fingerprint:
+                safety = item.get("safety_report") or {}
+                latest["decision"] = {
+                    **latest_candidates.get(batch_key, {}),
+                    "safety_status": safety.get("safety_status"),
+                    "safety_fallback_source": safety.get("fallback_source"),
+                    "safety_fallback_reason": safety.get("fallback_reason"),
+                }
+
+    if any(latest["decision"] is not None for latest in latest_by_batch.values()):
+        for item in _records(log_path, "cross_id", roads, marker=b"flow_control {"):
+            latest = latest_by_batch.get((item["cross_id"], item.get("batch_id")))
+            if latest is not None and latest["decision"] is not None:
+                latest["decision"]["coordinator_timing_source"] = item.get("timing_source")
+                latest["decision"]["coordinator_fallback"] = item.get("fallback")
+
+    for road, plans in sent.items():
+        road_reports[road]["distinct_sent_plans"] = len({fingerprint for _, fingerprint in plans})
+        road_reports[road]["distinct_sent_plans_matching_final"] = len(matched[road])
     return {
         "schema_version": 1, "start": start.isoformat(), "end_exclusive": end.isoformat(),
         "sources": sources, "active_release_id": active.get("release_id"),
@@ -238,7 +280,7 @@ def _export_evidence(args, log_dir, directory, log_path, runtime, shadow, releas
         "source_days": [_daily_evidence(last_day - dt.timedelta(days=offset), roads, runtime, log_dir)
                         for offset in range(runtime.DEFAULT_CATCHUP_DAYS, 0, -1)],
         "roads": road_reports,
-        "send_matching": "发送记录按发送日志统计，方案按内容指纹去重并匹配同一窗口内采用候选后的最终方案",
+        "send_matching": "带批次号的记录按路口、批次和方案指纹关联，旧日志仅比较方案内容指纹",
         "signal_controller_execution": "需要现场执行记录",
     }
 

@@ -18,6 +18,8 @@ class ResultSender:
         self,
         clients: list[socket.socket],
         results: list[dict[str, Any]],
+        *,
+        batch_id: str | None = None,
     ) -> list[socket.socket]:
         disconnected: list[socket.socket] = []
         sent_frames = 0
@@ -28,7 +30,8 @@ class ResultSender:
                     client_socket.sendall((json.dumps(result) + "\n").encode("utf-8"))
                     sent_frames += 1
                     if self.writer is not None:
-                        self.writer.write_send_result(result)
+                        record = result if batch_id is None else {**result, "AITC_DECISION_BATCH_ID": batch_id}
+                        self.writer.write_send_result(record)
             except (socket.error, BrokenPipeError):
                 disconnected.append(client_socket)
                 if self.logger is not None:

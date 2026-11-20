@@ -74,6 +74,7 @@ class ProductionDiagnosticsTests(unittest.TestCase):
             self.assertEqual(observed, [record["batch_id"]])
             self.assertEqual(record["formatted_plan"], results[0]["additional"]["tlLogic"])
             self.assertEqual(record["plan_sha256"], plan_fingerprint(record["formatted_plan"]))
+            self.assertEqual(pipeline.result_warehouse.snapshot_with_batch(), (results, record["batch_id"]))
             self.assertIsNone(decision_batch_id.get())
             return record["batch_id"]
         with ThreadPoolExecutor(max_workers=2) as pool:
@@ -161,9 +162,10 @@ class ProductionDiagnosticsTests(unittest.TestCase):
             writer = RuntimeDataWriter(FileRuntimeOutputStore(directory),
                                        experience_manifest_path=Path(directory)/"absent.json")
             sock = socket_fixtures._FakeSocket()
-            ResultSender(writer=writer).send_batch([sock],[payload])
+            ResultSender(writer=writer).send_batch([sock], [payload], batch_id="decision-batch")
             record = json.loads(next(Path(directory,"send").glob("*.txt")).read_text())
         self.assertEqual(record["AITC_PLAN_SHA256"], plan_fingerprint(payload["additional"]["tlLogic"]))
+        self.assertEqual(record["AITC_DECISION_BATCH_ID"], "decision-batch")
         self.assertEqual(json.loads(sock.sent[0]), original)
         self.assertEqual(payload,original)
         self.assertNotIn("AITC_PLAN_SHA256",payload)
