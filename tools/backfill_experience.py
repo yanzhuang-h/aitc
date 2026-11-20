@@ -1,4 +1,4 @@
-"""生产经验补训：默认处理过去七个完整日的19/49组flow、extend。
+"""生产经验补训默认处理在线学习范围内最近七个完整日的 FLOW 和 EXTEND。
 
 在版本目录执行：
   python tools/backfill_experience.py
@@ -59,7 +59,7 @@ def _road_ids(value, root):
 
 
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(description="按日期区间补跑经验池（默认过去7个完整日、19/49组）")
+    parser = argparse.ArgumentParser(description="按日期区间补跑在线经验池（默认最近7个完整日）")
     parser.add_argument("--root", default=".", help="版本目录，配置相对路径以此为基准")
     parser.add_argument("--start", type=dt.date.fromisoformat, help="起始日期 YYYY-MM-DD")
     parser.add_argument("--end", type=dt.date.fromisoformat, help="结束日期 YYYY-MM-DD")
