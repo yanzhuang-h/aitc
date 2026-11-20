@@ -291,9 +291,12 @@ def record_shadow_comparison(
         "observed_at": observed_at.isoformat(timespec="seconds"),
         "road_id": road_id,
         "road_group": road_group(road_id),
+        "batch_id": decision_batch_id.get(),
         "old_schedule": old_vector,
         "runtime_mode": str(runtime_mode),
     }
+    full_detail = record["road_group"] in {"19", "49"}
+    platform_timing = uses_platform_phase_timing(road_id)
 
     try:
         if experience_table is None:
@@ -322,23 +325,24 @@ def record_shadow_comparison(
             experience_table=experience_table,
             cross_info=cross_info,
             road_info=road_info,
-            zero_demand_fallback=uses_platform_phase_timing(road_id),
+            zero_demand_fallback=platform_timing,
         )
         new_vector = _schedule_vector(result["time_vector"])
         decisions = _decision_summary(result)
         runtime = result.get("runtime_input", {})
         if "stage_feedback_issue" in runtime:
             record["stage_feedback_issue"] = runtime["stage_feedback_issue"]
-        if road_group(road_id) in {"19", "49"}:
-            road_table = experience_table.get(road_id, {})
+        if full_detail:
             config = cross_info[road_id]
-            record["batch_id"] = decision_batch_id.get()
             record["runtime_input"] = runtime
             record["flow_10min_lane_vectors"] = result["flow_10min"]
             record["effective_cross_info"] = {
                 key: config[key] for key in ("phase", "LaneNo", "jtll_ddbh", "Cycle", "zhouqi")
                 if key in config
             }
+        if full_detail or platform_timing:
+            road_table = experience_table.get(road_id)
+            road_table = road_table if isinstance(road_table, dict) else {}
             record["experience_road_sha256"] = hashlib.sha256(json.dumps(
                 road_table, sort_keys=True, separators=(",", ":"),
             ).encode("utf-8")).hexdigest()

@@ -221,6 +221,43 @@ class ExperienceToolsTests(unittest.TestCase):
         self.assertIn("2026-11-15 无日任务记录", output)
         self.assertIn("未覆盖=1700125", output)
 
+    def test_returned_flat_logs_use_the_copied_server_and_daily_reports(self):
+        returned = self.root / "returned"
+        returned.mkdir()
+        (self.root / "server.log").write_text('{"fallback_source":"local"}\n')
+        (returned / "server.log").write_text('{"fallback_source":"returned"}\n')
+        (returned / "flow_time_allocator_2026-11-17.jsonl").write_text(
+            '{"road_id":"1700125","observed_at":"2026-11-17T00:01:00+08:00"}\n'
+        )
+        local_runs = self.root / "state" / "runs"
+        local_runs.mkdir(parents=True)
+        (local_runs / "2026-11-15.json").write_text('{"status":"local_report"}')
+        (returned / "2026-11-16.json").write_text(json.dumps({
+            "status": "completed_table_updated", "target_road_ids": ["1700125"],
+            "candidate_count": 7, "table_updated": True,
+        }))
+        _, end = runtime._source_day_bounds(dt.date(2026, 11, 16))
+        for kind in ("flow", "extend"):
+            (returned / f"2026-11-16_{kind}.txt").write_text(
+                json.dumps({"AITC_SYS_TS": end}) + "\n"
+            )
+
+        _, output = self.invoke(check, "--log-dir", str(returned), "--cross", "1700125")
+        self.assertIn("最新文件: flow_time_allocator_2026-11-17.jsonl", output)
+        self.assertIn("2026-11-16 completed_table_updated samples=7 published=True flow=True extend=True", output)
+        self.assertIn("fallback_source: returned=1", output)
+        self.assertNotIn("local_report", output)
+
+        export = self.root / "returned-evidence.json"
+        self.invoke(check, "--log-dir", str(returned), "--cross", "1700125",
+                    "--start", "2026-11-17 00:00", "--end", "2026-11-17 00:03", "--export", str(export))
+        report = json.loads(export.read_text(encoding="utf-8"))
+        days = {entry["source_date"]: entry for entry in report["source_days"]}
+        self.assertEqual(days["2026-11-15"]["status"], "no_report")
+        self.assertEqual(days["2026-11-16"]["source_pair"], {"status": "complete_tail"})
+        self.assertTrue(days["2026-11-16"]["table_updated"])
+        self.assertEqual(report["roads"]["1700125"]["candidate_rounds"], 1)
+
     def test_diagnostic_compares_latest_log_to_configured_read_table(self):
         comparison = {"1700125": {"U": {"20": [0, 40] + [0] * 8}}}
         self.root.joinpath("comparison.json").write_text(json.dumps(comparison))

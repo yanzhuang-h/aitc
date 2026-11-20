@@ -27,8 +27,8 @@ python tools/check_online_learning.py --cross 1700124 --cross 1700452 \
   --export aitc-evidence-1119.json
 ```
 
-回传 `aitc-evidence-1119.json`。脚本只读现有日志和经验文件，可在日志副本上加
-`--log-dir 目录` 运行。文件收到后可删除本次导出的 JSON。
+回传 `aitc-evidence-1119.json`。用 `--log-dir 目录` 可读取运维回传的日志与日更清单，支持平铺存放。
+如需另指定运行日志，可加 `--log 文件`。文件收到后可删除本次导出的 JSON。
 
 导出的 sent_program_counts 汇总实际发送的方案号，latest_send 列出最近一次发送的方案号和各阶段绿时。
 有决策批次时可追查候选来源、协调回退和安全回退。现场执行方案请核对实际下发开关和信号机记录。
