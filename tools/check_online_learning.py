@@ -338,9 +338,7 @@ def main(argv=None) -> int:
     cross_ids = args.cross or sorted(by_road)[:10]
     collection, updates = set(runtime._configured_collection_roads()), runtime._configured_update_roads()
 
-    published_path = runtime._configured_path(
-        "AITC_EXPERIENCE_RUNTIME_TABLE", runtime.DEFAULT_STATE_DIR / "online_experience.json",
-    )
+    published_path = runtime.published_experience_path()
     read_path = runtime_experience_path()
     published = _read_json(published_path)
     read_table = published if read_path == published_path else _read_json(read_path)

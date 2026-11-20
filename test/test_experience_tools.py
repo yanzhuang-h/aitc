@@ -13,6 +13,8 @@ from unittest.mock import patch
 
 from lib.data_ANS import experience_runtime as runtime
 from lib.data_ANS.experience_release import _canonical_hash
+from lib.intersection_strategy import PLATFORM_PHASE_ROAD_IDS
+from lib.road_groups import TONGZHOU_19, TONGZHOU_49
 from tools import backfill_experience as backfill
 from tools import check_online_learning as check
 from tools import run_experience_pool_now as single
@@ -61,7 +63,7 @@ class ExperienceToolsTests(unittest.TestCase):
             code = module.main(["--root", str(self.root), *args])
         return code, output.getvalue()
 
-    def test_default_week_preview_covers_19_and_49_without_running_or_writing(self):
+    def test_default_week_preview_covers_online_roads_without_running_or_writing(self):
         before = {str(path): path.read_bytes() for path in self.root.rglob("*") if path.is_file()}
         with patch.object(runtime, "run_experience_pool_day") as run, \
                 patch.object(runtime, "_run_paths", wraps=runtime._run_paths) as paths:
@@ -71,14 +73,37 @@ class ExperienceToolsTests(unittest.TestCase):
         self.assertEqual([str(call.args[0]) for call in paths.call_args_list],
                          [f"2026-11-{day:02d}" for day in range(10, 17)])
         roads = set(os.environ["AITC_EXPERIENCE_POOL_ROADS"].split(","))
-        self.assertIn("1700125", roads)
-        self.assertIn("1700240", roads)
+        self.assertEqual(roads, TONGZHOU_19 | PLATFORM_PHASE_ROAD_IDS)
         self.assertNotIn("1300068", roads)
+        self.assertIn(f"范围: 共{len(roads)}个", output)
+        other_platform = PLATFORM_PHASE_ROAD_IDS - TONGZHOU_19 - TONGZHOU_49
+        self.assertIn(f"其他平台路口{len(other_platform)}个", output)
         self.assertEqual(os.environ["AITC_EXPERIENCE_POOL_MIN_SAMPLES"], "30")
         self.assertIn(f"发布运行表: {self.root / 'published.json'}", output)
         self.assertIn(str(self.root / "versions" / "active_manifest.json"), output)
         after = {str(path): path.read_bytes() for path in self.root.rglob("*") if path.is_file()}
         self.assertEqual(after, before)
+
+    def test_preview_reports_automatic_source_pair_checks(self):
+        log_dir = self.root / "logs_data"
+        _, end_timestamp = runtime._source_day_bounds(dt.date(2026, 11, 16))
+        for kind in ("flow", "extend"):
+            directory = log_dir / kind
+            directory.mkdir(parents=True)
+            (directory / f"2026-11-16_{kind}.txt").write_text(
+                json.dumps({"AITC_SYS_TS": end_timestamp}) + "\n", encoding="utf-8",
+            )
+            (directory / f"2026-11-15_{kind}.txt").touch()
+        (log_dir / "flow" / "2026-11-13_flow.txt").mkdir()
+
+        with patch.object(runtime, "run_experience_pool_day") as run:
+            code, output = self.invoke(backfill, "--days", "4")
+        run.assert_not_called()
+        self.assertEqual(code, 0)
+        self.assertIn("[2026-11-13] 自动补跑预检=待收齐（EXTEND 缺文件、FLOW 无法读取）", output)
+        self.assertIn("[2026-11-14] 自动补跑预检=待收齐（FLOW/EXTEND 缺文件）", output)
+        self.assertIn("[2026-11-15] 自动补跑预检=待收齐（FLOW/EXTEND 未收齐）", output)
+        self.assertIn("[2026-11-16] 自动补跑预检=通过日末检查", output)
 
     def test_explicit_dates_and_road_scope_are_preserved(self):
         with patch.object(runtime, "run_experience_pool_day", return_value={"status": "completed"}) as run:
