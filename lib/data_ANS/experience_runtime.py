@@ -630,6 +630,19 @@ def _run_execution_summary(report):
     return {key: report[key] for key in ("status", "pool_committed", "table_updated") if key in report}
 
 
+_CATCHUP_PROGRESS_LABELS = {
+    "waiting_complete_source_pair": "待数据收齐",
+    "reused_existing_report": "复用已有日记录",
+    "completed_table_updated": "已发布经验表",
+    "completed_pool_updated_no_table_change": "已积累经验",
+    "completed_no_qualified_samples": "无达标样本",
+    "skipped_missing_source_data": "待数据收齐",
+    "skipped_chronological_rebuild": "待按日期重建",
+    "skipped_invalid_active_table": "经验表校验未通过",
+    "run_failed_or_busy": "任务失败或已在运行，本轮结束",
+}
+
+
 class ExperiencePoolScheduler:
     """Server-owned scheduler with an optional initial run and noon runs."""
 
@@ -692,28 +705,38 @@ class ExperiencePoolScheduler:
         except (TypeError, ValueError):
             return float(self._default_startup_delay)
 
-    def run_catchup(self, run_date=None):
+    def _log_catchup_progress(self, title, checked, detail):
+        bar = "#" * checked + "-" * (DEFAULT_CATCHUP_DAYS - checked)
+        self.logger.info("%s [%s] 已检查 %d/%d %s", title, bar, checked, DEFAULT_CATCHUP_DAYS, detail)
+
+    def run_catchup(self, run_date=None, *, startup=False):
         """同一任务串行补齐近期来源日，沿用日更去重和发布校验。"""
         run_date = run_date or dt.datetime.now().astimezone().date()
         last = self.source_date_for_run(run_date)
+        first = last - dt.timedelta(days=DEFAULT_CATCHUP_DAYS - 1)
+        title = "启动预热补训" if startup else "定时补训"
         days = {}
+        self._log_catchup_progress(title, 0, f"检查 {first} 至 {last} 的来源日")
         for offset in reversed(range(DEFAULT_CATCHUP_DAYS)):
             if self._stop_event.is_set():
+                self._log_catchup_progress(title, len(days), "服务停止，本轮结束")
                 break
             source_date = last - dt.timedelta(days=offset)
-            pending = _source_pair_status(_run_paths(source_date, log_dir=self.log_dir), source_date)
-            if pending is not None:
-                days[source_date.isoformat()] = pending
-                continue
-            report = self.run_for_date(source_date=source_date)
-            if report is None:
-                days[source_date.isoformat()] = {"status": "run_failed_or_busy"}
+            outcome = _source_pair_status(_run_paths(source_date, log_dir=self.log_dir), source_date)
+            if outcome is None:
+                report = self.run_for_date(source_date=source_date)
+                outcome = {"status": "run_failed_or_busy"} if report is None else {
+                    **_run_execution_summary(report),
+                    **{key: report[key] for key in ("candidate_count", "rebuild_required_roads")
+                       if key in report},
+                }
+            days[source_date.isoformat()] = outcome
+            status = outcome.get("status", "已检查")
+            self._log_catchup_progress(
+                title, len(days), f"{source_date} {_CATCHUP_PROGRESS_LABELS.get(status, status)}",
+            )
+            if status == "run_failed_or_busy":
                 break
-            days[source_date.isoformat()] = {
-                **_run_execution_summary(report),
-                **{key: report[key] for key in ("candidate_count", "rebuild_required_roads")
-                   if key in report},
-            }
         self.logger.info("experience_pool_catchup %s", json.dumps(days, separators=(",", ":")))
         return days
 
@@ -759,7 +782,7 @@ class ExperiencePoolScheduler:
         initial_delay = self.initial_delay_seconds()
         if initial_delay > 0:
             self.logger.info(
-                "Experience pool startup catchup scheduled in %.0f seconds",
+                "启动预热补训将在 %.0f 秒后开始",
                 initial_delay,
             )
             if self._stop_event.wait(initial_delay):
@@ -771,7 +794,7 @@ class ExperiencePoolScheduler:
             if test_source_date:
                 self.run_for_date(source_date=test_source_date)
             else:
-                self.run_catchup()
+                self.run_catchup(startup=True)
 
         while not self._stop_event.is_set():
             wait_seconds = self.seconds_until_next_daily_run()

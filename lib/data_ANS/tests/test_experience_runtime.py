@@ -64,7 +64,7 @@ class ExperienceRuntimeTests(unittest.TestCase):
         ):
             scheduler._run_loop()
         self.assertEqual(wait.call_args_list[0].args, (300,))
-        self.assertEqual(catchup.call_count, 2)
+        self.assertEqual(catchup.call_args_list, [mock.call(startup=True), mock.call()])
 
     def test_catchup_pairs_the_last_ten_days_and_skips_partial_sources(self):
         run_date = dt.date(2026, 11, 19)
@@ -83,11 +83,20 @@ class ExperienceRuntimeTests(unittest.TestCase):
                         json.dumps({"AITC_SYS_TS": timestamp}) + "\n", encoding="utf-8",
                     )
             scheduler = ExperiencePoolScheduler(log_dir=logs)
-            with mock.patch.object(scheduler, "run_for_date", side_effect=(
-                {"status": "completed"},
-                {"status": "completed_table_updated", "table_updated": True, "report_reused": True},
-            )) as run_day:
-                report = scheduler.run_catchup(run_date)
+            with (
+                self.assertLogs("ExperiencePoolRuntime", level="INFO") as captured,
+                mock.patch.object(scheduler, "run_for_date", side_effect=(
+                    {"status": "completed_table_updated", "table_updated": True},
+                    {"status": "completed_table_updated", "table_updated": True, "report_reused": True},
+                )) as run_day,
+            ):
+                report = scheduler.run_catchup(run_date, startup=True)
+            progress = [entry.getMessage() for entry in captured.records[:-1]]
+            self.assertEqual(len(progress), 11)
+            self.assertIn("启动预热补训 [----------] 已检查 0/10", progress[0])
+            self.assertIn("[#---------] 已检查 1/10 2026-11-09 已发布经验表", progress[1])
+            self.assertIn("[##--------] 已检查 2/10 2026-11-10 待数据收齐", progress[2])
+            self.assertIn("[##########] 已检查 10/10 2026-11-18 复用已有日记录", progress[-1])
             self.assertEqual(list(report), [f"2026-11-{day:02d}" for day in range(9, 19)])
             self.assertEqual(run_day.call_args_list, [
                 mock.call(source_date=dt.date(2026, 11, 9)),
@@ -105,10 +114,13 @@ class ExperienceRuntimeTests(unittest.TestCase):
     def test_catchup_stops_after_failed_ready_day(self):
         scheduler = ExperiencePoolScheduler()
         with (
+            self.assertLogs("ExperiencePoolRuntime", level="INFO") as captured,
             mock.patch.object(RUNTIME, "_source_pair_status", return_value=None),
             mock.patch.object(scheduler, "run_for_date", return_value=None) as run_day,
         ):
             report = scheduler.run_catchup(dt.date(2026, 11, 19))
+        self.assertIn("定时补训 [#---------] 已检查 1/10 2026-11-09 任务失败或已在运行，本轮结束",
+                      captured.records[-2].getMessage())
         run_day.assert_called_once_with(source_date=dt.date(2026, 11, 9))
         self.assertEqual(report, {"2026-11-09": {"status": "run_failed_or_busy"}})
 
