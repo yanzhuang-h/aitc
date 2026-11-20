@@ -90,29 +90,42 @@ def main(argv=None) -> int:
 
     from lib.data_ANS import experience_runtime as runtime
     from lib.data_ANS.experience_reader import runtime_experience_path
-    from lib.road_groups import road_group
+    from lib.intersection_strategy import PLATFORM_PHASE_ROAD_IDS
+    from lib.road_groups import TONGZHOU_19, TONGZHOU_49
 
-    table = runtime._configured_path(
-        "AITC_EXPERIENCE_RUNTIME_TABLE", runtime.DEFAULT_STATE_DIR / "online_experience.json",
-    )
+    table = runtime.published_experience_path()
+    read_table = runtime_experience_path()
+    selected = set(roads)
+    known_batches = TONGZHOU_19 | TONGZHOU_49
+    other_platform_roads = PLATFORM_PHASE_ROAD_IDS - known_batches
     print(f"路口: {','.join(roads)}")
-    print(f"范围: 19组{sum(road_group(road) == '19' for road in roads)}个，"
-          f"49组{sum(road_group(road) == '49' for road in roads)}个")
+    print(f"范围: 共{len(roads)}个，19组{len(selected & TONGZHOU_19)}个，"
+          f"49组{len(selected & TONGZHOU_49)}个，"
+          f"其他平台路口{len(selected & other_platform_roads)}个，"
+          f"其他路口{len(selected - known_batches - other_platform_roads)}个")
     print(f"日期: {start} ~ {end}，最小样本: {args.min_samples}")
     print(f"发布运行表: {table}")
     print(f"版本清单: {ExperienceReleaseSettings().active_manifest_path}")
-    if runtime_experience_path() != table:
-        print(f"注意：分配器实际读取另一份表: {runtime_experience_path()}")
+    if read_table != table:
+        print(f"注意：分配器实际读取另一份表: {read_table}")
 
     skipped = False
+    source_issue_labels = {"missing": "缺文件", "incomplete": "未收齐", "unreadable": "无法读取"}
     for day in _dates(start, end):
         paths = runtime._run_paths(day)
-        flow_ok, extend_ok = (Path(paths[kind]).is_file() for kind in ("flow", "extend"))
+        pending = runtime._source_pair_status(paths, day)
+        input_check = "通过日末检查"
+        if pending:
+            details = "、".join(
+                f"{'/'.join(pending[key]).upper()} {label}"
+                for key, label in source_issue_labels.items() if key in pending
+            )
+            input_check = f"待收齐（{details}）"
         previous = runtime._existing_terminal_manifest(
             paths["run_manifest"], (Path(paths["flow"]), Path(paths["extend"])),
             target_road_ids=roads,
         )
-        print(f"[{day}] flow={flow_ok} extend={extend_ok} "
+        print(f"[{day}] 自动补跑预检={input_check} "
               f"记录={previous.get('status') if previous else '待检查'}")
         if not args.apply:
             continue

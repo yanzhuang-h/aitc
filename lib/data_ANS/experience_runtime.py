@@ -14,6 +14,7 @@ from pathlib import Path
 import threading
 
 from app.config import ExperienceReleaseSettings
+from app.paths import EXPERIENCE_ARTIFACT_DIR, EXPERIENCE_POOL_DIR, LOGS_DIR
 from lib.intersection_strategy import PLATFORM_PHASE_ROAD_IDS, supports_online_experience_growth
 from lib.road_groups import TONGZHOU_19
 from lib.data_ANS.cycle_quality import WINDOW_SECONDS
@@ -40,11 +41,10 @@ from lib.data_ANS.raw_feedback_normalizer import (
 LOGGER = logging.getLogger("ExperiencePoolRuntime")
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 LIB_DIR = PROJECT_ROOT / "lib"
-from app.paths import EXPERIENCE_POOL_DIR, LOGS_DIR
 # Persistent pool memory belongs with the deployed model assets. Large daily
 # diagnostics remain under logs_data and can be cleaned independently.
 DEFAULT_STATE_DIR = EXPERIENCE_POOL_DIR
-DEFAULT_ARTIFACT_DIR = LOGS_DIR / "experience_pool" / "daily"
+DEFAULT_ARTIFACT_DIR = EXPERIENCE_ARTIFACT_DIR
 DEFAULT_MIN_SAMPLE_COUNT = 30
 DEFAULT_SOURCE_DAY_DELAY = 1
 DEFAULT_DAILY_RUN_TIME = dt.time(12, 0)
@@ -239,6 +239,13 @@ def _configured_path(name, default):
     return Path(os.environ.get(name, str(default))).resolve()
 
 
+def published_experience_path() -> Path:
+    """解析在线经验任务锁定和发布的运行表路径。"""
+    return _configured_path(
+        "AITC_EXPERIENCE_RUNTIME_TABLE", DEFAULT_STATE_DIR / "online_experience.json",
+    )
+
+
 def _configured_road_ids(environment_name, defaults):
     configured = os.environ.get(environment_name, "").strip()
     if configured:
@@ -368,7 +375,9 @@ def _existing_terminal_manifest(path, source_paths=(), *, target_road_ids=(),
     return None
 
 
-def _run_experience_pool_day_unlocked(source_date, paths, *, release_settings=None, recheck=False):
+def _run_experience_pool_day_unlocked(
+    source_date, paths, runtime_path, *, release_settings=None, recheck=False,
+):
     """按来源日积累经验，更新达到发布条件的运行表。"""
     target_roads = _configured_roads()
     source_paths = (paths["flow"], paths["extend"])
@@ -431,10 +440,6 @@ def _run_experience_pool_day_unlocked(source_date, paths, *, release_settings=No
         _write_json_atomic(str(paths["run_manifest"]), report)
         return report
 
-    runtime_path = _configured_path(
-        "AITC_EXPERIENCE_RUNTIME_TABLE",
-        DEFAULT_STATE_DIR / "online_experience.json",
-    )
     active_table = _load_json(str(runtime_path), default={})
     update_roads = _configured_update_roads().intersection(target_roads)
     active_validation = validate_experience_table(
@@ -605,13 +610,11 @@ def run_experience_pool_day(source_date, *, release_settings=None, recheck=False
         source_date = dt.date.fromisoformat(source_date)
     if not isinstance(source_date, dt.date):
         raise TypeError("source_date must be a date or ISO date string")
-    runtime_path = _configured_path(
-        "AITC_EXPERIENCE_RUNTIME_TABLE", DEFAULT_STATE_DIR / "online_experience.json",
-    )
+    runtime_path = published_experience_path()
     paths = _run_paths(source_date, log_dir=log_dir)
     with pool_update_lock(paths["full_pool"]), pool_update_lock(runtime_path):
         return _run_experience_pool_day_unlocked(
-            source_date, paths, release_settings=release_settings, recheck=recheck,
+            source_date, paths, runtime_path, release_settings=release_settings, recheck=recheck,
         )
 
 
