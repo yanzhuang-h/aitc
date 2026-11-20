@@ -205,7 +205,7 @@ class DataHubIntegrationTest(unittest.TestCase):
                 self.assertEqual(compact_round(result), golden["rounds"][index])
                 self.assertEqual(len(result["after_phase_check"]), 235)
                 self.assertEqual(len(result["tcp_frames"]), 235)
-        for cross_id in Lambdas.intersection_list:
+        for cross_id in actual[0]["after_phase_check"]:
             with self.subTest(intersection=cross_id):
                 history = hub.history(cross_id)
                 self.assertEqual(len(history), 2)
