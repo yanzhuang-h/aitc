@@ -1230,7 +1230,8 @@ def coordinate(result_action_map, coordinate_map_set, online_data_map, OverFlow,
             also returned.
         coordinate_map_set: Per-intersection phase start information used by
             cross-intersection coordination. Existing entries normally contain
-            ``s1`` and ``s2`` numeric start positions.
+            ``s1`` and ``s2`` numeric start positions. Platform entries may
+            also carry the selected cold-start phase plan.
         online_data_map: Internet road-condition observations grouped by road
             segment ID and observation time.
         OverFlow: Overflow/event observations used by the existing special-road
@@ -1347,6 +1348,9 @@ def coordinate(result_action_map, coordinate_map_set, online_data_map, OverFlow,
 
         Cross_id = str(cross_id)
 
+        coordinate_info = coordinate_map_set.get(Cross_id)
+        cold_start_plan = (coordinate_info.get("cold_start_phase_plan")
+                           if isinstance(coordinate_info, dict) else None)
         flow_plan, flow_report = process_flow_intersection(
             Cross_id,
             result_action_map[Cross_id],
@@ -1356,6 +1360,7 @@ def coordinate(result_action_map, coordinate_map_set, online_data_map, OverFlow,
                 selected_cross_id, state, road_info
             ),
             Get_time_map,
+            cold_start_phase_plan=cold_start_plan,
         )
         if flow_report["success"]:
             result_action_map[Cross_id] = flow_plan
