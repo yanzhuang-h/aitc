@@ -13,16 +13,16 @@ class _Ingestor:
 
 
 class _Warehouse:
-    def snapshot(self):
-        return [{"id": "100"}]
+    def snapshot_with_batch(self):
+        return [{"id": "100"}], "batch"
 
 
 class _Sender:
     def __init__(self):
         self.calls = []
 
-    def send_batch(self, clients, results):
-        self.calls.append((clients, results))
+    def send_batch(self, clients, results, *, batch_id=None):
+        self.calls.append((clients, results, batch_id))
         return []
 
 
@@ -84,7 +84,7 @@ class TcpRuntimeServerTest(unittest.TestCase):
 
         server.broadcast_once()
 
-        self.assertEqual(sender.calls, [([client_socket], [{"id": "100"}])])
+        self.assertEqual(sender.calls, [([client_socket], [{"id": "100"}], "batch")])
 
 
 if __name__ == "__main__":

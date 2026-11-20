@@ -15,8 +15,11 @@ class ResultWarehouse:
     def __init__(self) -> None:
         self._lock = Lock()
         self._results: list[dict[str, Any]] = []
+        self._batch_id: str | None = None
 
-    def replace(self, results: Sequence[DecisionResult | Mapping[str, Any]]) -> None:
+    def replace(
+        self, results: Sequence[DecisionResult | Mapping[str, Any]], *, batch_id: str | None = None,
+    ) -> None:
         """替换最新结果，同时接受领域模型与既有协议字典。"""
         normalized = []
         for result in results:
@@ -30,7 +33,12 @@ class ResultWarehouse:
                 normalized.append(copy.deepcopy(dict(result)))
         with self._lock:
             self._results = normalized
+            self._batch_id = batch_id
 
     def snapshot(self) -> list[dict[str, Any]]:
+        return self.snapshot_with_batch()[0]
+
+    def snapshot_with_batch(self) -> tuple[list[dict[str, Any]], str | None]:
+        """在同一把锁下取出报文和对应的决策批次号。"""
         with self._lock:
-            return copy.deepcopy(self._results)
+            return copy.deepcopy(self._results), self._batch_id

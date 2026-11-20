@@ -163,7 +163,7 @@ class PeriodicDecisionPipeline(LoggingMixin):
                     traces[intersection_id].formatted_plan = trace_value(tl_logic)
                     traces[intersection_id].plan_sha256 = plan_fingerprint(tl_logic)
         with trace_stage(traces.values(), "publish"):
-            self.result_warehouse.replace(results_to_send)
+            self.result_warehouse.replace(results_to_send, batch_id=decision_batch_id.get())
         for trace in traces.values():
             trace.status = "published"
         return results_to_send

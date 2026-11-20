@@ -88,13 +88,13 @@ class TcpRuntimeServer(LoggingMixin):
         """发送当前结果快照，并移除已断开的客户端。"""
         with self._clients_lock:
             clients = list(self._clients)   # 加锁快照名单，发送期间名单变化不影响本轮
-        results = self.result_warehouse.snapshot()
+        results, batch_id = self.result_warehouse.snapshot_with_batch()
         if not results:
             return
 
         # ponytail: 逐个阻塞发送，单个慢客户端会拖住整轮广播；
         # 当前客户端为少量局域网信控平台，暂不设发送超时。
-        disconnected = self.result_sender.send_batch(clients, results)
+        disconnected = self.result_sender.send_batch(clients, results, batch_id=batch_id)
         for client_socket in disconnected:
             self._remove_client(client_socket)
             client_socket.close()

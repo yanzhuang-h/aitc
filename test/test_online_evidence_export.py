@@ -78,3 +78,65 @@ class OnlineEvidenceExportTest(unittest.TestCase):
         self.assertEqual(report["used_changed_experience_rounds"], 1)
         self.assertEqual(report["send_records"], 2)
         self.assertEqual(report["distinct_sent_plans_matching_final"], 1)
+        self.assertEqual(report["sent_program_counts"], {"1": 2})
+        self.assertIsNone(report["latest_send"]["decision"])
+
+    def test_joins_latest_send_by_batch_when_different_decisions_share_the_same_plan(self):
+        road = "1700311"
+        start = dt.datetime.fromisoformat("2026-11-19T16:05:00+08:00")
+        end = start + dt.timedelta(minutes=2)
+        plan = {"id": road, "programID": 1, "phase": [{"duration": 38}, {"duration": 37}]}
+        fingerprint = _canonical_hash(plan)
+
+        with TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "flow_time_allocator_2026-11-19.jsonl").write_text(
+                "\n".join(json.dumps({
+                    "road_id": road, "batch_id": batch, "observed_at": stamp.isoformat(),
+                    "selected_schedule_source": source, "selection_fallback_reason": rejection,
+                }) for batch, stamp, source, rejection in (
+                    ("selected-new", start, "new", None),
+                    ("sent-fallback", start - dt.timedelta(seconds=1), "legacy", "empty_flow"),
+                )),
+                encoding="utf-8",
+            )
+            decision = root / "server.log"
+            decision_text = "\n".join("INFO " + json.dumps({
+                "event": "aitc.decision", "intersection_id": road, "batch_id": batch,
+                "status": "published", "plan_sha256": fingerprint, "safety_report": safety,
+            }) for batch, safety in (
+                ("selected-new", {"safety_status": "valid"}),
+                ("sent-fallback", {"safety_status": "valid", "fallback_source": "timetable",
+                                   "fallback_reason": ["invalid_signal_plan_contract"]}),
+            ))
+            decision.write_text(decision_text + "\nINFO flow_control " + json.dumps({
+                "cross_id": road, "batch_id": "sent-fallback", "fallback": "time_schedule",
+            }), encoding="utf-8")
+            send_path = root / "2026-11-19_send.txt"
+            send_path.write_text("\n".join(json.dumps({
+                "AITC_SYS_TS": (start + dt.timedelta(seconds=seconds)).timestamp(),
+                "AITC_DECISION_BATCH_ID": "sent-fallback", "additional": {"tlLogic": outbound},
+            }) for seconds, outbound in (
+                (1, {**plan, "programID": 0, "phase": []}),
+                (2, {**plan, "programID": 0}),
+                (3, plan),
+            )), encoding="utf-8")
+            runtime = SimpleNamespace(DEFAULT_CATCHUP_DAYS=0)
+            shadow = SimpleNamespace(_target_road_ids=lambda: {road}, _pilot_mode=lambda _: "new")
+            with patch("lib.data_ANS.experience_reader.runtime_experience_path", return_value=root / "absent"):
+                result = _export_evidence(argparse.Namespace(start=start, end=end, cross=[road]),
+                    root, root, decision, runtime, shadow, SimpleNamespace(active_manifest_path=root / "absent"),
+                    lambda _: "49")
+        report = result["roads"][road]
+        self.assertEqual(report["sent_program_counts"], {"0": 1, "1": 1})
+        self.assertEqual(report["empty_phase_send_records"], 1)
+        self.assertEqual(report["new_selected_rounds"], 1)
+        self.assertEqual(report["distinct_sent_plans_matching_final"], 0)
+        latest = report["latest_send"]
+        self.assertEqual(latest["batch_id"], "sent-fallback")
+        self.assertEqual(latest["program_id"], 1)
+        self.assertEqual(latest["green_seconds"], [38, 37])
+        self.assertEqual(latest["decision"]["candidate_source"], "legacy")
+        self.assertEqual(latest["decision"]["candidate_rejection_reason"], "empty_flow")
+        self.assertEqual(latest["decision"]["safety_fallback_source"], "timetable")
+        self.assertEqual(latest["decision"]["coordinator_fallback"], "time_schedule")
