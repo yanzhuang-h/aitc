@@ -107,7 +107,8 @@ def main(argv=None) -> int:
             root / "Lambdas.py",
             {"intersection_list", "location_to_intersection_lambda", "aibi_to_xinkongji"},
         )
-        legacy_roads = set(runtime["intersection_list"]) - PLATFORM_PHASE_ROAD_IDS
+        registered = registered_platform_programs(overrides)
+        legacy_roads = set(runtime["intersection_list"]) - PLATFORM_PHASE_ROAD_IDS - registered.keys()
         if legacy_roads & program_ids.keys():
             raise ValueError(f"已上线的旧路口应单独迁移配时策略: {sorted(legacy_roads & program_ids.keys())}")
 
@@ -115,7 +116,7 @@ def main(argv=None) -> int:
             active = _load_cross_entries(root / "lib" / "cross_info.json", args.cross)
             if active != cross_entries:
                 raise ValueError("--cross-info 与实际运行的 lib/cross_info.json 不一致，请先同步")
-        prospective = {**registered_platform_programs(overrides), **program_ids}
+        prospective = {**registered, **program_ids}
         _, issues = platform_additions(
             prospective, runtime["intersection_list"], {**crosses, **cross_entries},
             road_info, runtime["location_to_intersection_lambda"], runtime["aibi_to_xinkongji"],
@@ -129,8 +130,10 @@ def main(argv=None) -> int:
         print(f"[核对] {warning}")
     updated = dict(overrides)
     for road, program in sorted(program_ids.items()):
-        # 已上线的数字型配置只更新默认方案，新增路口使用显式接入登记。
-        updated[road] = program if road in runtime["intersection_list"] else {"program_id": program}
+        if road in registered or road not in runtime["intersection_list"]:
+            updated[road] = {"program_id": program}
+        else:
+            updated[road] = program
         print(f"[登记] {road} 默认方案 {program}")
     if updated == overrides:
         print("登记无变化")

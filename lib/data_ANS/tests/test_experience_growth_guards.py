@@ -57,10 +57,13 @@ class ExperienceGrowthGuardsTests(unittest.TestCase):
                 self.assertEqual(updated[road]["U"]["100"], [0, 50] + [0] * 8)
 
     def test_growth_capability_does_not_change_19_phase_strategy(self):
-        from lib.intersection_strategy import supports_online_experience_growth, uses_platform_phase_timing
+        from lib.intersection_strategy import (
+            PLATFORM_ROAD_PROGRAMS, supports_online_experience_growth, uses_platform_phase_timing,
+        )
         from lib.road_groups import TONGZHOU_19
         self.assertTrue(all(supports_online_experience_growth(road) for road in TONGZHOU_19))
-        self.assertFalse(any(uses_platform_phase_timing(road) for road in TONGZHOU_19))
+        platform = {road for road in TONGZHOU_19 if uses_platform_phase_timing(road)}
+        self.assertEqual(platform, TONGZHOU_19 & PLATFORM_ROAD_PROGRAMS.keys())
         self.assertFalse(supports_online_experience_growth("1300069"))
 
     def test_unsupported_point_cannot_block_qualified_new_direction(self):

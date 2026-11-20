@@ -136,16 +136,15 @@ def _process_platform_intersection(cross_id, current_plan, road_config, hour,
         if not any(current_plan[:8]):
             # 时刻表按默认方案排列，不能将其位置时间套给相位顺序不同的强制方案。
             if state == default_state:
-                vector = list(schedule_loader(int(cross_id))[str(hour)])
-                if len(vector) != 10:
+                vector = (schedule_loader(int(cross_id)) or {}).get(str(hour))
+                if vector is not None and len(vector) != 10:
                     raise ValueError("timetable vector must contain ten slots")
                 phases, lows, highs = phase_bounds(road_config[state])
-                times = [max(low, min(high, int(vector[i])))
-                         for i, (low, high) in enumerate(zip(lows, highs))]
+                times = lows if vector is None else vector[:len(phases)]
                 times, cycle_audit = complete_phase_cycle(times, lows, highs)
                 audit = {"phase_names": phases, "minimums": lows, "maximums": highs,
                          **cycle_audit}
-                report["fallback"] = "time_schedule"
+                report["fallback"] = "validated_default_minimums" if vector is None else "time_schedule"
             else:
                 times, audit = allocate_phase_times(demand, road_config[state])
                 report["fallback"] = "forced_program_minimums"
