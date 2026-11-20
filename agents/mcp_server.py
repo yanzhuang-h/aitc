@@ -40,11 +40,11 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 import Lambdas
 
-from agents.registry import ToolRegistry
 from agents.tools import DataQueryTools
 from app.config import RuntimeSettings
 from app.core.tools import SingleIntersectionSignalTimingTool
 from app.core.tools.control_function_tools import ControlFunctionTools
+from app.core.tool_registry import ToolRegistry
 from datahub import (
     ConfigService,
     DataKind,

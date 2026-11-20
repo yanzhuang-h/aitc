@@ -18,7 +18,7 @@
 | A4 | 配置资源同步来源抽象 | 4 类走 Nacos（floating_value/intersection_result/road_state/time_schedule），2 类走 HTTP 文件（road_info/cross_info）；`ConfigService` 门面已收口 | 暂不抽"同步源接口"（YAGNI）；出现第二类配置中心再抽象 | 低 | 本地可完成（暂不抽象） | 无需新增材料；保留现有Nacos/HTTP来源 |
 | A5 | 接入层吞吐优化 | TCP 65432 + HTTP 8088 分端口：信控平台走 TCP（长连接、量最大），雷达/博研走 HTTP；旧原因="一个端口忙不过来" | 协议拆分保留（设备协议决定）；方向：异步接收/独立写线程池，或统一网关+消息队列（MQ）；按规模再定 | 中 | 需生产数据（按需） | 先提供吞吐、积压和耗时证据，定位真实瓶颈 |
 | A6 | Agent 层重构（需求驱动） | 现状：五类组件叠加（SymbolicDataAgent / QwenSignalTimingAgent / QwenToolRouterAgent / ControlProcessAgent / AgentHarness）+ 双路由（IntentRegistry + action 符号路由）+ 15 个意图（绿波占 9 个，实为资源 CRUD）；工具需四处声明；文件命名不清晰（qwen_agent.py 一文件三类、tools.py 泛指） | 按原生AgentScope重建Workflow与Agent Loop结合的诊断入口；复用现有数据和算法工具，沿用已独立运行的固定配时链与现有接口；旧周期模型编排已退役 | 中（远期） | 本地可完成 | 原生AgentScope迁移与诊断首版使用本地数据和模型桩；现场建议效果另验收 |
-| A7 | 目录与模块结构重构 | 现状：根目录混放运行入口与离线脚本；`app/core/tools` 反向依赖 `agents.registry`；`lib` 内分域不完全；`agents` 与运行时装配耦合 | 参照成熟分层惯例（FastAPI 风格 `app/{api,core,models,services}` 或 domain/application/infrastructure）+ `架构.png` 模块边界（数据底座/控制模块/安全引擎）分步调整；先收敛根目录（C4/C5）、注册中心下沉、lib 分域、agents 服务化；不照搬图，逐项迭代 | 中（远期） | 本地可完成 | 以调用与测试证据整理边界，不因目录形式整体重写 |
+| A7 | 目录与模块结构重构 | 根目录离线脚本已迁移，共享工具注册表已归入 `app/core/tool_registry.py`。仍需梳理重复离线工具、`lib` 的职责分域和 Agent 装配。 | 按实际调用逐步收敛，每次同步验证导入路径、回放与编译产物 | 中（远期） | 本地可完成 | 以调用与测试证据整理边界 |
 | A8 | MCP 多服务器化 | 现状：单个 `agents/mcp_server.py` 暴露全部 10 个工具 | 按功能域拆多个 MCP server（数据查询 / 信号控制 / 绿波管理等），各自独立进程与配置；复用统一注册中心按域过滤 | 低（远期） | 本地可完成（暂不拆分） | 有真实隔离需求后再拆，当前无需生产材料 |
 
 ## B. 数据底座待办
