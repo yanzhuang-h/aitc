@@ -119,7 +119,7 @@ def _process_legacy_flow_intersection(cross_id, current_plan, road_config, hour,
 
 
 def _process_platform_intersection(cross_id, current_plan, road_config, hour,
-                                  forced_state_selector, schedule_loader):
+                                  forced_state_selector, schedule_loader, cold_start_phase_plan):
     report = {"success": False, "cross_id": str(cross_id), "state": None,
               "fallback": None, "error": None}
     try:
@@ -150,7 +150,13 @@ def _process_platform_intersection(cross_id, current_plan, road_config, hour,
                 times, audit = allocate_phase_times(demand, road_config[state])
                 report["fallback"] = "forced_program_minimums"
         else:
-            times, audit = allocate_phase_times(demand, road_config[state])
+            if (cold_start_phase_plan is not None
+                    and state in cold_start_phase_plan["program_ids"]
+                    and current_plan == cold_start_phase_plan["direction_vector"]):
+                phase_plan = cold_start_phase_plan
+            else:
+                phase_plan = None
+            times, audit = allocate_phase_times(demand, road_config[state], phase_plan=phase_plan)
         plan = times + [0] * (10 - len(times))
         plan[9] = int(state)
         report.update(audit)
@@ -189,17 +195,23 @@ def _process_platform_intersection(cross_id, current_plan, road_config, hour,
 
 
 def process_flow_intersection(cross_id, current_plan, road_config, hour,
-                              forced_state_selector, schedule_loader):
+                              forced_state_selector, schedule_loader, *, cold_start_phase_plan=None):
     original = list(current_plan)
-    processor = (_process_platform_intersection if uses_platform_phase_timing(cross_id)
-                 else _process_legacy_flow_intersection)
-    plan, report = processor(cross_id, current_plan, road_config, hour,
-                             forced_state_selector, schedule_loader)
+    platform = uses_platform_phase_timing(cross_id)
+    if platform:
+        plan, report = _process_platform_intersection(
+            cross_id, current_plan, road_config, hour, forced_state_selector, schedule_loader,
+            cold_start_phase_plan,
+        )
+    else:
+        plan, report = _process_legacy_flow_intersection(
+            cross_id, current_plan, road_config, hour, forced_state_selector, schedule_loader,
+        )
     report["road_group"] = road_group(cross_id)
     report["input_direction_vector"] = original
     report["adapted_phase_vector"] = list(plan)
     report["is_final"] = False
-    if report["road_group"] is not None or uses_platform_phase_timing(cross_id):
+    if report["road_group"] is not None or platform:
         report["batch_id"] = decision_batch_id.get()
         state_config = road_config.get(str(report["state"]), {}) if isinstance(road_config, dict) else {}
         if not isinstance(state_config, dict):

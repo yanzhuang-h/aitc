@@ -35,7 +35,7 @@ class PlatformEntryTests(unittest.TestCase):
                 self.assertEqual(result, ([31, 42]+[0]*8, {"Start1": 1, "start2": 0}, "model", "experience"))
                 model.assert_called_once_with(args[0], args[5], args[6])
                 experience.assert_called_once_with(args[0], args[2])
-                pilot.assert_called_once_with(road, [0]*10, args[4], args[7])
+                pilot.assert_called_once_with(road, [0]*10, args[4], args[7], coordinate_set=result[1])
 
     def test_registered_19_roads_preserve_their_fallbacks_through_shared_entry(self):
         flow_only = {"1700086", "1700275", "1700276"}
@@ -51,12 +51,13 @@ class PlatformEntryTests(unittest.TestCase):
                 patch.object(selectors, "get_exp", return_value="experience"),
                 patch.object(selectors, "chuli_shuju", return_value=[34] * 10) as staged,
                 patch.object(selectors, "chuli_shuju3", return_value=[42] * 10) as flow_lookup,
-                patch.object(selectors, "select_pilot_schedule", side_effect=lambda _, fallback, f, e: fallback) as pilot,
+                patch.object(selectors, "select_pilot_schedule",
+                             side_effect=lambda _, fallback, f, e, *, coordinate_set: fallback) as pilot,
             ):
                 result = selectors.DQN_select(**args, cross_id=road)
                 expected = [0] * 10 if road in timetable else [42 if road in flow_only else 34] * 10
                 self.assertEqual(result, (expected, {"Start1": 1, "start2": 0}, "model", "experience"))
-                pilot.assert_called_once_with(road, expected, flow, extend)
+                pilot.assert_called_once_with(road, expected, flow, extend, coordinate_set=result[1])
                 if road in flow_only:
                     flow_lookup.assert_called_once_with(road, flow)
                 else:
@@ -81,6 +82,49 @@ class PlatformEntryTests(unittest.TestCase):
             result = selectors.DQN_select(**arguments)
             self.assertEqual(result[0][:2], [30,30])
             self.assertEqual(pilot.call_args.args[0], road)
+
+    def test_cold_start_keeps_stage_budget_for_the_selected_platform_program(self):
+        # 1700311 两个 LR 阶段共用方向累计时间，但各自已有配好的绿时。
+        road = "1700311"
+        directions = [30, 30, 75, 75] + [0] * 6
+        states = {
+            "1": {**config(["LR", "LR"]), "min_pass_time": [15, 25]},
+            "2": {**config(["LR", "LR"]), "min_pass_time": [15, 25]},
+        }
+        record = {"selected_schedule": directions, "selected_schedule_source": "new",
+                  "cold_start": {"status": "observed_cycle_flow_budget",
+                                 "matching_programs": ["1"], "phase_names": ["LR", "LR"],
+                                 "allocated_phase_times": [38, 37], "cold_phase_indexes": [0, 1]}}
+        arguments = {name: {} for name in inspect.signature(selectors.DQN_select).parameters}
+        arguments.update(cross_id=road, current_time=1)
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch.object(selectors, "get_model_map", return_value={}),
+            patch.object(selectors, "get_exp", return_value={}),
+            patch("lib.data_ANS.flow_allocator_shadow.record_shadow_comparison", return_value=record),
+        ):
+            current, coordinate, _, _ = selectors.DQN_select(**arguments)
+            self.assertEqual(current, directions)
+            self.assertIn("cold_start_phase_plan", coordinate)
+            record["cold_start"]["cold_phase_indexes"] = [0]
+            self.assertNotIn("cold_start_phase_plan", selectors.DQN_select(**arguments)[1])
+
+        candidate = coordinate["cold_start_phase_plan"]
+        for state, inputs, program, expected, used in (
+            ("1", current, states, [38, 37], True),
+            ("2", current, states, [33, 42], False),
+            ("1", [30, 30, 77, 77] + [0] * 6, states, [34, 43], False),
+            ("1", current, {"1": config(["LR", "UD"])}, [75, 30], False),
+            ("1", current, {"1": {**states["1"], "platform_min_pass_time": [40, 25]}}, [45, 30], False),
+        ):
+            with self.subTest(state=state, inputs=inputs, program=program):
+                plan, report = process_flow_intersection(
+                    road, inputs, program, 17, lambda rid, default: state, lambda rid: {},
+                    cold_start_phase_plan=candidate,
+                )
+                self.assertTrue(report["success"], report)
+                self.assertEqual(plan[:2], expected)
+                self.assertEqual("timing_source" in report, used)
 
     def test_new_default_program_and_forced_program_survive_finalization(self):
         road = "999999"

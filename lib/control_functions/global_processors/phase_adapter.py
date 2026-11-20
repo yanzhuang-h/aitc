@@ -61,7 +61,7 @@ def complete_phase_cycle(times, minimums, maximums, minimum_cycle=60):
                    "unmet_minimum_cycle_seconds": max(0, minimum_cycle-sum(times))}
 
 
-def allocate_phase_times(demand, state_config):
+def allocate_phase_times(demand, state_config, *, phase_plan=None):
     """在平台和信号机上下界内分配方向累计时间。
 
     从各相位最小绿开始，优先给能够同时覆盖最多未满足方向的相位加时，
@@ -77,30 +77,42 @@ def allocate_phase_times(demand, state_config):
         if not math.isfinite(number) or number < 0:
             raise ValueError(f"invalid movement demand: {direction}")
         targets[direction] = math.ceil(number)
-    times = list(minimums)
-    served = {direction: sum(times[i] for i, dirs in enumerate(movements)
-                             if direction in dirs) for direction in targets}
-    while True:
-        remaining = {direction: max(0, value - served[direction])
-                     for direction, value in targets.items()}
-        candidates = [i for i, dirs in enumerate(movements)
-                      if times[i] < maximums[i]
-                      and any(remaining.get(d, 0) for d in dirs)]
-        if not candidates:
-            break
-        def priority(index):
-            dirs = movements[index]
-            return (sum(remaining.get(d, 0) > 0 for d in dirs),
-                    sum(remaining.get(d, 0) for d in dirs),
-                    -(times[index] - minimums[index]), -index)
-        index = max(candidates, key=priority)
-        times[index] += 1
-        for direction in movements[index]:
-            if direction in served:
-                served[direction] += 1
+    proposed = phase_plan["phase_times"] if phase_plan is not None else []
+    use_phase_plan = (
+        phase_plan is not None
+        and phase_plan["phase_names"] == phases
+        and len(proposed) == len(phases)
+        and all(low <= seconds <= high for seconds, low, high in zip(proposed, minimums, maximums))
+    )
+    if use_phase_plan:
+        times = proposed
+    else:
+        times = list(minimums)
+        served = {direction: sum(times[i] for i, dirs in enumerate(movements)
+                                 if direction in dirs) for direction in targets}
+        while True:
+            remaining = {direction: max(0, value - served[direction])
+                         for direction, value in targets.items()}
+            candidates = [i for i, dirs in enumerate(movements)
+                          if times[i] < maximums[i]
+                          and any(remaining.get(d, 0) for d in dirs)]
+            if not candidates:
+                break
+            def priority(index):
+                dirs = movements[index]
+                return (sum(remaining.get(d, 0) > 0 for d in dirs),
+                        sum(remaining.get(d, 0) for d in dirs),
+                        -(times[index] - minimums[index]), -index)
+            index = max(candidates, key=priority)
+            times[index] += 1
+            for direction in movements[index]:
+                if direction in served:
+                    served[direction] += 1
     times, cycle_audit = complete_phase_cycle(times, minimums, maximums)
     served = {direction: sum(times[i] for i, dirs in enumerate(movements)
                              if direction in dirs) for direction in targets}
+    if use_phase_plan:
+        cycle_audit["timing_source"] = "cold_start_phase_budget"
     return times, {
         **cycle_audit,
         "phase_names": phases,

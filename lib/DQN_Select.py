@@ -161,6 +161,7 @@ def DQN_select_online(
             fallback = chuli_shuju(cross_id, flow_map_single_intersection, extend_map_single_intersection)
     sch = select_pilot_schedule(
         cross_id, fallback, flow_map_single_intersection, extend_map_single_intersection,
+        coordinate_set=coordinate_set,
     )
     logging.getLogger(__name__).debug("在线配时 road=%s candidate=%s", cross_id, sch)
     return sch, coordinate_set, model_map, EXP_map

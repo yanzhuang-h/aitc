@@ -447,6 +447,8 @@ def select_pilot_schedule(
     legacy_schedule,
     flow_map_single_intersection,
     extend_map_single_intersection,
+    *,
+    coordinate_set=None,
 ):
     """Select legacy/shadow/new output for one explicitly wired DQN road.
 
@@ -472,4 +474,18 @@ def select_pilot_schedule(
     )
     if not isinstance(record, dict):
         return legacy_vector
-    return _schedule_vector(record.get("selected_schedule", legacy_vector))
+    selected = _schedule_vector(record.get("selected_schedule", legacy_vector))
+    if (coordinate_set is not None and record.get("selected_schedule_source") == "new"
+            and uses_platform_phase_timing(road_id)):
+        cold = record["cold_start"]
+        if cold.get("status") == "observed_cycle_flow_budget":
+            times = cold["allocated_phase_times"]
+            if times and cold["cold_phase_indexes"] == list(range(len(times))):
+                # 方向累计绿时无法反推出重复相位各自的预算。
+                coordinate_set["cold_start_phase_plan"] = {
+                    "program_ids": cold["matching_programs"],
+                    "phase_names": cold["phase_names"],
+                    "phase_times": times,
+                    "direction_vector": selected.copy(),
+                }
+    return selected
