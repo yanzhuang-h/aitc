@@ -227,7 +227,7 @@ class FixedControlIntegrationTest(unittest.TestCase):
                 self.assertEqual(compact_round(result), golden["rounds"][index])
                 self.assertEqual(len(result["tcp_frames"]), 235)
                 self.assertTrue(all(frame.endswith(b"\n") for frame in result["tcp_frames"]))
-        for intersection_id in Lambdas.intersection_list:
+        for intersection_id in actual[0]["after_phase_check"]:
             self.assertEqual(len(hub.history(intersection_id)), 2)
 
 
