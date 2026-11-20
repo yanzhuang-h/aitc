@@ -45,20 +45,24 @@ class OnlineEvidenceExportTest(unittest.TestCase):
                          "selected_schedule_source": "new", "experience_road_sha256": _canonical_hash(table[road]),
                          "decisions": {"U": {"requested_flow": 8, "table_green_time": 30}}}
             (root / "flow_time_allocator_2026-11-19.jsonl").write_text(
-                "\n".join(json.dumps({**candidate, "observed_at": t.isoformat()}) for t in
-                          (start, start + dt.timedelta(minutes=2), end)) + "\n",
+                "\n".join(json.dumps({**candidate, "batch_id": batch, "observed_at": t.isoformat()}) for batch, t in (
+                    ("before-release", start), ("batch", start + dt.timedelta(minutes=2)), ("outside", end),
+                )) + "\n",
                 encoding="utf8",
             )
-            unchanged = {**candidate, "observed_at": (start + dt.timedelta(minutes=3)).isoformat(),
+            unchanged = {**candidate, "batch_id": "unchanged", "observed_at": (start + dt.timedelta(minutes=3)).isoformat(),
                          "decisions": {"U": {"requested_flow": 10, "table_green_time": 31}}}
             with (root / "flow_time_allocator_2026-11-19.jsonl").open("a", encoding="utf8") as log:
                 log.write(json.dumps(unchanged) + "\n")
             decision = root / "server.log"
             decision.write_text("INFO " + json.dumps({"event": "aitc.decision", "intersection_id": road,
-                "batch_id": "batch", "status": "published", "plan_sha256": _canonical_hash(plan)}), encoding="utf8")
+                "batch_id": "batch", "status": "published", "plan_sha256": _canonical_hash(plan),
+                "safety_report": {"safety_status": "valid"}}), encoding="utf8")
+            send = {"additional": {"tlLogic": plan}}
+            batched = {**send, "AITC_DECISION_BATCH_ID": "batch", "AITC_EXPERIENCE_PROVENANCE": {"release_id": "active"}}
             (root / "2026-11-19_send.txt").write_text(
-                "\n".join(json.dumps({"AITC_SYS_TS": (start + dt.timedelta(seconds=120 + i)).timestamp(),
-                    "additional": {"tlLogic": plan}}) for i in range(2)) + "\n", encoding="utf8",
+                "\n".join(json.dumps({**frame, "AITC_SYS_TS": (start + dt.timedelta(seconds=seconds)).timestamp()})
+                          for seconds, frame in ((120, send), (121, batched), (122, batched))) + "\n", encoding="utf8",
             )
 
             runtime = SimpleNamespace(DEFAULT_CATCHUP_DAYS=1,
@@ -76,10 +80,17 @@ class OnlineEvidenceExportTest(unittest.TestCase):
         self.assertEqual(report["candidate_rounds"], 3)
         self.assertEqual(report["current_release_row_seen_rounds"], 2)
         self.assertEqual(report["used_changed_experience_rounds"], 1)
-        self.assertEqual(report["send_records"], 2)
+        self.assertEqual(report["send_records"], 3)
         self.assertEqual(report["distinct_sent_plans_matching_final"], 1)
-        self.assertEqual(report["sent_program_counts"], {"1": 2})
-        self.assertIsNone(report["latest_send"]["decision"])
+        self.assertEqual(report["sent_program_counts"], {"1": 3})
+        self.assertEqual(report["sent_release_counts"], {"unknown": 1, "active": 2})
+        self.assertEqual(report["latest_send"]["decision"]["candidate_source"], "new")
+        batches = report["sent_batch_evidence"]
+        self.assertEqual(batches["send_batches"], 1)
+        self.assertEqual(batches["matched_final_batches"], 1)
+        self.assertEqual(batches["candidate_sources"], {"new": 1})
+        self.assertEqual(batches["safety_statuses"], {"valid": 1})
+        self.assertEqual(batches["changed_experience_candidate_batches"], 1)
 
     def test_joins_latest_send_by_batch_when_different_decisions_share_the_same_plan(self):
         road = "1700311"
@@ -115,11 +126,11 @@ class OnlineEvidenceExportTest(unittest.TestCase):
             send_path = root / "2026-11-19_send.txt"
             send_path.write_text("\n".join(json.dumps({
                 "AITC_SYS_TS": (start + dt.timedelta(seconds=seconds)).timestamp(),
-                "AITC_DECISION_BATCH_ID": "sent-fallback", "additional": {"tlLogic": outbound},
-            }) for seconds, outbound in (
-                (1, {**plan, "programID": 0, "phase": []}),
-                (2, {**plan, "programID": 0}),
-                (3, plan),
+                "AITC_DECISION_BATCH_ID": batch, "additional": {"tlLogic": outbound},
+            }) for seconds, batch, outbound in (
+                (1, "sender-only", {**plan, "programID": 0, "phase": []}),
+                (2, "sent-fallback", {**plan, "programID": 0}),
+                (3, "sent-fallback", plan),
             )), encoding="utf-8")
             runtime = SimpleNamespace(DEFAULT_CATCHUP_DAYS=0)
             shadow = SimpleNamespace(_target_road_ids=lambda: {road}, _pilot_mode=lambda _: "new")
@@ -140,3 +151,10 @@ class OnlineEvidenceExportTest(unittest.TestCase):
         self.assertEqual(latest["decision"]["candidate_rejection_reason"], "empty_flow")
         self.assertEqual(latest["decision"]["safety_fallback_source"], "timetable")
         self.assertEqual(latest["decision"]["coordinator_fallback"], "time_schedule")
+        batches = report["sent_batch_evidence"]
+        self.assertEqual(batches["send_batches"], 2)
+        self.assertEqual(batches["matched_final_batches"], 1)
+        self.assertEqual(batches["candidate_sources"], {"legacy": 1})
+        self.assertEqual(batches["coordinator_fallbacks"], {"time_schedule": 1})
+        self.assertEqual(batches["safety_fallbacks"], {"timetable": 1})
+        self.assertIsNone(batches["changed_experience_candidate_batches"])
