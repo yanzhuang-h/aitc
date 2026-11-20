@@ -165,6 +165,18 @@ with patch.object(paths, "ROAD_INFO_PATH", directory / "road_info.json"), \\
         overrides = json.loads((self.root / "lib" / "plan_id_overrides.json").read_text(encoding="utf-8"))
         self.assertEqual(overrides["999999"], {"program_id": 3})
 
+    def test_reapply_keeps_platform_registration_for_existing_road(self):
+        (self.root / "Lambdas.py").write_text(
+            'intersection_list = ["999999"]\n'
+            'location_to_intersection_lambda = {100009: ("999999", "U"), 100010: ("999999", "D")}\n'
+            'aibi_to_xinkongji = {}\n',
+            encoding="utf-8",
+        )
+        registry = self.root / "lib" / "plan_id_overrides.json"
+        registry.write_text('{"999999": {"program_id": 1}}', encoding="utf-8")
+        self.assertEqual(self._apply("--program-id", "3"), 0)
+        self.assertEqual(json.loads(registry.read_text(encoding="utf-8")), {"999999": {"program_id": 3}})
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 
 import lib.DQN_Select as selectors
+from lib.AITC_tool import Get_time_map
 from lib import intersection_strategy as strategy
 from lib.road_groups import TONGZHOU_19, TONGZHOU_49, road_group
 from lib.control_functions.global_processors.flow_control import process_flow_intersection
@@ -39,12 +40,12 @@ class PlatformEntryTests(unittest.TestCase):
 
     def test_registered_19_roads_preserve_their_fallbacks_through_shared_entry(self):
         flow_only = {"1700086", "1700275", "1700276"}
-        timetable = {"1700448", "1700449", "1700450", "1700542", "1700545"}
+        timetable = {"1700448", "1700449", "1700450", "1700458", "1700542", "1700545"}
         args = {name: {} for name in inspect.signature(selectors.DQN_select).parameters}
         flow, extend = args["flow_map_single_intersection"], args["extend_map_single_intersection"]
         args.update(current_time=1)
         del args["cross_id"]
-        for road in TONGZHOU_19 - {"1700458"}:
+        for road in TONGZHOU_19:
             with (
                 self.subTest(road=road),
                 patch.object(selectors, "get_model_map", return_value="model"),
@@ -66,6 +67,25 @@ class PlatformEntryTests(unittest.TestCase):
                     staged.assert_called_once_with(road, flow, extend)
                 else:
                     staged.assert_not_called()
+
+    def test_migrated_road_fallback_requires_the_configured_program(self):
+        from test.fixtures.v2_baseline_controller import FixedDate
+        from lib._local_json_store import read_json_object
+
+        roads = read_json_object(Path(__file__).resolve().parents[1] / "lib/road_info.json")
+        for road, expected, program, fallback in (
+            ("1700449", [30, 30], 1, "validated_default_minimums"),
+            ("1700542", [48, 36], 0, "time_schedule"),
+        ):
+            with self.subTest(road=road), patch("lib.AITC_tool.date", FixedDate):
+                self.assertTrue(strategy.uses_platform_phase_timing(road))
+                plan, report = process_flow_intersection(
+                    road, [0] * 10, roads[road], 8, lambda _, state: state, Get_time_map,
+                )
+                self.assertTrue(report["success"], report)
+                self.assertEqual(report["fallback"], fallback)
+                self.assertEqual(plan[:2], expected)
+                self.assertEqual(plan[9], program)
 
     def test_new_road_outside_49_uses_shared_entry_without_offline_lookup(self):
         road = "999999"

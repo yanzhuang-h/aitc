@@ -4,6 +4,8 @@ import os
 import random
 import numpy as np
 
+from lib.intersection_strategy import PLATFORM_ROAD_PROGRAMS, program_id_override
+
 
 def generate_rl_report(road_id, base_schedule, num_proposals=100, output_dir="output_reports"):
     """
@@ -96,7 +98,12 @@ def Get_time_map(Cross_id):
     try:
         with open(time_path, 'r') as f:
             schedule = json.load(f)
-            return schedule
+        if str(Cross_id) in PLATFORM_ROAD_PROGRAMS:
+            # 新登记的平台路口按方案号匹配时段表，避免沿用旧阶段的位置时间。
+            program = program_id_override(Cross_id)
+            return {hour: plan for hour, plan in schedule.items()
+                    if isinstance(plan, list) and len(plan) == 10 and plan[9] == program}
+        return schedule
     except:
         print("not_time_schedule_in"+ str(Cross_id))
         return None
