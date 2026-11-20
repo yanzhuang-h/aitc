@@ -1,9 +1,7 @@
-import ast
 from contextlib import redirect_stderr
 from io import StringIO
 import importlib.util
 import json
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -21,31 +19,19 @@ def _load_tool():
     return module
 
 
-def _literal_of(path, name):
-    tree = ast.parse(path.read_text(encoding="utf-8-sig"))
-    for node in tree.body:
-        if not isinstance(node, ast.Assign):
-            continue
-        for target in node.targets:
-            if isinstance(target, ast.Name) and target.id == name:
-                value = node.value
-                if isinstance(value, ast.Call):
-                    if isinstance(value.func, ast.Attribute):
-                        value = value.func.value
-                    elif isinstance(value.func, ast.Name) and value.args:
-                        inner = value.args[0]
-                        if isinstance(inner, (ast.Set, ast.List, ast.Tuple, ast.Dict)):
-                            value = inner
-                return ast.literal_eval(value)
-    raise AssertionError(f"{name} not found in {path}")
-
-
 class OnboardIntersectionTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
         (self.root / "lib").mkdir()
-        shutil.copy(ROOT / "Lambdas.py", self.root / "Lambdas.py")
+        self.lambda_config = self.root / "Lambdas.py"
+        self.lambda_config.write_text(
+            'intersection_list = ["111111"]\n'
+            'location_to_intersection_lambda = {100011: ("111111", "U")}\n'
+            'aibi_to_xinkongji = {}\n',
+            encoding="utf-8",
+        )
         self.cross_info = self.root / "lib" / "cross_info.json"
         self.cross_info.write_text(json.dumps({"999999": {
             "jtll_ddbh": {"100009": "U", "100010": "D"},
@@ -57,7 +43,6 @@ class OnboardIntersectionTest(unittest.TestCase):
         self.program = {"phase": ["UD"], "min_pass_time": [15], "max_pass_time": [90]}
         self.road_info.write_text(json.dumps({"999999": {"1": self.program, "3": self.program}}),
                                   encoding="utf-8")
-        self.addCleanup(self.tmp.cleanup)
         self.tool = _load_tool()
 
     def _apply(self, *args):
@@ -139,24 +124,22 @@ with patch.object(paths, "ROAD_INFO_PATH", directory / "road_info.json"), \\
         crosses = json.loads(self.cross_info.read_text(encoding="utf-8"))
         crosses["999999"]["Cycle"] = [[1, 2]]
         self.cross_info.write_text(json.dumps(crosses), encoding="utf-8")
-        before = (self.root / "Lambdas.py").read_bytes()
+        before = self.lambda_config.read_bytes()
         with redirect_stderr(StringIO()) as stderr, self.assertRaises(SystemExit) as failure:
             self._apply()
         self.assertEqual(failure.exception.code, 2)
         self.assertIn("未定义的阶段", stderr.getvalue())
-        self.assertEqual((self.root / "Lambdas.py").read_bytes(), before)
+        self.assertEqual(self.lambda_config.read_bytes(), before)
 
     def test_rejects_conflicting_detector_before_writes(self):
-        mapping = _literal_of(self.root / "Lambdas.py", "location_to_intersection_lambda")
-        detector = next(iter(mapping))
         cross_data = json.loads(self.cross_info.read_text(encoding="utf-8"))
-        cross_data["999999"]["jtll_ddbh"] = {str(detector): "U"}
+        cross_data["999999"]["jtll_ddbh"] = {"100011": "U"}
         self.cross_info.write_text(json.dumps(cross_data), encoding="utf-8")
         before = {path: path.read_bytes() for path in self.root.rglob("*") if path.is_file()}
         with redirect_stderr(StringIO()) as stderr, self.assertRaises(SystemExit) as failure:
             self._apply()
         self.assertEqual(failure.exception.code, 2)
-        self.assertIn(f"检测器 {detector}", stderr.getvalue())
+        self.assertIn("检测器 100011", stderr.getvalue())
         self.assertEqual(before, {path: path.read_bytes() for path in self.root.rglob("*") if path.is_file()})
 
     def test_reapply_preserves_the_selected_existing_default(self):
@@ -166,7 +149,7 @@ with patch.object(paths, "ROAD_INFO_PATH", directory / "road_info.json"), \\
         self.assertEqual(overrides["999999"], {"program_id": 3})
 
     def test_reapply_keeps_platform_registration_for_existing_road(self):
-        (self.root / "Lambdas.py").write_text(
+        self.lambda_config.write_text(
             'intersection_list = ["999999"]\n'
             'location_to_intersection_lambda = {100009: ("999999", "U"), 100010: ("999999", "D")}\n'
             'aibi_to_xinkongji = {}\n',
